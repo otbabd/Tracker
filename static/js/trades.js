@@ -29,19 +29,19 @@ registerPage('add-trade', {
       </div>
       <div class="form-group">
         <label>Entry Price ($) *</label>
-        <input type="number" id="f-entry-price" min="0.0001" step="0.01" placeholder="0.00">
+        <input type="number" id="f-entry-price" min="0" step="any" placeholder="0.00">
       </div>
       <div class="form-group">
         <label>Exit Price ($) *</label>
-        <input type="number" id="f-exit-price" min="0.0001" step="0.01" placeholder="0.00">
+        <input type="number" id="f-exit-price" min="0" step="any" placeholder="0.00">
       </div>
       <div class="form-group">
         <label>Shares *</label>
-        <input type="number" id="f-shares" min="0.0001" step="1" placeholder="0">
+        <input type="number" id="f-shares" min="0" step="any" placeholder="0">
       </div>
       <div class="form-group">
         <label>Fees ($)</label>
-        <input type="number" id="f-fees" min="0" step="0.01" value="0" placeholder="0.00">
+        <input type="number" id="f-fees" min="0" step="any" value="0" placeholder="0.00">
       </div>
       <div class="form-group form-full">
         <label>Notes</label>
