@@ -60,6 +60,12 @@ body {
   overflow: hidden;
 }
 [hidden] { display: none !important; }
+.text-mute { color: var(--text-mute); }
+
+/* The unit-nesting pickers read as one control. */
+#unit-levels { display: inline-flex; align-items: center; gap: 6px; }
+#unit-levels select { max-width: 140px; }
+#unit-levels select:disabled { opacity: .45; }
 
 /* ═══ Drop screen ══════════════════════════════════════════════════════════ */
 #drop-screen {
@@ -366,6 +372,13 @@ svg text { unicode-bidi: plaintext; }
       <span class="bar-title">Org Chart</span>
       <span class="bar-file" id="file-name"></span>
 
+      <div class="seg" id="mode-toggle">
+        <button class="btn btn-sm" data-mode="positions" aria-pressed="true"
+                title="One box per position">Positions</button>
+        <button class="btn btn-sm" data-mode="units" aria-pressed="false"
+                title="One box per organisational unit">Org units</button>
+      </div>
+
       <input type="search" id="search" placeholder="Search name, title or ID…" autocomplete="off">
       <span id="search-count" class="field-label"></span>
 
@@ -396,6 +409,12 @@ svg text { unicode-bidi: plaintext; }
       <select id="f-function"></select>
       <select id="f-department"></select>
       <select id="f-grade"></select>
+      <span id="unit-levels" hidden>
+        <span class="field-label" style="margin-right:6px">Nest by</span>
+        <select id="u-l1"></select>
+        <select id="u-l2"></select>
+        <select id="u-l3"></select>
+      </span>
       <div class="spacer"></div>
       <div id="chips"></div>
       <button class="btn btn-sm" id="btn-reset">Reset</button>
@@ -1058,11 +1077,98 @@ function rollUp(roots, byId) {
   }
 }
 
+/* ─── Org unit model ────────────────────────────────────────────────────────
+   The second way of looking at the same file: instead of one box per seat,
+   one box per organisational unit, nested by whichever columns describe the
+   structure — normally Division → Function → Department. Units are derived
+   from the positions currently in view, so filters flow through unchanged.
+   ───────────────────────────────────────────────────────────────────────── */
+const UNIT_DIMS = ['division', 'function', 'department', 'location', 'costCenter', 'jobFamily'];
+
+function unitNode(id, label, dim, level) {
+  return {
+    kind: 'unit', id, label, dim, unitLevel: level,
+    children: [], positions: [], all: [], parent: null, chain: [],
+  };
+}
+
+function buildUnits(positions, levels) {
+  const root = unitNode('u:', 'Whole organisation', null, 0);
+  const byId = new Map([[root.id, root]]);
+
+  for (const p of positions) {
+    let parent = root, path = 'u:';
+    for (const dim of levels) {
+      path += '/' + (p[dim] || UNSET);
+      let node = byId.get(path);
+      if (!node) {
+        node = unitNode(path, p[dim] || UNSET, dim, parent.unitLevel + 1);
+        node.parent = parent;
+        parent.children.push(node);
+        byId.set(path, node);
+      }
+      parent = node;
+    }
+    parent.positions.push(p);
+  }
+
+  // Post-order rollup of everything an org box needs to show.
+  const order = [];
+  (function walk(n) { order.push(n); n.children.forEach(walk); })(root);
+
+  for (let i = order.length - 1; i >= 0; i--) {
+    const u = order[i];
+    u.children.sort((a, b) => b.all.length - a.all.length || a.label.localeCompare(b.label));
+    u.all = u.positions.concat(...u.children.map(c => c.all));
+    u.headcount = u.all.length;
+    u.vacant = u.all.filter(p => p.vacant).length;
+    u.filled = u.headcount - u.vacant;
+    u.fte = Math.round(u.all.reduce((s, p) => s + p.fte, 0) * 10) / 10;
+    u.critical = u.all.filter(p => p.critical).length;
+    u.sama = u.all.filter(p => p.sama).length;
+    u.gaps = u.all.filter(p => p.critical && !p.successor).length;
+    u.unitCount = u.children.reduce((s, c) => s + c.unitCount + 1, 0);
+    // The unit's most senior position is the one running the largest part of
+    // it. Ranking by layer alone would hand the title to a repaired orphan,
+    // which sits at layer 1 by accident of the repair rather than seniority.
+    u.leader = u.all.reduce((best, p) =>
+      !best || p.total > best.total || (p.total === best.total && p.layer < best.layer)
+        ? p : best, null);
+    u.directs = u.children.length;
+    u.isManager = u.children.length > 0;
+    u.total = u.headcount;
+    u.depthBelow = 1 + Math.max(0, ...u.children.map(c => c.depthBelow));
+  }
+
+  // Layers and breadcrumb chains, walking back down.
+  const down = [[root, 1, []]];
+  while (down.length) {
+    const [u, layer, chain] = down.pop();
+    u.layer = layer;
+    u.chain = chain;
+    u.top = u.unitLevel <= 1 ? u : chain.find(a => a.unitLevel === 1) || u;
+    for (const c of u.children) down.push([c, layer + 1, chain.concat(u)]);
+  }
+
+  return { nodes: order, byId, roots: [root], levels };
+}
+
+/* Which columns actually describe this organisation's structure. */
+function defaultUnitLevels(model) {
+  const usable = ['division', 'function', 'department']
+    .filter(d => new Set(model.nodes.map(n => n[d]).filter(Boolean)).size > 1);
+  return usable.length ? usable : ['department'];
+}
+
 /* ─── State ─────────────────────────────────────────────────────────────── */
 const S = {
   model: null,
+  unitModel: null,
+  mode: 'positions',        // 'positions' | 'units'
+  unitLevels: [],
   fileName: '',
   collapsed: new Set(),
+  unitCollapsed: new Set(),
   filters: { function: 'All', department: 'All', grade: 'All' },
   rootId: '',
   highlight: new Set(),
@@ -1098,10 +1204,38 @@ const HIGHLIGHTS = [
 ];
 
 /* ─── Scope: branch selection, filters, visibility ──────────────────────── */
+/* Both views expose the same node interface, so layout, pan/zoom, collapse,
+   export and print work against either without knowing which is on screen. */
+const M  = () => (S.mode === 'units' ? S.unitModel : S.model);
+const CS = () => (S.mode === 'units' ? S.unitCollapsed : S.collapsed);
+const isUnits = () => S.mode === 'units';
+
 const scopeRoots = () => {
-  if (S.rootId && S.model.byId.has(S.rootId)) return [S.model.byId.get(S.rootId)];
-  return S.model.roots;
+  const m = M();
+  if (!m) return [];
+  if (S.rootId && m.byId.has(S.rootId)) return [m.byId.get(S.rootId)];
+  return m.roots;
 };
+
+/* Strict filtering, used to decide which positions the unit tree is built from. */
+function filteredPositions() {
+  if (!filtersActive()) return S.model.nodes;
+  return S.model.nodes.filter(n =>
+    Object.entries(S.filters).every(([k, want]) => want === 'All' || (n[k] || UNSET) === want));
+}
+
+function rebuildUnits() {
+  S.unitModel = buildUnits(filteredPositions(), S.unitLevels);
+}
+
+/* The positions behind whatever is currently in scope — the stats and the
+   flag chips always count people, never boxes. */
+function positionsInScope() {
+  if (!isUnits()) return scopedNodes();
+  const out = new Set();
+  for (const r of scopeRoots()) for (const p of r.all) out.add(p);
+  return [...out];
+}
 
 function filtersActive() {
   return Object.values(S.filters).some(v => v !== 'All');
@@ -1127,7 +1261,7 @@ function computeAllowed() {
 
 let _allowed = null;
 const visibleChildren = n => {
-  if (S.collapsed.has(n.id)) return [];
+  if (CS().has(n.id)) return [];
   return _allowed ? n.children.filter(c => _allowed.has(c.id)) : n.children;
 };
 const hiddenCount = n => {
@@ -1136,6 +1270,17 @@ const hiddenCount = n => {
 };
 
 function applyDefaultCollapse() {
+  if (isUnits()) {
+    // There are only ever a few dozen units, so show the structure whole
+    // unless the file is unusually granular.
+    S.unitCollapsed = new Set();
+    if (S.unitModel.nodes.length > 140) {
+      for (const u of S.unitModel.nodes) {
+        if (u.children.length && u.layer >= DEFAULT_LAYERS) S.unitCollapsed.add(u.id);
+      }
+    }
+    return;
+  }
   S.collapsed = new Set();
   for (const n of S.model.nodes) {
     if (n.children.length && n.layer >= DEFAULT_LAYERS) S.collapsed.add(n.id);
@@ -1202,6 +1347,7 @@ function layout() {
 
 /* ─── Colour ────────────────────────────────────────────────────────────── */
 function colourKey(n) {
+  if (n.kind === 'unit') return n.unitLevel === 0 ? null : (n.top || n).label;
   if (S.colorBy === 'none') return null;
   if (S.colorBy === 'vacancy') return n.vacant ? 'Vacant' : 'Filled';
   return n[S.colorBy] || UNSET;
@@ -1211,7 +1357,7 @@ function colourKey(n) {
    as branches are opened and closed. */
 function buildPalette() {
   const counts = new Map();
-  for (const n of S.model.nodes) {
+  for (const n of (isUnits() ? S.unitModel.nodes : S.model.nodes)) {
     const k = colourKey(n);
     if (k) counts.set(k, (counts.get(k) || 0) + 1);
   }
@@ -1225,6 +1371,7 @@ function buildPalette() {
 }
 
 function colourOf(n) {
+  if (n.kind === 'unit') return S.palette.get(colourKey(n)) || 'var(--accent)';
   if (S.colorBy === 'none') return 'var(--accent)';
   if (S.colorBy === 'vacancy') return n.vacant ? '#d97706' : '#059669';
   return S.palette.get(colourKey(n)) || GREY;
@@ -1253,7 +1400,48 @@ function badges(n) {
   }).join('');
 }
 
+function unitCardSvg(n) {
+  const cls = ['card', 'unit'];
+  if (S.selected === n.id) cls.push('sel');
+  if (S.hits.has(n.id)) cls.push('hit');
+  if (isDimmed(n)) cls.push('dim');
+
+  const lead = n.leader
+    ? (n.leader.title || '—') + (n.leader.vacant ? ' · Vacant' : n.leader.name ? ' · ' + n.leader.name : '')
+    : '—';
+  const people = int(n.headcount) + ' position' + (n.headcount === 1 ? '' : 's') +
+    (n.vacant ? ' · ' + int(n.vacant) + ' vacant' : '');
+  const sub = n.children.length
+    ? int(n.children.length) + ' ' + (n.children[0].dim === 'department' ? 'departments'
+        : n.children[0].dim === 'function' ? 'functions' : 'sub-units')
+    : (n.dim ? 'lowest level' : '');
+  const foot = [sub, dec(n.fte, 1) + ' FTE'].filter(Boolean).join(' · ');
+
+  const gapChip = n.gaps ? (() => {
+    const label = String(n.gaps);
+    const w = Math.max(17, label.length * 7 + 12);
+    return `<g transform="translate(${NODE_W - 11 - w},67)">` +
+      `<title>${n.gaps} critical role${n.gaps > 1 ? 's' : ''} with no successor identified</title>` +
+      `<rect width="${w}" height="15" rx="4" fill="var(--critical)"/>` +
+      `<text x="${w / 2}" y="11" text-anchor="middle" font-size="10" font-weight="700" ` +
+      `fill="#fff">${label}</text></g>`;
+  })() : '';
+  const footMax = NODE_W - 28 - (n.gaps ? 34 : 0);
+
+  return `<g class="${cls.join(' ')}" data-id="${svgesc(n.id)}" transform="translate(${n.x},${n.y})">` +
+    (S.hits.has(n.id) ? `<rect class="card-halo" x="-5" y="-5" width="${NODE_W + 10}" height="${NODE_H + 10}" rx="12"/>` : '') +
+    `<rect class="card-box" width="${NODE_W}" height="${NODE_H}"/>` +
+    `<rect x="0" y="10" width="4" height="${NODE_H - 20}" rx="2" fill="${colourOf(n)}"/>` +
+    `<text class="t-title" x="14" y="24">${svgesc(fit(n.label, NODE_W - 28, FONTS.title))}</text>` +
+    `<text class="t-name" x="14" y="42">${svgesc(fit(lead, NODE_W - 28, FONTS.name))}</text>` +
+    `<text class="t-meta" x="14" y="60">${svgesc(fit(people, NODE_W - 28, FONTS.meta))}</text>` +
+    `<text class="t-count" x="14" y="79">${svgesc(fit(foot, footMax, FONTS.count))}</text>` +
+    gapChip +
+    `</g>`;
+}
+
 function cardSvg(n) {
+  if (n.kind === 'unit') return unitCardSvg(n);
   const badgeCount = (n.critical ? 1 : 0) + (n.sama ? 1 : 0) + ((n.successor || n.critical) ? 1 : 0);
   const titleMax = NODE_W - 28;
   const countMax = NODE_W - 28 - (badgeCount ? badgeCount * 18 + 6 : 0);
@@ -1317,11 +1505,13 @@ function linkSvg(parent, child) {
 function isDimmed(n) {
   if (S.hits.size) return !S.hits.has(n.id);
   if (!S.highlight.size) return false;
-  return ![...S.highlight].some(k => HIGHLIGHTS.find(h => h.key === k).test(n));
+  const tests = [...S.highlight].map(k => HIGHLIGHTS.find(h => h.key === k).test);
+  if (n.kind === 'unit') return !n.all.some(p => tests.some(t => t(p)));
+  return !tests.some(t => t(n));
 }
 
 function draw() {
-  _allowed = computeAllowed();
+  _allowed = isUnits() ? null : computeAllowed();
   const capped = layout();
 
   const links = [];
@@ -1418,7 +1608,8 @@ function centreOn(node, zoom) {
 
 /* Open every ancestor so a node is actually on screen. */
 function revealNode(node) {
-  for (const a of node.chain || []) S.collapsed.delete(a.id);
+  const set = node.kind === 'unit' ? S.unitCollapsed : S.collapsed;
+  for (const a of node.chain || []) set.delete(a.id);
 }
 
 /* ─── Scope helpers for the stats strip and exports ─────────────────────── */
@@ -1438,10 +1629,12 @@ function scopedNodes() {
 
 /* ─── Stats strip ───────────────────────────────────────────────────────── */
 function renderStats() {
-  const ns = scopedNodes();
+  const ns = positionsInScope();
   const managers = ns.filter(n => n.isManager);
   const spans = managers.map(n => n.directs);
-  const layers = ns.length ? (Math.max(...ns.map(n => n.layer)) - Math.min(...ns.map(n => n.layer)) + 1) : 0;
+  const layers = isUnits()
+    ? Math.max(0, ...scopedNodes().map(u => u.unitLevel))
+    : (ns.length ? Math.max(...ns.map(n => n.layer)) - Math.min(...ns.map(n => n.layer)) + 1 : 0);
   const vacant = ns.filter(n => n.vacant).length;
   const critical = ns.filter(n => n.critical).length;
   const gaps = ns.filter(n => n.critical && !n.successor).length;
@@ -1451,10 +1644,12 @@ function renderStats() {
   const cell = (v, k, cls = '', attr = '') =>
     `<div class="stat ${cls}" ${attr}><span class="v">${v}</span><span class="k">${k}</span></div>`;
 
-  let html = cell(int(ns.length), 'Positions')
+  let html = (isUnits() ? cell(int(scopedNodes().length - 1), 'Org units') : '')
+    + cell(int(ns.length), 'Positions')
     + cell(dec(ns.reduce((s, n) => s + n.fte, 0), 1), 'FTE')
-    + cell(int(layers), 'Layers')
-    + cell(spans.length ? dec(spans.reduce((a, b) => a + b, 0) / spans.length, 1) : '—', 'Avg span')
+    + cell(int(layers), isUnits() ? 'Unit levels' : 'Layers')
+    + (isUnits() ? '' :
+        cell(spans.length ? dec(spans.reduce((a, b) => a + b, 0) / spans.length, 1) : '—', 'Avg span'))
     + cell(int(vacant), 'Vacant', vacant ? 'warn' : '');
 
   if (S.model.map.critical || critical) html += cell(int(critical), 'Critical roles');
@@ -1472,7 +1667,7 @@ function renderStats() {
 
 /* ─── Highlight chips ───────────────────────────────────────────────────── */
 function renderChips() {
-  const ns = scopedNodes();
+  const ns = positionsInScope();
   const html = HIGHLIGHTS.map(h => {
     const n = ns.filter(h.test).length;
     if (!n && !S.highlight.has(h.key)) return '';
@@ -1496,16 +1691,23 @@ function distinct(key) {
 }
 
 function renderControls() {
-  const rootOpts = S.model.roots.length > 1 || S.model.nodes.length > 40;
-  const leaders = S.model.nodes
-    .filter(n => n.directs >= 2 && n.layer <= 3)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 60);
+  $$('#mode-toggle [data-mode]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode)));
+
+  const branches = isUnits()
+    ? S.unitModel.nodes.filter(u => u.dim && u.children.length)
+        .sort((a, b) => b.headcount - a.headcount).slice(0, 60)
+        .map(u => [u.id, u.label + ' (' + u.headcount + ')'])
+    : S.model.nodes.filter(n => n.directs >= 2 && n.layer <= 3)
+        .sort((a, b) => b.total - a.total).slice(0, 60)
+        .map(n => [n.id, (n.title || n.name || n.id) + ' (' + n.total + ')']);
 
   $('#f-root').innerHTML = '<option value="">Whole organisation</option>' +
-    leaders.map(n => `<option value="${esc(n.id)}"${n.id === S.rootId ? ' selected' : ''}>` +
-      esc((n.title || n.name || n.id) + ' (' + n.total + ')') + '</option>').join('');
-  $('#f-root').hidden = !rootOpts;
+    branches.map(([id, label]) =>
+      `<option value="${esc(id)}"${id === S.rootId ? ' selected' : ''}>${esc(label)}</option>`).join('');
+  $('#f-root').hidden = branches.length < 2;
+
+  renderUnitLevels();
 
   fillSelect($('#f-function'), 'Function', distinct('function'), S.filters.function);
   fillSelect($('#f-department'), 'Department', distinct('department'), S.filters.department);
@@ -1514,6 +1716,9 @@ function renderControls() {
   $('#f-department').hidden = distinct('department').length < 2;
   $('#f-grade').hidden = distinct('grade').length < 2;
 
+  // In unit mode the boxes take their colour from the top-level unit, so the
+  // colour picker has nothing to offer.
+  $('#color-by').hidden = isUnits();
   const dims = DIMENSIONS.filter(d => distinct(d.key).length > 1);
   $('#color-by').innerHTML = '<option value="none">No colour</option>' +
     '<option value="vacancy"' + (S.colorBy === 'vacancy' ? ' selected' : '') + '>Colour: filled / vacant</option>' +
@@ -1524,12 +1729,43 @@ function renderControls() {
   }
 }
 
+/* The nesting columns are the whole definition of the unit hierarchy, so they
+   are picked in the open rather than assumed. */
+function renderUnitLevels() {
+  $('#unit-levels').hidden = !isUnits();
+  if (!isUnits()) return;
+
+  const available = UNIT_DIMS.filter(d => distinct(d).length > 1);
+  [0, 1, 2].forEach(i => {
+    const sel = $('#u-l' + (i + 1));
+    const current = S.unitLevels[i] || '';
+    sel.innerHTML = (i === 0 ? '' : '<option value="">— none —</option>') +
+      available.map(d => {
+        const label = (DIMENSIONS.find(x => x.key === d) || {}).label || d;
+        return `<option value="${d}"${d === current ? ' selected' : ''}>${esc(label)}</option>`;
+      }).join('');
+    sel.value = available.includes(current) ? current : (i === 0 ? available[0] || '' : '');
+    sel.disabled = i > 0 && !S.unitLevels[i - 1];
+  });
+}
+
+function readUnitLevels() {
+  const picked = [];
+  for (const id of ['#u-l1', '#u-l2', '#u-l3']) {
+    const v = $(id).value;
+    if (v && !picked.includes(v)) picked.push(v);
+  }
+  return picked.length ? picked : [UNIT_DIMS.find(d => distinct(d).length > 1) || 'department'];
+}
+
 /* ─── Legend ────────────────────────────────────────────────────────────── */
 let legendOpen = true;
 function renderLegend(counts) {
   const el = $('#legend');
   if (S.colorBy === 'none' || !S.palette.size) { el.hidden = true; return; }
-  const label = S.colorBy === 'vacancy' ? 'Filled / vacant'
+  const label = isUnits()
+    ? (DIMENSIONS.find(d => d.key === S.unitLevels[0]) || {}).label || 'Top level'
+    : S.colorBy === 'vacancy' ? 'Filled / vacant'
     : (DIMENSIONS.find(d => d.key === S.colorBy) || {}).label || S.colorBy;
   const rows = [...S.palette.entries()].slice(0, 16);
   el.hidden = false;
@@ -1544,6 +1780,7 @@ function renderLegend(counts) {
 
 /* ─── Full refresh ──────────────────────────────────────────────────────── */
 function refresh(keepView) {
+  if (isUnits()) rebuildUnits();
   const counts = buildPalette();
   const before = { ...S.view };
   draw();
@@ -1562,9 +1799,77 @@ function fieldValue(node, key) {
   return v ? esc(v) : '—';
 }
 
+function topValues(positions, key, limit) {
+  const counts = new Map();
+  for (const p of positions) {
+    const v = p[key] || UNSET;
+    counts.set(v, (counts.get(v) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+function openUnitDetail(u) {
+  S.selected = u.id;
+  const chips = arr => arr.map(([v, c]) =>
+    `<span class="tag tag-plain">${esc(v)} <span class="text-mute">${c}</span></span>`).join('');
+
+  const subs = u.children.length ? `<div class="dt-sec"><h4>Sub-units (${u.children.length})</h4>
+    <div class="rlist">${u.children.map(c => `<div class="ritem" data-goto="${esc(c.id)}">
+      <span class="txt"><div>${esc(c.label)}</div>
+      <div>${c.leader ? esc(c.leader.title || '—') : '—'}</div></span>
+      ${c.gaps ? `<span class="tag tag-critical">${c.gaps} gap${c.gaps > 1 ? 's' : ''}</span>` : ''}
+      ${c.vacant ? `<span class="tag tag-vacant">${c.vacant} vacant</span>` : ''}
+      <span class="tag tag-plain">${int(c.headcount)}</span></div>`).join('')}</div></div>` : '';
+
+  const crumbs = u.chain.length ? `<div class="dt-sec"><h4>Sits within</h4><div class="crumbs">` +
+    u.chain.map(a => `<a data-goto="${esc(a.id)}">${esc(a.label)}</a>`).join('<span class="sep">›</span>') +
+    `</div></div>` : '';
+
+  const lead = u.leader ? `<div class="dt-sec"><h4>Most senior position</h4>
+      <div class="ritem" data-goto-position="${esc(u.leader.id)}">
+        <span class="txt"><div>${esc(u.leader.title || u.leader.id)}</div>
+        <div>${u.leader.vacant ? 'Vacant' : esc(u.leader.name || '—')}</div></span>
+        <span class="tag tag-plain">${esc(u.leader.grade || '—')}</span>
+      </div></div>` : '';
+
+  $('#detail').hidden = false;
+  $('#detail').innerHTML = `
+    <div class="dt-head">
+      <div style="flex:1;min-width:0">
+        <h3>${esc(u.label)}</h3>
+        <div class="sub">${u.dim ? esc((DIMENSIONS.find(d => d.key === u.dim) || {}).label || u.dim) : 'Organisation'}</div>
+      </div>
+      <button class="btn btn-sm btn-icon" id="dt-close" title="Close">✕</button>
+    </div>
+    <div class="dt-body">
+      ${u.gaps ? `<p class="note" style="color:var(--critical)">${int(u.gaps)} critical role${u.gaps > 1 ? 's' : ''} here with no successor identified.</p>` : ''}
+      <div class="mini">
+        <div><div class="v">${int(u.headcount)}</div><div class="k">Positions</div></div>
+        <div><div class="v">${dec(u.fte, 1)}</div><div class="k">FTE</div></div>
+        <div><div class="v">${int(u.vacant)}</div><div class="k">Vacant</div></div>
+        <div><div class="v">${int(u.unitCount)}</div><div class="k">Units below</div></div>
+        <div><div class="v">${int(u.critical)}</div><div class="k">Critical roles</div></div>
+        <div><div class="v">${int(u.sama)}</div><div class="k">SAMA roles</div></div>
+      </div>
+      ${crumbs}
+      ${lead}
+      <div class="dt-sec"><h4>Grades</h4><div class="tagrow">${chips(topValues(u.all, 'grade', 8))}</div></div>
+      <div class="dt-sec"><h4>Most common titles</h4><div class="tagrow">${chips(topValues(u.all, 'title', 6))}</div></div>
+      <div class="dt-sec"><h4>Locations</h4><div class="tagrow">${chips(topValues(u.all, 'location', 6))}</div></div>
+      ${subs}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${u.dim ? `<button class="btn btn-sm btn-primary" data-drill='${esc(JSON.stringify({ k: u.dim, v: u.label }))}'>Show these positions</button>` : ''}
+        <button class="btn btn-sm" data-printbranch="${esc(u.id)}">Print this branch</button>
+      </div>
+    </div>`;
+  $('#dt-close').onclick = closeDetail;
+  draw();
+}
+
 function openDetail(id) {
-  const n = S.model.byId.get(id);
+  const n = M().byId.get(id);
   if (!n) return;
+  if (n.kind === 'unit') return openUnitDetail(n);
   S.selected = id;
 
   const tags = [];
@@ -1669,11 +1974,16 @@ const runSearch = debounce(() => {
     refresh(true);
     return;
   }
-  const matches = S.model.nodes.filter(n =>
-    (n.name && n.name.toLowerCase().includes(q)) ||
-    (n.title && n.title.toLowerCase().includes(q)) ||
-    String(n.id).toLowerCase().includes(q) ||
-    (n.email && n.email.toLowerCase().includes(q)));
+  const matches = isUnits()
+    ? S.unitModel.nodes.filter(u =>
+        u.label.toLowerCase().includes(q) ||
+        (u.leader && ((u.leader.name || '').toLowerCase().includes(q) ||
+                      (u.leader.title || '').toLowerCase().includes(q))))
+    : S.model.nodes.filter(n =>
+        (n.name && n.name.toLowerCase().includes(q)) ||
+        (n.title && n.title.toLowerCase().includes(q)) ||
+        String(n.id).toLowerCase().includes(q) ||
+        (n.email && n.email.toLowerCase().includes(q)));
 
   matches.slice(0, 400).forEach(n => { S.hits.add(n.id); revealNode(n); });
   $('#search-count').textContent = matches.length
@@ -1693,7 +2003,29 @@ const csvCell = v => {
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 };
 
+function exportUnitCsv() {
+  const levels = S.unitModel.levels;
+  const cols = [
+    ['Level', u => u.unitLevel], ['Unit', u => u.label],
+    ['Type', u => u.dim ? (DIMENSIONS.find(d => d.key === u.dim) || {}).label || u.dim : 'Organisation'],
+    ['Path', u => u.chain.concat(u).filter(a => a.dim).map(a => a.label).join(' > ')],
+    ['Positions', u => u.headcount], ['Filled', u => u.filled], ['Vacant', u => u.vacant],
+    ['FTE', u => u.fte], ['Sub-units', u => u.children.length], ['Units below', u => u.unitCount],
+    ['Critical Roles', u => u.critical], ['SAMA Roles', u => u.sama],
+    ['Succession Gaps', u => u.gaps],
+    ['Most Senior Position', u => u.leader ? u.leader.title : ''],
+    ['Leader', u => S.present || !u.leader ? '' : (u.leader.vacant ? 'Vacant' : u.leader.name)],
+  ];
+  const rows = scopedNodes().sort((a, b) =>
+    a.unitLevel - b.unitLevel || b.headcount - a.headcount);
+  const csv = [cols.map(c => csvCell(c[0])).join(',')]
+    .concat(rows.map(u => cols.map(c => csvCell(c[1](u))).join(','))).join('\r\n');
+  download(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), 'org-units.csv');
+  toast('Exported ' + rows.length + ' units (' + levels.join(' > ') + ')');
+}
+
 function exportCsv() {
+  if (isUnits()) return exportUnitCsv();
   const cols = [
     ['ID', n => n.id], ['Job Title', n => n.title], ['Incumbent', n => n.vacant ? 'Vacant' : n.name],
     ['Status', n => n.status], ['Grade', n => n.grade], ['Job Code', n => n.jobCode],
@@ -1823,9 +2155,11 @@ function preparePrint() {
     transform: vp.getAttribute('transform'),
   };
 
-  const scope = S.rootId ? S.model.byId.get(S.rootId) : null;
+  const scope = S.rootId ? M().byId.get(S.rootId) : null;
+  const scopeName = scope ? (scope.kind === 'unit' ? scope.label : (scope.title || scope.name || scope.id))
+    : (isUnits() ? 'Organisation structure' : 'Organisation chart');
   $('#print-head').innerHTML =
-    `<h2>${esc(scope ? (scope.title || scope.name || scope.id) : 'Organisation chart')}</h2>` +
+    `<h2>${esc(scopeName)}</h2>` +
     `<p>${esc(S.fileName)} · ${int(scopedNodes().length)} positions · ` +
     `${new Date().toLocaleDateString()}${S.present ? ' · names hidden' : ''}</p>`;
 
@@ -1953,6 +2287,10 @@ function startModel(headers, records, map, fileName, remember) {
   S.filters = { function: 'All', department: 'All', grade: 'All' };
   S.highlight = new Set();
   S.hintShown = false;
+  S.mode = 'positions';
+  S.unitCollapsed = new Set();
+  S.unitLevels = defaultUnitLevels(model);
+  S.unitModel = null;
   applyDefaultCollapse();
 
   if (remember) saveMapping(headers, map);
@@ -2144,6 +2482,28 @@ function wirePanZoom() {
   $('#btn-fit').onclick = fitToScreen;
 }
 
+function setMode(mode) {
+  S.mode = mode;
+  S.hintShown = false;
+  // The model has to exist before anything can draw against it.
+  if (mode === 'units') {
+    if (!S.unitLevels.length) S.unitLevels = defaultUnitLevels(S.model);
+    rebuildUnits();
+  }
+  S.rootId = '';
+  S.selected = null;
+  S.hits = new Set();
+  S.search = '';
+  $('#search').value = '';
+  $('#search-count').textContent = '';
+  $('#search').placeholder = mode === 'units'
+    ? 'Search unit or its leader…' : 'Search name, title or ID…';
+  $('#detail').hidden = true;
+  applyDefaultCollapse();
+  renderControls();
+  refresh();
+}
+
 function setTheme(theme) {
   if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
   else delete document.documentElement.dataset.theme;
@@ -2154,6 +2514,23 @@ function wireApp() {
   $('#search').oninput = e => { S.search = e.target.value; runSearch(); };
 
   $('#color-by').onchange = e => { S.colorBy = e.target.value; refresh(true); };
+
+  $('#mode-toggle').onclick = e => {
+    const b = e.target.closest('[data-mode]');
+    if (!b || b.dataset.mode === S.mode) return;
+    setMode(b.dataset.mode);
+  };
+
+  for (const id of ['#u-l1', '#u-l2', '#u-l3']) {
+    $(id).onchange = () => {
+      S.unitLevels = readUnitLevels();
+      S.rootId = '';
+      rebuildUnits();
+      applyDefaultCollapse();
+      renderControls();
+      refresh();
+    };
+  }
 
   $('#f-root').onchange = e => {
     S.rootId = e.target.value;
@@ -2197,7 +2574,7 @@ function wireApp() {
   };
 
   $('#btn-expand').onclick = () => {
-    S.collapsed = new Set();
+    if (isUnits()) S.unitCollapsed = new Set(); else S.collapsed = new Set();
     refresh();
     if (S.drawn.length >= DRAW_CAP) toast('That is a lot of boxes — collapse a branch if it feels slow.');
   };
@@ -2233,7 +2610,7 @@ function wireApp() {
 
     const goto = e.target.closest('[data-goto]');
     if (goto) {
-      const n = S.model.byId.get(goto.dataset.goto);
+      const n = M().byId.get(goto.dataset.goto);
       if (n) { revealNode(n); refresh(true); centreOn(n, true); openDetail(n.id); }
       return;
     }
@@ -2242,10 +2619,28 @@ function wireApp() {
       S.rootId = focus.dataset.focus;
       $('#f-root').value = S.rootId;
       applyDefaultCollapse();
-      const n = S.model.byId.get(S.rootId);
-      if (n) S.collapsed.delete(n.id);
+      const n = M().byId.get(S.rootId);
+      if (n) CS().delete(n.id);
       closeDetail();
       refresh();
+      return;
+    }
+    const drill = e.target.closest('[data-drill]');
+    if (drill) {
+      const { k, v } = JSON.parse(drill.dataset.drill);
+      if (S.filters[k] !== undefined) S.filters[k] = v;
+      setMode('positions');
+      renderControls();
+      refresh();
+      toast('Showing positions in ' + v);
+      return;
+    }
+    const gotoPos = e.target.closest('[data-goto-position]');
+    if (gotoPos) {
+      const id = gotoPos.dataset.gotoPosition;
+      setMode('positions');
+      const n = S.model.byId.get(id);
+      if (n) { revealNode(n); refresh(true); centreOn(n, true); openDetail(id); }
       return;
     }
     const pb = e.target.closest('[data-printbranch]');
@@ -2253,7 +2648,7 @@ function wireApp() {
       S.rootId = pb.dataset.printbranch;
       $('#f-root').value = S.rootId;
       applyDefaultCollapse();
-      S.collapsed.delete(S.rootId);
+      CS().delete(S.rootId);
       closeDetail();
       refresh();
       setTimeout(printChart, 120);
