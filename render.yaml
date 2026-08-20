@@ -11,3 +11,5 @@ services:
     envVars:
       - key: DB_PATH
         value: /data/trades.db
+      - key: ORG_DB_PATH
+        value: /data/org.db

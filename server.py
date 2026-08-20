@@ -13,9 +13,14 @@ from database import (
 from calculations import build_trade_record, compute_metrics, compute_streaks
 from exports import to_csv, to_excel, to_pdf
 
+import org_db
+from org_api import router as org_router
+
 app = FastAPI(title="Trading Performance Tracker")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 init_db()
+org_db.init_db()
+app.include_router(org_router)
 
 
 class TradeIn(BaseModel):
@@ -242,5 +247,7 @@ def export_pdf(ticker: Optional[str]=None, direction: Optional[str]=None,
                     headers={"Content-Disposition": 'attachment; filename="report.pdf"'})
 
 
-# Mount static last so API routes take priority
+# ── Static ────────────────────────────────────────────────────────────────────
+# Mount static last so API routes take priority.
+app.mount("/org", StaticFiles(directory="static/org", html=True), name="org")
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
