@@ -60,6 +60,10 @@ body {
   overflow: hidden;
 }
 [hidden] { display: none !important; }
+
+/* A unit with nobody in it reads as an outline rather than a filled box. */
+.card.hollow .card-box { stroke: var(--vacant); stroke-dasharray: 5 3; }
+.prose { font-size: .85rem; line-height: 1.55; color: var(--text-dim); white-space: pre-wrap; }
 .text-mute { color: var(--text-mute); }
 
 /* The unit-nesting pickers read as one control. */
@@ -683,22 +687,37 @@ async function readXlsx(buffer) {
 
   const isDateStyle = dateStyles(text('xl/styles.xml'));
 
-  // Follow workbook.xml through its rels to the first sheet: sheet order and
-  // filename order are not the same thing.
-  let target = 'xl/worksheets/sheet1.xml';
-  const firstSheet = /<sheet\b[^>]*?r:id="([^"]+)"/.exec(text('xl/workbook.xml'));
-  if (firstSheet) {
-    const rel = new RegExp('Id="' + firstSheet[1] + '"[^>]*Target="([^"]+)"')
-      .exec(text('xl/_rels/workbook.xml.rels'));
-    if (rel) target = 'xl/' + rel[1].replace(/^\//, '').replace(/^xl\//, '');
+  // Follow workbook.xml through its rels to each sheet in workbook order:
+  // sheet order and filename order are not the same thing. Every sheet is
+  // read, because a unit list often travels as a second tab.
+  const rels = text('xl/_rels/workbook.xml.rels');
+  const sheets = [];
+  for (const m of text('xl/workbook.xml').matchAll(/<sheet\b([^>]*)\/?>/g)) {
+    const name = (/name="([^"]*)"/.exec(m[1]) || [, 'Sheet'])[1];
+    const rid = (/r:id="([^"]+)"/.exec(m[1]) || [])[1];
+    let target = null;
+    if (rid) {
+      // Match the whole relationship element and read Target out of it:
+      // writers order these attributes differently, and assuming Target
+      // follows Id silently drops back to guessing by filename.
+      const el = new RegExp('<Relationship[^>]*Id="' + rid + '"[^>]*>').exec(rels);
+      const t = el && /Target="([^"]+)"/.exec(el[0]);
+      if (t) target = 'xl/' + t[1].replace(/^\//, '').replace(/^xl\//, '');
+    }
+    if (target && files.has(target)) sheets.push({ name: unxml(name), target });
   }
-  if (!files.has(target)) {
-    target = [...files.keys()].find(k => k.startsWith('xl/worksheets/') && k.endsWith('.xml'));
+  if (!sheets.length) {
+    const any = [...files.keys()].filter(k => k.startsWith('xl/worksheets/') && k.endsWith('.xml'));
+    any.forEach((t, i) => sheets.push({ name: 'Sheet' + (i + 1), target: t }));
   }
-  if (!target) throw new Error('No worksheet found inside the file.');
+  if (!sheets.length) throw new Error('No worksheet found inside the file.');
 
+  return sheets.map(sh => ({ name: sh.name, rows: readSheetRows(text(sh.target), shared, isDateStyle) }));
+}
+
+function readSheetRows(xml, shared, isDateStyle) {
   const rows = [];
-  for (const rowM of text(target).matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+  for (const rowM of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
     const cells = [];
     for (const c of rowM[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const attrs = c[1], body = c[2] || '';
@@ -823,6 +842,19 @@ const FIELDS = [
   { key: 'hireDate',   label: 'Hire Date',   aliases: ['hiredate','startdate','joindate','dateofjoining','dateofhire','joiningdate','servicedate'] },
   { key: 'nationality',label: 'Nationality', aliases: ['nationality','citizenship','nationalitycode','saudization','saudi'] },
 
+  { key: 'functionType', label: 'Function Type', aliases: [
+    'functiontype','unittype','orgunittype','organizationalunittype','unitcategory',
+    'functioncategory','businesstype','naturetype','lineofdefence','lineofdefense',
+    'linesofdefence','linesofdefense','defenceline','defenseline','businesssupport',
+    'functionclassification','unitclassification','businessorsupport'] },
+
+  { key: 'responsibilities', label: 'Roles & Responsibilities', aliases: [
+    'rolesandresponsibilities','rolesresponsibilities','responsibilities',
+    'keyresponsibilities','mainresponsibilities','coreresponsibilities',
+    'accountabilities','mandate','unitmandate','purpose','jobpurpose','rolepurpose',
+    'jobsummary','mainduties','duties','scopeofwork','functiondescription',
+    'unitdescription','remit','charter'] },
+
   { key: 'critical', label: 'Critical Role', flag: true, aliases: [
     'criticalrole','critical','iscritical','criticalposition','keyrole','keyposition',
     'criticality','businesscritical','criticalflag'] },
@@ -865,7 +897,7 @@ const UNSET = 'Unspecified';
 const normHeader = s => String(s).toLowerCase().replace(/[^a-z0-9؀-ۿ]/g, '');
 
 /* ─── Column detection ──────────────────────────────────────────────────── */
-function detectColumns(headers, records) {
+function detectColumns(headers, records, opts = {}) {
   const norm = new Map(headers.map(h => [h, normHeader(h)]));
   const map = {}, taken = new Set();
   const claim = (key, header) => { map[key] = header; taken.add(header); };
@@ -888,7 +920,9 @@ function detectColumns(headers, records) {
   }
   // Last resort for the one field nothing works without: the first fully
   // populated, entirely unique column is almost certainly an identifier.
-  if (!map.id && records.length) {
+  // Skipped when the caller is only asking whether this looks like positions
+  // at all — any list of names would otherwise pass as one.
+  if (!map.id && records.length && !opts.noFallback) {
     for (const h of headers) {
       if (taken.has(h)) continue;
       const vals = records.map(r => r[h]);
@@ -940,6 +974,7 @@ function buildModel(headers, records, map) {
   const extraHeaders = headers.filter(h => !Object.values(map).includes(h));
   const issues = [];
   const nodes = [];
+  const declaredUnits = [];
   const byId = new Map();
 
   records.forEach((rec, i) => {
@@ -948,7 +983,18 @@ function buildModel(headers, records, map) {
     const line = i + 2;
 
     if (!id) {
-      issues.push({ type: 'noid', text: 'Row ' + line + ' has no ID and was skipped.' });
+      // A row with no position but a unit on it is how an empty unit is
+      // declared: the seat does not exist yet, the box on the chart does.
+      const declared = {};
+      for (const d of UNIT_DIMS) declared[d] = get(d);
+      if (UNIT_DIMS.some(d => declared[d])) {
+        declared.functionType = get('functionType');
+        declared.responsibilities = get('responsibilities');
+        declared.source = 'row ' + line;
+        declaredUnits.push(declared);
+      } else {
+        issues.push({ type: 'noid', text: 'Row ' + line + ' has no ID and was skipped.' });
+      }
       return;
     }
     if (byId.has(id)) {
@@ -983,6 +1029,7 @@ function buildModel(headers, records, map) {
       location: get('location'), employmentType: get('employmentType'),
       costCenter: get('costCenter'), email: get('email'), hireDate: get('hireDate'),
       nationality: get('nationality'),
+      functionType: get('functionType'), responsibilities: get('responsibilities'),
       fte: parseFte(get('fte')),
       critical, sama, successor,
       successorName, successorReadiness: get('successorReadiness'),
@@ -1040,8 +1087,14 @@ function buildModel(headers, records, map) {
     issues.push({ type: 'roots', text: roots.length + ' positions have no manager, so the file holds several separate trees.' });
   }
 
+  if (declaredUnits.length) {
+    issues.push({ type: 'declared',
+      text: declaredUnits.length + ' row' + (declaredUnits.length > 1 ? 's' : '') +
+            ' named a unit without a position — shown as empty units in the org-unit view.' });
+  }
+
   rollUp(roots, byId);
-  return { nodes, byId, roots, issues, extraHeaders, map, headers };
+  return { nodes, byId, roots, issues, extraHeaders, map, headers, declaredUnits };
 }
 
 /* Post-order rollups, done iteratively so a deep file cannot blow the stack. */
@@ -1085,31 +1138,159 @@ function rollUp(roots, byId) {
    ───────────────────────────────────────────────────────────────────────── */
 const UNIT_DIMS = ['division', 'function', 'department', 'location', 'costCenter', 'jobFamily'];
 
+/* ── An explicit org-unit list ───────────────────────────────────────────────
+   A second sheet or a second file describing the structure itself, so units
+   with nobody in them still exist, and so a unit can carry a mandate of its
+   own rather than borrowing one from a seat inside it.
+   ─────────────────────────────────────────────────────────────────────────── */
+const UNIT_LIST_FIELDS = [
+  { key: 'name', label: 'Unit Name', required: true, aliases: [
+    'unit','unitname','orgunit','orgunitname','organizationalunit','organisationalunit',
+    'organizationunit','unittitle','unitdescription','departmentname','department',
+    'functionname','structurename','nodename'] },
+  { key: 'parent', label: 'Parent Unit', aliases: [
+    'parent','parentunit','parentorgunit','parentname','reportstounit','partof',
+    'belongsto','higherunit','parentdepartment','parentfunction'] },
+  { key: 'code', label: 'Unit Code', aliases: [
+    'unitcode','orgunitcode','unitid','orgunitid','code','departmentcode','deptcode'] },
+  { key: 'type', label: 'Function Type', aliases: [
+    'functiontype','unittype','orgunittype','type','category','unitcategory',
+    'lineofdefence','lineofdefense','linesofdefence','businesstype','classification'] },
+  { key: 'responsibilities', label: 'Roles & Responsibilities', aliases: [
+    'rolesandresponsibilities','rolesresponsibilities','responsibilities',
+    'keyresponsibilities','mainresponsibilities','accountabilities','mandate',
+    'purpose','remit','charter','scopeofwork','description','unitdescription','duties'] },
+  { key: 'head', label: 'Unit Head', aliases: [
+    'head','unithead','owner','unitowner','manager','headofunit','responsible','leader'] },
+  { key: 'status', label: 'Unit Status', aliases: [
+    'status','unitstatus','active','state','isactive'] },
+];
+
+function detectUnitColumns(headers) {
+  const norm = new Map(headers.map(h => [h, normHeader(h)]));
+  const map = {}, taken = new Set();
+  for (const f of UNIT_LIST_FIELDS) {
+    for (const alias of f.aliases) {
+      const hit = headers.find(h => norm.get(h) === alias && !taken.has(h));
+      if (hit) { map[f.key] = hit; taken.add(hit); break; }
+    }
+  }
+  for (const f of UNIT_LIST_FIELDS) {
+    if (map[f.key]) continue;
+    for (const alias of f.aliases) {
+      if (alias.length < 6) continue;
+      const hit = headers.find(h => !taken.has(h) && norm.get(h).includes(alias));
+      if (hit) { map[f.key] = hit; taken.add(hit); break; }
+    }
+  }
+  return map;
+}
+
+/* Deciding whether a sheet is a unit list rather than more positions. Requiring
+   a descriptive column as well as a name keeps an ordinary position tab from
+   being mistaken for one. */
+function looksLikeUnitList(sheetName, headers, records) {
+  const map = detectUnitColumns(headers);
+  if (!map.name) return null;
+
+  // A real position sheet names its ID column and carries a job title or an
+  // incumbent. Anything else that names units is treated as structure.
+  const asPositions = detectColumns(headers, records, { noFallback: true });
+  if (asPositions.id && (asPositions.title || asPositions.name)) return null;
+
+  const named = /unit|structure|org|depart|function|hierarch/i.test(sheetName || '');
+  const descriptive = map.parent || map.type || map.responsibilities || map.code;
+  return (named || descriptive) ? map : null;
+}
+
+function parseUnitList(headers, records, map) {
+  const out = [];
+  for (const r of records) {
+    const name = (r[map.name] || '').trim();
+    if (!name) continue;
+    out.push({
+      name,
+      parent: map.parent ? (r[map.parent] || '').trim() : '',
+      code: map.code ? (r[map.code] || '').trim() : '',
+      type: map.type ? (r[map.type] || '').trim() : '',
+      responsibilities: map.responsibilities ? (r[map.responsibilities] || '').trim() : '',
+      head: map.head ? (r[map.head] || '').trim() : '',
+      status: map.status ? (r[map.status] || '').trim() : '',
+    });
+  }
+  return out;
+}
+
 function unitNode(id, label, dim, level) {
   return {
     kind: 'unit', id, label, dim, unitLevel: level,
     children: [], positions: [], all: [], parent: null, chain: [],
+    functionType: '', responsibilities: '', code: '', declaredHead: '', declared: false,
   };
 }
 
-function buildUnits(positions, levels) {
+function buildUnits(positions, levels, declaredUnits = [], unitList = []) {
   const root = unitNode('u:', 'Whole organisation', null, 0);
   const byId = new Map([[root.id, root]]);
 
-  for (const p of positions) {
+  const descend = (rec, stopAtBlank) => {
     let parent = root, path = 'u:';
     for (const dim of levels) {
-      path += '/' + (p[dim] || UNSET);
+      const raw = rec[dim];
+      if (stopAtBlank && !raw) break;   // a declared unit only goes as deep as it names
+      path += '/' + (raw || UNSET);
       let node = byId.get(path);
       if (!node) {
-        node = unitNode(path, p[dim] || UNSET, dim, parent.unitLevel + 1);
+        node = unitNode(path, raw || UNSET, dim, parent.unitLevel + 1);
         node.parent = parent;
         parent.children.push(node);
         byId.set(path, node);
       }
       parent = node;
     }
-    parent.positions.push(p);
+    return parent;
+  };
+
+  for (const p of positions) descend(p, false).positions.push(p);
+
+  // Units declared by an ID-less row: they exist, they just hold nobody.
+  for (const d of declaredUnits) {
+    const node = descend(d, true);
+    if (node === root) continue;
+    node.declared = true;
+    if (d.functionType && !node.functionType) node.functionType = d.functionType;
+    if (d.responsibilities && !node.responsibilities) node.responsibilities = d.responsibilities;
+  }
+
+  // An explicit unit list: annotate what already exists, create what does not.
+  if (unitList.length) {
+    const byLabel = new Map();
+    for (const n of byId.values()) if (n.dim) byLabel.set(n.label.trim().toLowerCase(), n);
+
+    // Two passes, so a child listed before its parent still lands correctly.
+    for (const pass of [0, 1]) {
+      for (const u of unitList) {
+        const key = u.name.trim().toLowerCase();
+        let node = byLabel.get(key);
+        if (!node) {
+          if (pass === 0) continue;   // give the parent a chance to be created first
+          const parent = (u.parent && byLabel.get(u.parent.trim().toLowerCase())) || root;
+          const dim = levels[Math.min(parent.unitLevel, levels.length - 1)];
+          node = unitNode(parent.id + '/' + u.name, u.name, dim, parent.unitLevel + 1);
+          node.parent = parent;
+          node.declared = true;
+          parent.children.push(node);
+          byId.set(node.id, node);
+          byLabel.set(key, node);
+        }
+        node.listed = true;
+        if (u.type) node.functionType = u.type;
+        if (u.responsibilities) node.responsibilities = u.responsibilities;
+        if (u.code) node.code = u.code;
+        if (u.head) node.declaredHead = u.head;
+        if (u.status) node.unitStatus = u.status;
+      }
+    }
   }
 
   // Post-order rollup of everything an org box needs to show.
@@ -1138,6 +1319,17 @@ function buildUnits(positions, levels) {
     u.isManager = u.children.length > 0;
     u.total = u.headcount;
     u.depthBelow = 1 + Math.max(0, ...u.children.map(c => c.depthBelow));
+
+    // Three ways a unit can have nobody in it, and they mean different things.
+    u.empty = u.headcount === 0;
+    u.unstaffed = u.headcount > 0 && u.filled === 0;
+    u.unmapped = u.label === UNSET;
+
+    // A unit with no type of its own takes the one its positions agree on.
+    if (!u.functionType) {
+      const types = topValues(u.all.filter(p => p.functionType), 'functionType', 1);
+      if (types.length) u.functionType = types[0][0];
+    }
   }
 
   // Layers and breadcrumb chains, walking back down.
@@ -1164,6 +1356,8 @@ function defaultUnitLevels(model) {
 const S = {
   model: null,
   unitModel: null,
+  unitList: [],
+  unitListSource: '',
   mode: 'positions',        // 'positions' | 'units'
   unitLevels: [],
   fileName: '',
@@ -1203,6 +1397,14 @@ const HIGHLIGHTS = [
   { key: 'vacant',   label: 'Vacant',                 colour: 'var(--vacant)',   test: n => n.vacant },
 ];
 
+/* Unit-only highlights: these describe a box, not a person, so they cannot be
+   answered by testing the positions inside. */
+const UNIT_HIGHLIGHTS = [
+  { key: 'hollow', label: 'Nobody in post', colour: 'var(--vacant)',
+    test: u => u.empty || u.unstaffed },
+  { key: 'unmapped', label: 'Unmapped', colour: 'var(--critical)', test: u => u.unmapped },
+];
+
 /* ─── Scope: branch selection, filters, visibility ──────────────────────── */
 /* Both views expose the same node interface, so layout, pan/zoom, collapse,
    export and print work against either without knowing which is on screen. */
@@ -1225,7 +1427,8 @@ function filteredPositions() {
 }
 
 function rebuildUnits() {
-  S.unitModel = buildUnits(filteredPositions(), S.unitLevels);
+  S.unitModel = buildUnits(filteredPositions(), S.unitLevels,
+                           S.model.declaredUnits || [], S.unitList || []);
 }
 
 /* The positions behind whatever is currently in scope — the stats and the
@@ -1405,17 +1608,24 @@ function unitCardSvg(n) {
   if (S.selected === n.id) cls.push('sel');
   if (S.hits.has(n.id)) cls.push('hit');
   if (isDimmed(n)) cls.push('dim');
+  if (n.empty || n.unstaffed) cls.push('hollow');
 
-  const lead = n.leader
-    ? (n.leader.title || '—') + (n.leader.vacant ? ' · Vacant' : n.leader.name ? ' · ' + n.leader.name : '')
-    : '—';
-  const people = int(n.headcount) + ' position' + (n.headcount === 1 ? '' : 's') +
-    (n.vacant ? ' · ' + int(n.vacant) + ' vacant' : '');
+  const lead = n.empty
+    ? ((S.present ? '' : n.declaredHead) || 'No positions mapped')
+    : n.leader
+      ? (n.leader.title || '—') + (n.leader.vacant ? ' · Vacant' : n.leader.name ? ' · ' + n.leader.name : '')
+      : '—';
+  const people = n.empty
+    ? (n.listed ? 'Declared in the unit list' : 'Declared, no positions')
+    : int(n.headcount) + ' position' + (n.headcount === 1 ? '' : 's') +
+      (n.vacant ? ' · ' + int(n.vacant) + ' vacant' : '') +
+      (n.unstaffed ? ' · nobody in post' : '');
   const sub = n.children.length
     ? int(n.children.length) + ' ' + (n.children[0].dim === 'department' ? 'departments'
         : n.children[0].dim === 'function' ? 'functions' : 'sub-units')
-    : (n.dim ? 'lowest level' : '');
-  const foot = [sub, dec(n.fte, 1) + ' FTE'].filter(Boolean).join(' · ');
+    : '';
+  const foot = [n.functionType, sub, n.empty ? '' : dec(n.fte, 1) + ' FTE']
+    .filter(Boolean).join(' · ') || (n.dim ? 'lowest level' : '');
 
   const gapChip = n.gaps ? (() => {
     const label = String(n.gaps);
@@ -1434,7 +1644,8 @@ function unitCardSvg(n) {
     `<rect x="0" y="10" width="4" height="${NODE_H - 20}" rx="2" fill="${colourOf(n)}"/>` +
     `<text class="t-title" x="14" y="24">${svgesc(fit(n.label, NODE_W - 28, FONTS.title))}</text>` +
     `<text class="t-name" x="14" y="42">${svgesc(fit(lead, NODE_W - 28, FONTS.name))}</text>` +
-    `<text class="t-meta" x="14" y="60">${svgesc(fit(people, NODE_W - 28, FONTS.meta))}</text>` +
+    `<text class="${n.empty || n.unstaffed ? 't-vacant' : 't-meta'}" x="14" y="60">` +
+      `${svgesc(fit(people, NODE_W - 28, FONTS.meta))}</text>` +
     `<text class="t-count" x="14" y="79">${svgesc(fit(foot, footMax, FONTS.count))}</text>` +
     gapChip +
     `</g>`;
@@ -1505,9 +1716,19 @@ function linkSvg(parent, child) {
 function isDimmed(n) {
   if (S.hits.size) return !S.hits.has(n.id);
   if (!S.highlight.size) return false;
-  const tests = [...S.highlight].map(k => HIGHLIGHTS.find(h => h.key === k).test);
-  if (n.kind === 'unit') return !n.all.some(p => tests.some(t => t(p)));
-  return !tests.some(t => t(n));
+
+  if (n.kind === 'unit') {
+    for (const k of S.highlight) {
+      const own = UNIT_HIGHLIGHTS.find(h => h.key === k);
+      if (own) { if (own.test(n)) return false; continue; }
+      const h = HIGHLIGHTS.find(x => x.key === k);
+      if (h && n.all.some(h.test)) return false;
+    }
+    return true;
+  }
+  const tests = [...S.highlight].map(k => (HIGHLIGHTS.find(h => h.key === k) || {}).test)
+    .filter(Boolean);
+  return tests.length ? !tests.some(t => t(n)) : true;
 }
 
 function draw() {
@@ -1644,7 +1865,12 @@ function renderStats() {
   const cell = (v, k, cls = '', attr = '') =>
     `<div class="stat ${cls}" ${attr}><span class="v">${v}</span><span class="k">${k}</span></div>`;
 
-  let html = (isUnits() ? cell(int(scopedNodes().length - 1), 'Org units') : '')
+  const unitBoxes = isUnits() ? scopedNodes().filter(u => u.dim) : [];
+  const emptyUnits = unitBoxes.filter(u => u.empty || u.unstaffed).length;
+  const unmappedPos = isUnits()
+    ? unitBoxes.filter(u => u.unmapped).reduce((t, u) => t + u.headcount, 0) : 0;
+
+  let html = (isUnits() ? cell(int(unitBoxes.length), 'Org units') : '')
     + cell(int(ns.length), 'Positions')
     + cell(dec(ns.reduce((s, n) => s + n.fte, 0), 1), 'FTE')
     + cell(int(layers), isUnits() ? 'Unit levels' : 'Layers')
@@ -1652,6 +1878,10 @@ function renderStats() {
         cell(spans.length ? dec(spans.reduce((a, b) => a + b, 0) / spans.length, 1) : '—', 'Avg span'))
     + cell(int(vacant), 'Vacant', vacant ? 'warn' : '');
 
+  if (isUnits() && (emptyUnits || S.unitList.length || (S.model.declaredUnits || []).length)) {
+    html += cell(int(emptyUnits), 'Nobody in post', emptyUnits ? 'warn' : '');
+  }
+  if (isUnits() && unmappedPos) html += cell(int(unmappedPos), 'Unmapped positions', 'alert');
   if (S.model.map.critical || critical) html += cell(int(critical), 'Critical roles');
   if (S.model.map.sama || sama) html += cell(int(sama), 'SAMA roles');
   if (S.model.map.critical) {
@@ -1668,13 +1898,14 @@ function renderStats() {
 /* ─── Highlight chips ───────────────────────────────────────────────────── */
 function renderChips() {
   const ns = positionsInScope();
-  const html = HIGHLIGHTS.map(h => {
-    const n = ns.filter(h.test).length;
-    if (!n && !S.highlight.has(h.key)) return '';
-    return `<button class="chip" data-hl="${h.key}" aria-pressed="${S.highlight.has(h.key)}">` +
-      `<span class="dot" style="background:${h.colour}"></span>${esc(h.label)}` +
-      `<span class="n">${int(n)}</span></button>`;
-  }).join('');
+  const units = isUnits() ? scopedNodes().filter(u => u.dim) : [];
+  const chip = (h, n) => (!n && !S.highlight.has(h.key)) ? '' :
+    `<button class="chip" data-hl="${h.key}" aria-pressed="${S.highlight.has(h.key)}">` +
+    `<span class="dot" style="background:${h.colour}"></span>${esc(h.label)}` +
+    `<span class="n">${int(n)}</span></button>`;
+
+  const html = HIGHLIGHTS.map(h => chip(h, ns.filter(h.test).length)).join('') +
+    (isUnits() ? UNIT_HIGHLIGHTS.map(h => chip(h, units.filter(h.test).length)).join('') : '');
   $('#chips').innerHTML = html || '<span class="field-label">No flag columns found in this file</span>';
 }
 
@@ -1825,7 +2056,9 @@ function openUnitDetail(u) {
     u.chain.map(a => `<a data-goto="${esc(a.id)}">${esc(a.label)}</a>`).join('<span class="sep">›</span>') +
     `</div></div>` : '';
 
-  const lead = u.leader ? `<div class="dt-sec"><h4>Most senior position</h4>
+  const lead = u.empty ? (u.declaredHead ? `<div class="dt-sec"><h4>Unit head (from the unit list)</h4>
+      <p class="prose">${S.present ? '<span class="redacted">hidden</span>' : esc(u.declaredHead)}</p></div>` : '')
+    : u.leader ? `<div class="dt-sec"><h4>Most senior position</h4>
       <div class="ritem" data-goto-position="${esc(u.leader.id)}">
         <span class="txt"><div>${esc(u.leader.title || u.leader.id)}</div>
         <div>${u.leader.vacant ? 'Vacant' : esc(u.leader.name || '—')}</div></span>
@@ -1842,7 +2075,17 @@ function openUnitDetail(u) {
       <button class="btn btn-sm btn-icon" id="dt-close" title="Close">✕</button>
     </div>
     <div class="dt-body">
+      ${u.empty ? `<p class="note" style="color:var(--vacant)">This unit has no positions mapped to it${u.listed ? ' \u2014 it comes from the unit list' : ''}.</p>` : ''}
+      ${u.unstaffed ? `<p class="note" style="color:var(--vacant)">All ${int(u.headcount)} positions here are vacant \u2014 nobody is in post.</p>` : ''}
+      ${u.unmapped ? `<p class="note" style="color:var(--critical)">These positions have no value in the ${esc((DIMENSIONS.find(d => d.key === u.dim) || {}).label || u.dim)} column, so they could not be placed.</p>` : ''}
       ${u.gaps ? `<p class="note" style="color:var(--critical)">${int(u.gaps)} critical role${u.gaps > 1 ? 's' : ''} here with no successor identified.</p>` : ''}
+      ${(u.functionType || u.code || u.unitStatus) ? `<div class="tagrow">
+        ${u.functionType ? `<span class="tag tag-sama">${esc(u.functionType)}</span>` : ''}
+        ${u.code ? `<span class="tag tag-plain">${esc(u.code)}</span>` : ''}
+        ${u.unitStatus ? `<span class="tag tag-plain">${esc(u.unitStatus)}</span>` : ''}
+      </div>` : ''}
+      ${u.responsibilities ? `<div class="dt-sec"><h4>Roles &amp; responsibilities</h4>
+        <p class="prose">${esc(u.responsibilities)}</p></div>` : ''}
       <div class="mini">
         <div><div class="v">${int(u.headcount)}</div><div class="k">Positions</div></div>
         <div><div class="v">${dec(u.fte, 1)}</div><div class="k">FTE</div></div>
@@ -1853,12 +2096,13 @@ function openUnitDetail(u) {
       </div>
       ${crumbs}
       ${lead}
-      <div class="dt-sec"><h4>Grades</h4><div class="tagrow">${chips(topValues(u.all, 'grade', 8))}</div></div>
-      <div class="dt-sec"><h4>Most common titles</h4><div class="tagrow">${chips(topValues(u.all, 'title', 6))}</div></div>
-      <div class="dt-sec"><h4>Locations</h4><div class="tagrow">${chips(topValues(u.all, 'location', 6))}</div></div>
+      ${u.headcount ? `
+        <div class="dt-sec"><h4>Grades</h4><div class="tagrow">${chips(topValues(u.all, 'grade', 8))}</div></div>
+        <div class="dt-sec"><h4>Most common titles</h4><div class="tagrow">${chips(topValues(u.all, 'title', 6))}</div></div>
+        <div class="dt-sec"><h4>Locations</h4><div class="tagrow">${chips(topValues(u.all, 'location', 6))}</div></div>` : ''}
       ${subs}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${u.dim ? `<button class="btn btn-sm btn-primary" data-drill='${esc(JSON.stringify({ k: u.dim, v: u.label }))}'>Show these positions</button>` : ''}
+        ${u.dim && u.headcount ? `<button class="btn btn-sm btn-primary" data-drill='${esc(JSON.stringify({ k: u.dim, v: u.label }))}'>Show these positions</button>` : ''}
         <button class="btn btn-sm" data-printbranch="${esc(u.id)}">Print this branch</button>
       </div>
     </div>`;
@@ -1942,7 +2186,10 @@ function openDetail(id) {
         ${raw('Job family', n.jobFamily)} ${raw('Function', n.function)} ${raw('Department', n.department)}
         ${raw('Division', n.division)} ${raw('Location', n.location)} ${raw('Employment type', n.employmentType)}
         ${raw('FTE', n.fte)} ${raw('Cost center', n.costCenter)} ${raw('Status', n.status)}
-      </div></div>
+        ${raw('Function type', n.functionType)}
+      </div>
+      ${n.responsibilities ? `<div style="margin-top:10px"><div class="k">Roles &amp; responsibilities</div>
+        <p class="prose">${esc(n.responsibilities)}</p></div>` : ''}</div>
       <div class="dt-sec"><h4>Incumbent</h4><div class="kv">
         ${raw('Name', n.vacant ? 'Vacant' : n.name)} ${kv('Email', 'email')}
         ${kv('Hire date', 'hireDate')} ${kv('Nationality', 'nationality')}
@@ -2006,15 +2253,19 @@ const csvCell = v => {
 function exportUnitCsv() {
   const levels = S.unitModel.levels;
   const cols = [
-    ['Level', u => u.unitLevel], ['Unit', u => u.label],
-    ['Type', u => u.dim ? (DIMENSIONS.find(d => d.key === u.dim) || {}).label || u.dim : 'Organisation'],
+    ['Level', u => u.unitLevel], ['Unit', u => u.label], ['Unit Code', u => u.code],
+    ['Nesting Level', u => u.dim ? (DIMENSIONS.find(d => d.key === u.dim) || {}).label || u.dim : 'Organisation'],
+    ['Function Type', u => u.functionType],
     ['Path', u => u.chain.concat(u).filter(a => a.dim).map(a => a.label).join(' > ')],
+    ['Staffing', u => u.empty ? 'No positions mapped' : u.unstaffed ? 'All vacant' : 'Staffed'],
     ['Positions', u => u.headcount], ['Filled', u => u.filled], ['Vacant', u => u.vacant],
     ['FTE', u => u.fte], ['Sub-units', u => u.children.length], ['Units below', u => u.unitCount],
     ['Critical Roles', u => u.critical], ['SAMA Roles', u => u.sama],
     ['Succession Gaps', u => u.gaps],
     ['Most Senior Position', u => u.leader ? u.leader.title : ''],
     ['Leader', u => S.present || !u.leader ? '' : (u.leader.vacant ? 'Vacant' : u.leader.name)],
+    ['Declared Head', u => S.present ? '' : u.declaredHead],
+    ['Roles and Responsibilities', u => u.responsibilities],
   ];
   const rows = scopedNodes().sort((a, b) =>
     a.unitLevel - b.unitLevel || b.headcount - a.headcount);
@@ -2221,12 +2472,28 @@ function showExpected() {
   const rows = FIELDS.map(f => `<tr><td style="padding:3px 10px 3px 0">${esc(f.label)}` +
     (f.required ? ' <span style="color:var(--critical)">*</span>' : '') +
     `</td><td style="padding:3px 0;color:var(--text-mute)">${esc(f.aliases.slice(0, 4).join(', '))}…</td></tr>`).join('');
+  const unitRows = UNIT_LIST_FIELDS.map(f =>
+    `<tr><td style="padding:3px 10px 3px 0">${esc(f.label)}` +
+    (f.required ? ' <span style="color:var(--critical)">*</span>' : '') +
+    `</td><td style="padding:3px 0;color:var(--text-mute)">${esc(f.aliases.slice(0, 4).join(', '))}…</td></tr>`).join('');
+
   openModal('What the file should contain', `
     <p class="note">One row per position. Only the ID is strictly required — everything
     else is used when it is there. Column names are matched loosely, so most HR exports
     work untouched, and anything that lands wrong can be corrected afterwards
     with the <strong>Columns</strong> button.</p>
-    <table style="font-size:.82rem"><tbody>${rows}</tbody></table>`);
+    <table style="font-size:.82rem"><tbody>${rows}</tbody></table>
+
+    <h4 style="font-size:.8rem;margin-top:6px">Units nobody is mapped to</h4>
+    <p class="note">A unit with no positions leaves no trace in a position export, so
+    it has to be stated. Either works, and both can be used together:</p>
+    <p class="note"><strong>1. A row without a position.</strong> Put the unit's
+    Division / Function / Department on a row and leave the ID blank. It becomes an
+    empty unit instead of being skipped.</p>
+    <p class="note"><strong>2. An org unit list</strong> — a second sheet in the same
+    workbook, or a second file dropped in afterwards. This is also where a unit's own
+    function type and roles &amp; responsibilities come from.</p>
+    <table style="font-size:.82rem"><tbody>${unitRows}</tbody></table>`);
 }
 
 function showColumns(errorText) {
@@ -2275,7 +2542,7 @@ function loadMapping(headers) {
 }
 
 /* ─── Loading a file ────────────────────────────────────────────────────── */
-function startModel(headers, records, map, fileName, remember) {
+function startModel(headers, records, map, fileName, remember, unitList, unitSource) {
   const model = buildModel(headers, records, map);
   model.records = records;
   S.model = model;
@@ -2288,6 +2555,7 @@ function startModel(headers, records, map, fileName, remember) {
   S.highlight = new Set();
   S.hintShown = false;
   S.mode = 'positions';
+  if (unitList !== undefined) { S.unitList = unitList || []; S.unitListSource = unitSource || ''; }
   S.unitCollapsed = new Set();
   S.unitLevels = defaultUnitLevels(model);
   S.unitModel = null;
@@ -2306,29 +2574,68 @@ function startModel(headers, records, map, fileName, remember) {
   renderControls();
   refresh();
 
-  if (model.issues.length) {
-    toast(int(model.nodes.length) + ' positions loaded · ' + model.issues.length + ' rows needed repair');
-  } else {
-    toast(int(model.nodes.length) + ' positions loaded');
-  }
+  const extras = [];
+  if (model.issues.length) extras.push(model.issues.length + ' rows needed repair');
+  if (S.unitList.length) extras.push(S.unitList.length + ' units from "' + S.unitListSource + '"');
+  toast(int(model.nodes.length) + ' positions loaded' + (extras.length ? ' · ' + extras.join(' · ') : ''));
+}
+
+async function readSheets(file) {
+  if (/\.(xlsx|xlsm)$/i.test(file.name)) return readXlsx(await file.arrayBuffer());
+  return [{ name: file.name, rows: parseDelimited(await file.text()) }];
 }
 
 async function loadFile(file) {
   const err = $('#drop-error');
   err.innerHTML = '<p class="note" style="margin-top:14px">Reading ' + esc(file.name) + '…</p>';
   try {
-    const grid = /\.(xlsx|xlsm)$/i.test(file.name)
-      ? await readXlsx(await file.arrayBuffer())
-      : parseDelimited(await file.text());
-    const { headers, records } = toRecords(grid);
+    const sheets = await readSheets(file);
+
+    // A file that is only a unit list, dropped once positions are loaded,
+    // enriches the org-unit view rather than replacing everything.
+    if (S.model && sheets.length === 1) {
+      const t = toRecords(sheets[0].rows);
+      const um = looksLikeUnitList(file.name, t.headers, t.records);
+      if (um) {
+        applyUnitList(parseUnitList(t.headers, t.records, um), file.name);
+        err.innerHTML = '';
+        return;
+      }
+    }
+
+    const { headers, records } = toRecords(sheets[0].rows);
     const map = loadMapping(headers) || detectColumns(headers, records);
     window._pending = { headers, records, map };
-    startModel(headers, records, map, file.name);
+
+    // Any remaining tab that describes the structure is picked up with it.
+    let unitList = [], source = '';
+    for (const sh of sheets.slice(1)) {
+      try {
+        const t = toRecords(sh.rows);
+        const um = looksLikeUnitList(sh.name, t.headers, t.records);
+        if (um) {
+          unitList = parseUnitList(t.headers, t.records, um);
+          source = sh.name;
+          break;
+        }
+      } catch { /* an unreadable extra tab is not a reason to fail the import */ }
+    }
+
+    startModel(headers, records, map, file.name, false, unitList, source);
     err.innerHTML = '';
   } catch (e) {
     err.innerHTML = `<div class="err" style="margin-top:14px">${esc(e.message)}</div>`;
     if (window._pending) showColumns(e.message);
   }
+}
+
+function applyUnitList(list, source) {
+  S.unitList = list;
+  S.unitListSource = source;
+  if (isUnits()) { rebuildUnits(); renderControls(); refresh(); }
+  const known = S.unitModel ? S.unitModel.nodes.filter(u => u.listed).length : list.length;
+  toast('Unit list loaded from ' + source + ' — ' + list.length + ' units'
+        + (isUnits() ? '' : '. Switch to Org units to see them.'));
 }
 
 /* ─── Sample data ───────────────────────────────────────────────────────────
@@ -2399,7 +2706,7 @@ function loadSample() {
   const headers = Object.keys(records[0]);
   const map = detectColumns(headers, records);
   window._pending = { headers, records, map };
-  startModel(headers, records, map, 'Sample bank org (generated)');
+  startModel(headers, records, map, 'Sample bank org (generated)', false, [], '');
 }
 
 /* ─── Wiring ────────────────────────────────────────────────────────────── */
@@ -2552,9 +2859,11 @@ function wireApp() {
     const k = b.dataset.hl;
     S.highlight.has(k) ? S.highlight.delete(k) : S.highlight.add(k);
     // Highlighting is only useful if the matches are actually on screen.
+    // isDimmed already knows how each view decides a match, including the
+    // highlights that only exist for units.
     if (S.highlight.size) {
-      for (const n of S.model.nodes) {
-        if ([...S.highlight].some(h => HIGHLIGHTS.find(x => x.key === h).test(n))) revealNode(n);
+      for (const n of (isUnits() ? S.unitModel.nodes : S.model.nodes)) {
+        if (!isDimmed(n)) revealNode(n);
       }
     }
     refresh(true);

@@ -29,11 +29,11 @@ the data. Boxes are joined by reporting lines, taken from Manager ID.
 
 **Org units** — one box per organisational unit, nested by Division → Function →
 Department (you can change the nesting to any columns your file has, up to three
-levels deep). Each unit shows its headcount, FTE, vacancies, how many sub-units
-it contains and the most senior position inside it. Roughly fifty boxes instead
-of a few thousand: the shape of the organisation rather than the seats in it.
-"Show these positions" on any unit drops you back into the position view,
-filtered to it.
+levels deep). Each unit shows its headcount, FTE, vacancies, function type, how
+many sub-units it contains and the most senior position inside it. Roughly fifty
+boxes instead of a few thousand: the shape of the organisation rather than the
+seats in it. "Show these positions" on any unit drops you back into the position
+view, filtered to it.
 
 ## What it does
 
@@ -63,6 +63,34 @@ starts at the top three layers with everything below collapsed behind a click.
 | **Print** | Lays the current branch out to fit a page, in light theme — use it to save a branch as PDF. |
 | **CSV** | Follows the view: positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts and flag totals. |
 
+## Units with nobody in them
+
+Three different things get confused under "no people", and they are handled
+differently.
+
+**All the positions are vacant.** The unit is drawn as a dashed outline reading
+*nobody in post*, and counted in the **Nobody in post** figure.
+
+**Positions exist but their unit column is blank.** They collect in an
+*Unspecified* box, flagged in red with an **Unmapped positions** count, so a
+blank column shows up as the data problem it is instead of quietly disappearing.
+
+**The unit has no positions at all** — newly approved, dormant, or everyone has
+moved out. Nothing in a position export mentions it, so it has to be stated. Two
+ways, and you can use both:
+
+1. **A row without a position.** Put the unit's Division / Function / Department
+   on a row and leave the ID blank. Instead of being skipped as an ID-less row,
+   it becomes an empty unit. Nothing new to produce — just rows in the export you
+   already run.
+
+2. **An org unit list** — a second sheet in the same workbook (any tab that names
+   units and describes them is picked up automatically), or a second file dropped
+   in after the positions. It is read for unit name, parent unit, unit code,
+   function type, unit head and roles & responsibilities. Units in the list that
+   have no positions appear as empty boxes; units that do have positions are
+   annotated with their type and mandate.
+
 ## The file it expects
 
 One row per position. Only an **ID** column is genuinely required — everything
@@ -73,9 +101,13 @@ row's ID.
 
 Recognised beyond that: job title, incumbent name, grade or band, job code, job
 family, function, department, division, location, employment type, status, FTE,
-cost centre, email, hire date, nationality, **critical role**, **SAMA
-non-objection role**, **successor identified**, **successor name** and
-**successor readiness**.
+cost centre, email, hire date, nationality, **function type**, **roles &
+responsibilities**, **critical role**, **SAMA non-objection role**, **successor
+identified**, **successor name** and **successor readiness**.
+
+Function type is whatever classification you use — Business / Support / Control,
+or first / second / third line of defence. It appears on unit boxes and in the
+unit export.
 
 Column names are matched loosely, so `Manager ID`, `manager_id` and `Reports To`
 all land in the same place. Anything the tool does not recognise is kept and
@@ -113,6 +145,10 @@ in the unit its data says it does even if it reports elsewhere.
 
 A unit's "most senior position" is the one running the largest part of the
 organisation, not simply the highest grade.
+
+Roles & responsibilities are held at unit level, so they come from the org unit
+list rather than from the positions. Presentation mode hides a named unit head
+along with the other personal fields; the mandate text stays visible.
 
 ## Development
 
