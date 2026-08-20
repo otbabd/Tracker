@@ -13,8 +13,10 @@ connection involved. Your file is read inside your own browser and never leaves
 your machine.
 
 `sample-org.csv` is synthetic data (2,600 positions) if you want to try it before
-pointing it at anything real. The **Try it with sample data** button generates a
-smaller example without any file at all.
+pointing it at anything real, and `sample-units.csv` is the matching org unit
+list — load the positions, then add the unit list with the **＋ Add unit list**
+button in the org-unit view. The **Try it with sample data** button needs no
+files at all and includes both.
 
 ---
 
@@ -85,11 +87,16 @@ ways, and you can use both:
    already run.
 
 2. **An org unit list** — a second sheet in the same workbook (any tab that names
-   units and describes them is picked up automatically), or a second file dropped
-   in after the positions. It is read for unit name, parent unit, unit code,
-   function type, unit head and roles & responsibilities. Units in the list that
-   have no positions appear as empty boxes; units that do have positions are
-   annotated with their type and mandate.
+   units and describes them is picked up automatically), or a second file added
+   with the **＋ Add unit list** button in the org-unit view. It is read for unit
+   name, parent unit, unit code, function type, unit head and roles &
+   responsibilities. Units in the list that have no positions appear as empty
+   boxes; units that do have positions are annotated with their type and mandate.
+
+   This is also where **function type** and **roles & responsibilities** come
+   from. Without a unit list those two are simply absent — units still show
+   headcount, FTE and vacancies, and a function type carried on the position rows
+   is inherited, but a mandate has nowhere else to come from.
 
 ## The file it expects
 
@@ -152,5 +159,6 @@ along with the other personal fields; the mandate text stays visible.
 
 ## Development
 
-`.build/make_sample.py` regenerates `sample-org.csv`. Everything else lives in
+`.build/make_sample.py` regenerates `sample-org.csv` and `sample-units.csv`; pass
+a path to also write a two-sheet `.xlsx`. Everything else lives in
 `org-chart.html`.

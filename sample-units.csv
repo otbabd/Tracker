@@ -1,0 +1,14 @@
+﻿Org Unit,Parent Unit,Unit Code,Function Type,Unit Head,Unit Status,Roles and Responsibilities
+Retail Banking,,ORG-100,Business (1st line),,Active,"Runs the branch network, cards, payments and wealth propositions for individual customers, owning revenue, service quality and channel migration."
+Corporate Banking,,ORG-110,Business (1st line),,Active,"Serves corporate and SME clients across lending, trade finance and transaction banking, owning the corporate credit portfolio and relationship coverage."
+Risk,,ORG-120,Control (2nd line),,Active,"Owns the bank-wide risk framework: credit, market and operational risk appetite, limit setting and stress testing, and independent challenge of first-line decisions. Reports the risk position to the Board Risk Committee."
+Compliance,,ORG-130,Control (2nd line),,Active,"Ensures adherence to SAMA regulations and internal policy. Owns AML/CFT, sanctions screening, regulatory reporting and the non-objection process for controlled functions."
+Internal Audit,,ORG-140,Assurance (3rd line),,Active,"Provides independent assurance to the Audit Committee over the effectiveness of governance, risk management and internal control."
+Technology,,ORG-150,Enabling,,Active,"Delivers and runs core banking, digital channels, infrastructure and cybersecurity. Accountable for platform availability, change delivery and technology risk."
+Finance,,ORG-160,Control (2nd line),,Active,"Owns financial control, treasury, planning and tax. Produces statutory and regulatory reporting and manages liquidity and capital."
+Operations,,ORG-170,Business (1st line),,Active,"Processes payments, trade and branch operations with accountability for throughput, accuracy and operational loss."
+Human Resources,,ORG-180,Enabling,,Active,"Owns workforce strategy, talent acquisition, learning, Saudization targets and the succession framework for critical and controlled roles."
+Legal,,ORG-190,Control (2nd line),,Active,"Advises on corporate legal matters, contracts and litigation, and owns legal risk."
+Data Governance Office,Technology,ORG-310,Control (2nd line),TBA,Approved,"Approved in the 2026 structure to own data quality, lineage and the data catalogue. Recruitment has not started; no positions have been created yet."
+Climate Risk Unit,Risk,ORG-230,Control (2nd line),TBA,Approved,"Established to meet SAMA climate-related financial disclosure expectations. Mandate approved, headcount pending Board approval."
+Shariah Audit,Internal Audit,ORG-221,Assurance (3rd line),,Approved,Independent assurance over Shariah compliance of products and processes.

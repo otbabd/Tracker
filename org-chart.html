@@ -413,6 +413,8 @@ svg text { unicode-bidi: plaintext; }
       <select id="f-function"></select>
       <select id="f-department"></select>
       <select id="f-grade"></select>
+      <button class="btn btn-sm" id="btn-unitlist" hidden></button>
+      <input type="file" id="unitlist-input" hidden accept=".csv,.tsv,.txt,.xlsx,.xlsm">
       <span id="unit-levels" hidden>
         <span class="field-label" style="margin-right:6px">Nest by</span>
         <select id="u-l1"></select>
@@ -1938,6 +1940,14 @@ function renderControls() {
       `<option value="${esc(id)}"${id === S.rootId ? ' selected' : ''}>${esc(label)}</option>`).join('');
   $('#f-root').hidden = branches.length < 2;
 
+  const ul = $('#btn-unitlist');
+  ul.hidden = !isUnits();
+  ul.textContent = S.unitList.length ? '↺ Unit list (' + S.unitList.length + ')' : '＋ Add unit list';
+  ul.title = S.unitList.length
+    ? 'Replace the org unit list — the source of function type and roles & responsibilities'
+    : 'Attach an org unit list: unit name, parent, function type and roles & responsibilities. ' +
+      'It also brings in units that have no positions.';
+
   renderUnitLevels();
 
   fillSelect($('#f-function'), 'Function', distinct('function'), S.filters.function);
@@ -2629,32 +2639,93 @@ async function loadFile(file) {
   }
 }
 
+async function loadUnitListFile(file) {
+  try {
+    const sheets = await readSheets(file);
+    for (const sh of sheets) {
+      let t;
+      try { t = toRecords(sh.rows); } catch { continue; }
+      // Chosen deliberately, so a name column is enough — no need to guess.
+      const map = looksLikeUnitList(sh.name, t.headers, t.records) || detectUnitColumns(t.headers);
+      if (map && map.name) {
+        const list = parseUnitList(t.headers, t.records, map);
+        if (list.length) { applyUnitList(list, file.name); return; }
+      }
+    }
+    toast('No unit list found in that file — it needs a column naming each unit.');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 function applyUnitList(list, source) {
   S.unitList = list;
   S.unitListSource = source;
   if (isUnits()) { rebuildUnits(); renderControls(); refresh(); }
-  const known = S.unitModel ? S.unitModel.nodes.filter(u => u.listed).length : list.length;
-  toast('Unit list loaded from ' + source + ' — ' + list.length + ' units'
-        + (isUnits() ? '' : '. Switch to Org units to see them.'));
+  renderControls();
+  const empties = S.unitModel ? S.unitModel.nodes.filter(u => u.empty && u.dim).length : 0;
+  toast(list.length + ' units read from ' + source +
+        (empties ? ' · ' + empties + ' with no positions' : '') +
+        (isUnits() ? '' : ' · switch to Org units to see them'));
 }
 
 /* ─── Sample data ───────────────────────────────────────────────────────────
    Generated rather than embedded, so the file stays small. Shaped like a bank
    export: grades, functions, the three flags, vacancies and Arabic names.
    ───────────────────────────────────────────────────────────────────────── */
+const SAMPLE_FUNCTIONS = {
+  'Retail Banking':    ['Branch Network', 'Cards', 'Wealth'],
+  'Corporate Banking': ['Large Corporate', 'SME', 'Trade Finance'],
+  'Risk':              ['Credit Risk', 'Market Risk', 'Operational Risk'],
+  'Compliance':        ['AML', 'Regulatory Affairs'],
+  'Technology':        ['Core Banking', 'Digital Channels', 'Infrastructure'],
+  'Finance':           ['Financial Control', 'Treasury'],
+  'Human Resources':   ['Talent', 'HR Operations'],
+};
+
+const SAMPLE_TYPES = {
+  'Retail Banking': 'Business (1st line)', 'Corporate Banking': 'Business (1st line)',
+  'Risk': 'Control (2nd line)', 'Compliance': 'Control (2nd line)',
+  'Finance': 'Control (2nd line)', 'Technology': 'Enabling',
+  'Human Resources': 'Enabling',
+};
+
+/* The unit list that ships with the demo: function types, mandates, and two
+   units that exist on paper with nobody in them yet. */
+function sampleUnitList() {
+  const mandates = {
+    'Retail Banking': 'Runs the branch network, cards and wealth propositions for individual customers, owning revenue, service quality and channel migration.',
+    'Corporate Banking': 'Serves corporate and SME clients across lending and trade finance, owning the corporate credit portfolio and relationship coverage.',
+    'Risk': 'Owns the bank-wide risk framework — appetite, limits, stress testing — and provides independent challenge of first-line decisions to the Board Risk Committee.',
+    'Compliance': 'Ensures adherence to SAMA regulation and internal policy, covering AML, sanctions screening and the non-objection process for controlled functions.',
+    'Technology': 'Delivers and runs core banking, digital channels and infrastructure, accountable for availability, change delivery and technology risk.',
+    'Finance': 'Owns financial control, treasury and planning, producing statutory and regulatory reporting and managing liquidity and capital.',
+    'Human Resources': 'Owns workforce strategy, talent, learning and the succession framework for critical and controlled roles.',
+  };
+  const list = Object.keys(SAMPLE_FUNCTIONS).map(fn => ({
+    name: fn, parent: '', code: 'ORG-' + (100 + Object.keys(SAMPLE_FUNCTIONS).indexOf(fn) * 10),
+    type: SAMPLE_TYPES[fn] || '', responsibilities: mandates[fn] || '', head: '', status: 'Active',
+  }));
+  list.push({
+    name: 'Data Governance Office', parent: 'Technology', code: 'ORG-310',
+    type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
+    responsibilities: 'Approved in the current structure to own data quality, lineage and the data catalogue. No positions have been created yet.',
+  });
+  list.push({
+    name: 'Climate Risk Unit', parent: 'Risk', code: 'ORG-230',
+    type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
+    responsibilities: 'Established to meet SAMA climate-related disclosure expectations. Mandate approved, headcount pending Board approval.',
+  });
+  return list;
+}
+
 function sampleRecords() {
   const rnd = (seed => () => (seed = seed * 16807 % 2147483647) / 2147483647)(42);
   const pick = a => a[Math.floor(rnd() * a.length)];
   const AR = ['أحمد الحربي','نورة القحطاني','خالد الدوسري','سارة العتيبي','فيصل الشمري','ريم الغامدي'];
   const EN = ['Omar Nasser','Layla Haddad','Yusuf Karim','Huda Mansour','Tariq Aziz','Dana Rashed',
               'Sami Farouk','Rana Idris','Bilal Osman','Maya Younes','Adel Saleh','Noor Baker'];
-  const FN = { 'Retail Banking': ['Branch Network','Cards','Wealth'],
-               'Corporate Banking': ['Large Corporate','SME','Trade Finance'],
-               'Risk': ['Credit Risk','Market Risk','Operational Risk'],
-               'Compliance': ['AML','Regulatory Affairs'],
-               'Technology': ['Core Banking','Digital Channels','Infrastructure'],
-               'Finance': ['Financial Control','Treasury'],
-               'Human Resources': ['Talent','HR Operations'] };
+  const FN = SAMPLE_FUNCTIONS;
   const LOC = ['Riyadh','Jeddah','Dammam','Khobar'];
   const rows = [];
   let seq = 0;
@@ -2673,6 +2744,7 @@ function sampleRecords() {
       'Employment Type': rnd() < 0.92 ? 'Full-time' : 'Contractor',
       'FTE': rnd() < 0.95 ? '1' : '0.5',
       'Cost Center': 'CC-' + (1000 + Math.floor(rnd() * 40)),
+      'Function Type': SAMPLE_TYPES[fn] || '',
       'Critical Role': critical ? 'Yes' : 'No',
       'SAMA Non-Objection Role': sama ? 'Yes' : 'No',
       'Successor Identified': hasSucc ? 'Yes' : 'No',
@@ -2706,7 +2778,8 @@ function loadSample() {
   const headers = Object.keys(records[0]);
   const map = detectColumns(headers, records);
   window._pending = { headers, records, map };
-  startModel(headers, records, map, 'Sample bank org (generated)', false, [], '');
+  startModel(headers, records, map, 'Sample bank org (generated)',
+             false, sampleUnitList(), 'built-in unit list');
 }
 
 /* ─── Wiring ────────────────────────────────────────────────────────────── */
@@ -2895,6 +2968,12 @@ function wireApp() {
     if (S.selected) openDetail(S.selected);
     toast(S.present ? 'Presentation mode on — successor names and personal fields hidden'
                     : 'Presentation mode off');
+  };
+
+  $('#btn-unitlist').onclick = () => $('#unitlist-input').click();
+  $('#unitlist-input').onchange = e => {
+    if (e.target.files[0]) loadUnitListFile(e.target.files[0]);
+    e.target.value = '';
   };
 
   $('#btn-png').onclick = exportPng;

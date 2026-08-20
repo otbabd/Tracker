@@ -38,6 +38,28 @@ READY = ["Ready now", "Ready 1-2 years", "Ready 3+ years"]
 FAMILY = {"G17": "Executive", "G16": "Executive", "G15": "Leadership",
           "G14": "Leadership", "G13": "Management", "G12": "Management"}
 
+# How the bank classifies each function — the "function type" column.
+FUNCTION_TYPE = {
+    "Retail Banking": "Business (1st line)", "Corporate Banking": "Business (1st line)",
+    "Operations": "Business (1st line)", "Risk": "Control (2nd line)",
+    "Compliance": "Control (2nd line)", "Finance": "Control (2nd line)",
+    "Legal": "Control (2nd line)", "Internal Audit": "Assurance (3rd line)",
+    "Technology": "Enabling", "Human Resources": "Enabling", "Executive": "Governance",
+}
+
+MANDATES = {
+    "Retail Banking": "Runs the branch network, cards, payments and wealth propositions for individual customers, owning revenue, service quality and channel migration.",
+    "Corporate Banking": "Serves corporate and SME clients across lending, trade finance and transaction banking, owning the corporate credit portfolio and relationship coverage.",
+    "Risk": "Owns the bank-wide risk framework: credit, market and operational risk appetite, limit setting and stress testing, and independent challenge of first-line decisions. Reports the risk position to the Board Risk Committee.",
+    "Compliance": "Ensures adherence to SAMA regulations and internal policy. Owns AML/CFT, sanctions screening, regulatory reporting and the non-objection process for controlled functions.",
+    "Internal Audit": "Provides independent assurance to the Audit Committee over the effectiveness of governance, risk management and internal control.",
+    "Technology": "Delivers and runs core banking, digital channels, infrastructure and cybersecurity. Accountable for platform availability, change delivery and technology risk.",
+    "Finance": "Owns financial control, treasury, planning and tax. Produces statutory and regulatory reporting and manages liquidity and capital.",
+    "Operations": "Processes payments, trade and branch operations with accountability for throughput, accuracy and operational loss.",
+    "Human Resources": "Owns workforce strategy, talent acquisition, learning, Saudization targets and the succession framework for critical and controlled roles.",
+    "Legal": "Advises on corporate legal matters, contracts and litigation, and owns legal risk.",
+}
+
 rows = []
 seq = 0
 
@@ -81,6 +103,7 @@ def add(pid, mgr, title, grade, fn, dept, vac_p=0.08, crit=None, sama=None):
         "Position Status": "Vacant" if vacant else "Filled",
         "FTE": "1" if random.random() < 0.94 else "0.5",
         "Cost Center": f"CC-{random.randint(1000, 1060)}",
+        "Function Type": FUNCTION_TYPE.get(fn, ""),
         "Work Email": "" if vacant else f"user{seq}@examplebank.com.sa",
         "Hire Date": f"{random.randint(2008, 2025)}-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
         "Nationality": random.choice(["Saudi"] * 7 + ["Egyptian", "Indian", "Jordanian", "British"]),
@@ -129,9 +152,36 @@ with open("sample-org.csv", "w", newline="", encoding="utf-8-sig") as f:
     w.writeheader()
     w.writerows(rows)
 
+# The companion org unit list: structure, classification and mandates, plus
+# three units that exist on paper with nobody mapped to them.
+unit_rows = [{
+    "Org Unit": fn, "Parent Unit": "", "Unit Code": f"ORG-{100 + i * 10}",
+    "Function Type": FUNCTION_TYPE.get(fn, ""), "Unit Head": "",
+    "Unit Status": "Active", "Roles and Responsibilities": MANDATES.get(fn, ""),
+} for i, fn in enumerate(FUNCTIONS)]
+
+unit_rows += [
+    {"Org Unit": "Data Governance Office", "Parent Unit": "Technology", "Unit Code": "ORG-310",
+     "Function Type": "Control (2nd line)", "Unit Head": "TBA", "Unit Status": "Approved",
+     "Roles and Responsibilities": "Approved in the 2026 structure to own data quality, lineage and the data catalogue. Recruitment has not started; no positions have been created yet."},
+    {"Org Unit": "Climate Risk Unit", "Parent Unit": "Risk", "Unit Code": "ORG-230",
+     "Function Type": "Control (2nd line)", "Unit Head": "TBA", "Unit Status": "Approved",
+     "Roles and Responsibilities": "Established to meet SAMA climate-related financial disclosure expectations. Mandate approved, headcount pending Board approval."},
+    {"Org Unit": "Shariah Audit", "Parent Unit": "Internal Audit", "Unit Code": "ORG-221",
+     "Function Type": "Assurance (3rd line)", "Unit Head": "", "Unit Status": "Approved",
+     "Roles and Responsibilities": "Independent assurance over Shariah compliance of products and processes."},
+]
+
+with open("sample-units.csv", "w", newline="", encoding="utf-8-sig") as f:
+    w = csv.DictWriter(f, fieldnames=list(unit_rows[0].keys()))
+    w.writeheader()
+    w.writerows(unit_rows)
+
 xlsx_path = sys.argv[1] if len(sys.argv) > 1 else None
 if xlsx_path:
     import pandas as pd
-    pd.DataFrame(rows).to_excel(xlsx_path, index=False)
+    with pd.ExcelWriter(xlsx_path) as writer:
+        pd.DataFrame(rows)[cols].to_excel(writer, sheet_name="Positions", index=False)
+        pd.DataFrame(unit_rows).to_excel(writer, sheet_name="Org Units", index=False)
 
-print(f"{len(rows)} rows, {len(cols)} columns")
+print(f"{len(rows)} position rows, {len(cols)} columns; {len(unit_rows)} org units")
