@@ -1,0 +1,2287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Org Chart</title>
+<style>
+/* ═══ Tokens ═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg:        #f4f6f8;
+  --surface:   #ffffff;
+  --surface-2: #eef1f5;
+  --surface-3: #e3e8ee;
+  --border:    #d5dbe3;
+  --border-2:  #bcc5d1;
+  --text:      #161a20;
+  --text-dim:  #59626f;
+  --text-mute: #8b94a3;
+  --accent:    #2563eb;
+  --accent-bg: #e8effd;
+  --critical:  #d92d20;
+  --sama:      #7c3aed;
+  --ok:        #067a53;
+  --vacant:    #b54708;
+  --warn-bg:   #fef6ee;
+  --radius:    8px;
+  --radius-sm: 5px;
+  --shadow:    0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.08);
+  --bar-h:     auto;
+}
+[data-theme="dark"] {
+  --bg:        #0f1319;
+  --surface:   #171c24;
+  --surface-2: #1e242e;
+  --surface-3: #29313d;
+  --border:    #2c3542;
+  --border-2:  #3d4857;
+  --text:      #eef1f6;
+  --text-dim:  #a3adbb;
+  --text-mute: #6f7b8c;
+  --accent:    #6f9bff;
+  --accent-bg: #1c2740;
+  --critical:  #f97066;
+  --sama:      #b692f6;
+  --ok:        #47cd89;
+  --vacant:    #f79009;
+  --warn-bg:   #2a1f14;
+  --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45);
+}
+
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+body {
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto,
+        "Noto Sans", "Noto Sans Arabic", "Segoe UI Historic", Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+[hidden] { display: none !important; }
+
+/* ═══ Drop screen ══════════════════════════════════════════════════════════ */
+#drop-screen {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: var(--bg);
+}
+.drop-inner { width: 100%; max-width: 620px; text-align: center; }
+.drop-inner h1 { font-size: 1.5rem; font-weight: 640; letter-spacing: -.02em; }
+.drop-inner .lede { color: var(--text-dim); margin: 8px 0 26px; }
+#dropzone {
+  border: 2px dashed var(--border-2); border-radius: 14px;
+  padding: 52px 26px; background: var(--surface); cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+#dropzone:hover, #dropzone.over { border-color: var(--accent); background: var(--accent-bg); }
+#dropzone .glyph { font-size: 2rem; line-height: 1; }
+#dropzone .main { font-weight: 600; margin-top: 12px; }
+#dropzone .sub { color: var(--text-mute); font-size: .84rem; margin-top: 6px; }
+.drop-note { margin-top: 20px; font-size: .82rem; color: var(--text-mute); line-height: 1.7; }
+.drop-note strong { color: var(--text-dim); font-weight: 600; }
+.drop-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+
+/* ═══ Chrome ═══════════════════════════════════════════════════════════════ */
+#app { display: flex; flex-direction: column; height: 100%; }
+
+#bar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 30;
+}
+.bar-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; flex-wrap: wrap;
+}
+.bar-row + .bar-row { border-top: 1px solid var(--border); }
+.bar-title { font-weight: 640; letter-spacing: -.01em; white-space: nowrap; }
+.bar-file {
+  font-size: .8rem; color: var(--text-mute);
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.spacer { flex: 1 1 auto; }
+
+/* ═══ Controls ═════════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text); padding: 6px 11px; font: inherit; font-size: .84rem;
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+  transition: background .13s, border-color .13s;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--border-2); }
+.btn:active { background: var(--surface-3); }
+.btn[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent); filter: brightness(1.08); border-color: var(--accent); }
+.btn-sm { padding: 4px 8px; font-size: .78rem; }
+.btn-icon { padding: 6px 9px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.seg .btn { border: none; border-radius: 0; }
+.seg .btn + .btn { border-left: 1px solid var(--border); }
+
+select, input[type="search"], input[type="text"] {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text); padding: 6px 9px; font: inherit; font-size: .84rem; max-width: 100%;
+}
+select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+select { cursor: pointer; }
+
+#search { width: 210px; }
+.field-label { font-size: .72rem; color: var(--text-mute); text-transform: uppercase; letter-spacing: .05em; }
+
+/* ═══ Stats strip ══════════════════════════════════════════════════════════ */
+#stats { gap: 0; padding: 0 12px; overflow-x: auto; }
+.stat {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 7px 16px 8px 0; margin-right: 16px;
+  border-right: 1px solid var(--border); white-space: nowrap;
+}
+.stat:last-child { border-right: none; }
+.stat .v { font-size: 1.02rem; font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.stat .k { font-size: .68rem; color: var(--text-mute); text-transform: uppercase; letter-spacing: .05em; }
+.stat.alert .v { color: var(--critical); }
+.stat.warn .v { color: var(--vacant); }
+.stat.clickable { cursor: pointer; }
+.stat.clickable:hover .k { color: var(--text-dim); text-decoration: underline; }
+
+/* ═══ Highlight toggles ════════════════════════════════════════════════════ */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 4px 11px; font-size: .8rem; cursor: pointer; background: var(--surface);
+  color: var(--text-dim); white-space: nowrap;
+}
+.chip:hover { border-color: var(--border-2); color: var(--text); }
+.chip[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 560; }
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.chip .n { font-variant-numeric: tabular-nums; opacity: .75; }
+
+/* ═══ Chart ════════════════════════════════════════════════════════════════ */
+#stage { position: relative; flex: 1; overflow: hidden; background: var(--bg); }
+#chart { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+#chart.dragging { cursor: grabbing; }
+
+.link { fill: none; stroke: var(--border-2); stroke-width: 1.4; }
+
+.card { cursor: pointer; }
+.card-box { fill: var(--surface); stroke: var(--border); stroke-width: 1; rx: 8; }
+.card:hover .card-box { stroke: var(--border-2); }
+.card.sel .card-box { stroke: var(--accent); stroke-width: 2; }
+.card.vacant .card-box { stroke: var(--vacant); stroke-dasharray: 5 3; }
+.card.dim { opacity: .22; }
+.card.hit .card-box { stroke: var(--accent); stroke-width: 2.5; }
+.card.hit .card-halo { fill: var(--accent); opacity: .1; }
+
+.t-title { fill: var(--text); font-size: 13px; font-weight: 640; }
+.t-name  { fill: var(--text-dim); font-size: 11.5px; }
+.t-meta  { fill: var(--text-mute); font-size: 10.5px; }
+.t-count { fill: var(--text-dim); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.t-vacant { fill: var(--vacant); font-size: 11.5px; font-weight: 600; }
+svg text { unicode-bidi: plaintext; }
+
+.pill-bg { fill: var(--surface-3); rx: 8; }
+.pill-tx { fill: var(--text-dim); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.exp { cursor: pointer; }
+.exp-c { fill: var(--surface); stroke: var(--border-2); stroke-width: 1.2; }
+.exp:hover .exp-c { fill: var(--accent-bg); stroke: var(--accent); }
+.exp-s { fill: var(--text-dim); font-size: 12px; font-weight: 700; text-anchor: middle; }
+.exp-n { fill: var(--text-mute); font-size: 9.5px; text-anchor: middle; font-variant-numeric: tabular-nums; }
+
+#overlay-msg {
+  position: absolute; left: 50%; top: 16px; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px 14px; font-size: .82rem; box-shadow: var(--shadow); z-index: 12;
+}
+
+#zoombar {
+  position: absolute; right: 12px; bottom: 12px; z-index: 12;
+  display: flex; gap: 6px; align-items: center;
+}
+#legend {
+  position: absolute; left: 12px; bottom: 12px; z-index: 12;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px 10px; font-size: .78rem; box-shadow: var(--shadow);
+  max-width: 230px; max-height: 44%; overflow-y: auto;
+}
+#legend h4 {
+  font-size: .68rem; color: var(--text-mute); text-transform: uppercase;
+  letter-spacing: .05em; font-weight: 600; margin-bottom: 5px;
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+}
+#legend h4 .caret { margin-left: auto; }
+.leg { display: flex; align-items: center; gap: 7px; padding: 1.5px 0; color: var(--text-dim); }
+.leg .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.leg .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leg .n { margin-left: auto; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+
+/* ═══ Detail panel ═════════════════════════════════════════════════════════ */
+#detail {
+  position: absolute; top: 0; right: 0; height: 100%; width: min(380px, 100%);
+  background: var(--surface); border-left: 1px solid var(--border);
+  box-shadow: var(--shadow); z-index: 20; display: flex; flex-direction: column;
+}
+.dt-head { display: flex; align-items: flex-start; gap: 8px; padding: 14px 14px 12px; border-bottom: 1px solid var(--border); }
+.dt-head h3 { font-size: 1rem; font-weight: 650; line-height: 1.3; }
+.dt-head .sub { font-size: .84rem; color: var(--text-dim); margin-top: 2px; }
+.dt-body { padding: 14px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+.dt-sec h4 {
+  font-size: .68rem; color: var(--text-mute); text-transform: uppercase;
+  letter-spacing: .05em; font-weight: 600; margin-bottom: 7px;
+}
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 9px 12px; }
+.kv .k { font-size: .68rem; color: var(--text-mute); text-transform: uppercase; letter-spacing: .04em; }
+.kv .v { font-size: .86rem; word-break: break-word; }
+.mini { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.mini div { background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px 10px; }
+.mini .v { font-size: 1.15rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.mini .k { font-size: .68rem; color: var(--text-mute); text-transform: uppercase; letter-spacing: .04em; }
+.crumbs { font-size: .8rem; color: var(--text-dim); line-height: 1.8; }
+.crumbs a { color: var(--accent); cursor: pointer; text-decoration: none; }
+.crumbs a:hover { text-decoration: underline; }
+.crumbs .sep { color: var(--text-mute); margin: 0 4px; }
+.rlist { display: flex; flex-direction: column; gap: 1px; max-height: 240px; overflow-y: auto; margin: 0 -6px; }
+.ritem {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: .85rem;
+}
+.ritem:hover { background: var(--surface-2); }
+.ritem .txt { flex: 1; min-width: 0; }
+.ritem .txt div:last-child { font-size: .76rem; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 20px;
+  font-size: .72rem; font-weight: 600; border: 1px solid transparent;
+}
+.tag-critical { background: #fef3f2; color: var(--critical); }
+.tag-sama     { background: #f4f0ff; color: var(--sama); }
+.tag-ok       { background: #ecfdf3; color: var(--ok); }
+.tag-vacant   { background: var(--warn-bg); color: var(--vacant); }
+.tag-plain    { background: var(--surface-2); color: var(--text-dim); }
+[data-theme="dark"] .tag-critical { background: #3a1b18; }
+[data-theme="dark"] .tag-sama     { background: #2a2140; }
+[data-theme="dark"] .tag-ok       { background: #10301f; }
+.tagrow { display: flex; flex-wrap: wrap; gap: 5px; }
+.redacted { color: var(--text-mute); font-style: italic; }
+
+/* ═══ Modal ════════════════════════════════════════════════════════════════ */
+#modal {
+  position: fixed; inset: 0; z-index: 60; background: rgba(16,24,40,.45);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.mbox {
+  background: var(--surface); border-radius: 12px; box-shadow: var(--shadow);
+  width: 100%; max-width: 720px; max-height: 88vh; display: flex; flex-direction: column;
+}
+.mhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.mhead h3 { font-size: 1rem; font-weight: 650; }
+.mbody { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.mfoot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.maprow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; }
+.maprow label { font-size: .82rem; color: var(--text-dim); }
+.maprow label .req { color: var(--critical); }
+.mapgrid { display: flex; flex-direction: column; gap: 7px; }
+.issue-list { display: flex; flex-direction: column; gap: 2px; font-size: .84rem; }
+.issue-list .row { padding: 6px 8px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.note { font-size: .82rem; color: var(--text-dim); }
+.err { background: #fef3f2; border: 1px solid var(--critical); color: var(--critical);
+       border-radius: var(--radius-sm); padding: 10px 12px; font-size: .85rem; }
+[data-theme="dark"] .err { background: #3a1b18; }
+
+/* ═══ Toast ════════════════════════════════════════════════════════════════ */
+#toast {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  background: var(--text); color: var(--bg); border-radius: var(--radius);
+  padding: 9px 15px; font-size: .85rem; z-index: 70; box-shadow: var(--shadow);
+}
+
+/* ═══ Print ════════════════════════════════════════════════════════════════ */
+@media print {
+  @page { size: landscape; margin: 12mm; }
+  body, #stage, #chart { background: #fff; }
+  body { overflow: visible; }
+  #bar, #zoombar, #detail, #legend, #overlay-msg, #modal, #toast, #drop-screen { display: none !important; }
+  #app, #stage { height: auto; overflow: visible; display: block; }
+  #stage { page-break-inside: avoid; }
+  /* Bound by the printable area of a landscape page, so the drawing scales to
+     fit rather than spilling over several sheets. */
+  #chart { width: 100%; height: auto; max-height: 150mm; }
+  .print-head { display: block !important; margin-bottom: 8mm; }
+  .link { stroke: #94a3b8; }
+  .card-box { fill: #fff; stroke: #94a3b8; }
+  .t-title { fill: #000; } .t-name { fill: #333; }
+  .t-meta, .t-count { fill: #555; }
+  .pill-bg { fill: #eef1f5; } .pill-tx { fill: #333; }
+  .card.dim { opacity: 1; }
+  .exp { display: none; }
+}
+.print-head { display: none; padding: 0 0 4px; }
+.print-head h2 { font-size: 15pt; }
+.print-head p { font-size: 9pt; color: #555; }
+
+@media (max-width: 720px) {
+  #search { width: 140px; }
+  #detail { width: 100%; }
+  .stat { padding-right: 12px; margin-right: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ Drop screen ═══════════════════════════════════════════════════════ -->
+<div id="drop-screen">
+  <div class="drop-inner">
+    <h1>Org Chart</h1>
+    <p class="lede">Drop in a position file and see the organisation.</p>
+
+    <div id="dropzone">
+      <div class="glyph">📋</div>
+      <div class="main">Drop your file here, or click to browse</div>
+      <div class="sub">Excel (.xlsx) or CSV · stays on this machine, nothing is uploaded</div>
+    </div>
+
+    <div class="drop-actions">
+      <button class="btn" id="btn-sample">Try it with sample data</button>
+      <button class="btn" id="btn-expected">What columns does it need?</button>
+    </div>
+
+    <p class="drop-note">
+      Needs one row per <strong>position</strong>, with an ID column and a manager-ID
+      column to link the hierarchy. Job title, grade, function, status, and your
+      critical-role / SAMA / succession columns are picked up automatically when present.
+    </p>
+    <div id="drop-error"></div>
+    <input type="file" id="file-input" hidden accept=".csv,.tsv,.txt,.xlsx,.xlsm">
+  </div>
+</div>
+
+<!-- ═══ App ═══════════════════════════════════════════════════════════════ -->
+<div id="app" hidden>
+  <header id="bar">
+
+    <div class="bar-row">
+      <span class="bar-title">Org Chart</span>
+      <span class="bar-file" id="file-name"></span>
+
+      <input type="search" id="search" placeholder="Search name, title or ID…" autocomplete="off">
+      <span id="search-count" class="field-label"></span>
+
+      <select id="color-by" title="Colour the boxes by"></select>
+
+      <div class="spacer"></div>
+
+      <div class="seg">
+        <button class="btn btn-sm" id="btn-expand" title="Expand every branch">Expand</button>
+        <button class="btn btn-sm" id="btn-collapse" title="Back to top levels">Collapse</button>
+      </div>
+      <button class="btn btn-sm" id="btn-present" aria-pressed="false"
+              title="Hide successor names and sensitive fields for screen-sharing">🔒 Presentation</button>
+      <div class="seg">
+        <button class="btn btn-sm" id="btn-png" title="Save what is on screen as a PNG for a slide">PNG</button>
+        <button class="btn btn-sm" id="btn-print" title="Print or save as PDF">Print</button>
+        <button class="btn btn-sm" id="btn-csv" title="Export the filtered positions as CSV">CSV</button>
+      </div>
+      <button class="btn btn-sm" id="btn-columns" title="Correct how your columns were read">Columns</button>
+      <button class="btn btn-sm btn-icon" id="btn-theme" title="Switch light/dark">◐</button>
+      <button class="btn btn-sm" id="btn-new" title="Load a different file">New file</button>
+    </div>
+
+    <div class="bar-row" id="stats"></div>
+
+    <div class="bar-row" id="controls">
+      <select id="f-root" title="Show only one branch of the organisation"></select>
+      <select id="f-function"></select>
+      <select id="f-department"></select>
+      <select id="f-grade"></select>
+      <div class="spacer"></div>
+      <div id="chips"></div>
+      <button class="btn btn-sm" id="btn-reset">Reset</button>
+    </div>
+  </header>
+
+  <div id="stage">
+    <div class="print-head" id="print-head"></div>
+    <svg id="chart" xmlns="http://www.w3.org/2000/svg"><g id="viewport"></g></svg>
+
+    <div id="overlay-msg" hidden></div>
+
+    <div id="legend" hidden></div>
+
+    <div id="zoombar">
+      <div class="seg">
+        <button class="btn btn-sm btn-icon" id="btn-zoom-out" title="Zoom out">−</button>
+        <button class="btn btn-sm btn-icon" id="btn-zoom-in" title="Zoom in">+</button>
+        <button class="btn btn-sm" id="btn-fit" title="Fit to screen">Fit</button>
+      </div>
+    </div>
+
+    <aside id="detail" hidden></aside>
+  </div>
+</div>
+
+<div id="modal" hidden></div>
+<div id="toast" hidden></div>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════════
+   Org Chart — a single-file position hierarchy viewer.
+   Everything runs in the browser: no server, no libraries, no network calls.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Small helpers ─────────────────────────────────────────────────────── */
+const $  = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+const esc = v => String(v ?? '').replace(/[&<>"']/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const int = v => v == null || v === '' ? '—' : Number(v).toLocaleString('en-US');
+const dec = (v, d = 1) => v == null ? '—' :
+  Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 3200);
+}
+
+/* Text measurement through a canvas, so Arabic and Latin both size correctly
+   and truncation never cuts a character in half. */
+const _measure = document.createElement('canvas').getContext('2d');
+const _segmenter = (typeof Intl !== 'undefined' && Intl.Segmenter)
+  ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
+const _fitCache = new Map();
+
+const FONT_STACK = 'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", ' +
+                   '"Noto Sans Arabic", Helvetica, Arial, sans-serif';
+const FONTS = {
+  title: '640 13px ' + FONT_STACK,
+  name:  '11.5px ' + FONT_STACK,
+  meta:  '10.5px ' + FONT_STACK,
+  count: '10.5px ' + FONT_STACK,
+};
+
+function graphemes(s) {
+  if (_segmenter) return [..._segmenter.segment(s)].map(g => g.segment);
+  return Array.from(s);
+}
+
+function fit(text, maxWidth, font) {
+  const s = String(text ?? '');
+  if (!s) return '';
+  const key = font + ' ' + maxWidth + ' ' + s;
+  const hit = _fitCache.get(key);
+  if (hit !== undefined) return hit;
+
+  _measure.font = font;
+  let out = s;
+  if (_measure.measureText(s).width > maxWidth) {
+    const gs = graphemes(s);
+    let lo = 0, hi = gs.length;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (_measure.measureText(gs.slice(0, mid).join('') + '…').width <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    out = lo > 0 ? gs.slice(0, lo).join('') + '…' : '…';
+  }
+  if (_fitCache.size > 8000) _fitCache.clear();
+  _fitCache.set(key, out);
+  return out;
+}
+
+/* ─── Delimited text ────────────────────────────────────────────────────── */
+function sniffDelimiter(text) {
+  const sample = text.slice(0, 64 * 1024);
+  let best = ',', bestScore = -1;
+  for (const d of [',', ';', '\t', '|']) {
+    let count = 0, inQ = false;
+    for (let i = 0; i < sample.length; i++) {
+      const c = sample[i];
+      if (c === '"') { inQ = !inQ; continue; }
+      if (!inQ && c === d) count++;
+    }
+    if (count > bestScore) { bestScore = count; best = d; }
+  }
+  return best;
+}
+
+function parseDelimited(text) {
+  text = text.replace(/^﻿/, '');
+  const d = sniffDelimiter(text);
+  const rows = [];
+  let row = [], field = '', inQ = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQ = false;
+      } else field += c;
+      continue;
+    }
+    if (c === '"') { inQ = true; continue; }
+    if (c === d) { row.push(field); field = ''; continue; }
+    if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; continue; }
+    if (c === '\r') continue;
+    field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* ─── XLSX ──────────────────────────────────────────────────────────────────
+   An .xlsx is a ZIP of XML. Browsers can inflate deflate streams natively, so
+   reading one needs no library — which keeps this file small enough to email.
+   ───────────────────────────────────────────────────────────────────────── */
+async function inflateRaw(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function unzip(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const td = new TextDecoder();
+
+  // End-of-central-directory record, searched backwards past any trailing comment.
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 66000); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('This does not look like a valid .xlsx file.');
+
+  const count = dv.getUint16(eocd + 10, true);
+  let ptr = dv.getUint32(eocd + 16, true);
+  if (ptr === 0xffffffff || count === 0xffff) {
+    throw new Error('This .xlsx uses the ZIP64 format, which this tool cannot read. ' +
+                    'Please re-save it as CSV.');
+  }
+
+  const out = new Map();
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(ptr, true) !== 0x02014b50) break;
+    const method   = dv.getUint16(ptr + 10, true);
+    const compSize = dv.getUint32(ptr + 20, true);
+    const nameLen  = dv.getUint16(ptr + 28, true);
+    const extraLen = dv.getUint16(ptr + 30, true);
+    const cmtLen   = dv.getUint16(ptr + 32, true);
+    const localOff = dv.getUint32(ptr + 42, true);
+    const name     = td.decode(bytes.subarray(ptr + 46, ptr + 46 + nameLen));
+
+    // Only the parts we actually parse — skip images, themes and the rest.
+    if (/^xl\/(worksheets\/|workbook\.xml|sharedStrings\.xml|styles\.xml|_rels\/)/.test(name)) {
+      const lNameLen  = dv.getUint16(localOff + 26, true);
+      const lExtraLen = dv.getUint16(localOff + 28, true);
+      const start = localOff + 30 + lNameLen + lExtraLen;
+      const raw = bytes.subarray(start, start + compSize);
+      out.set(name, method === 0 ? raw : await inflateRaw(raw));
+    }
+    ptr += 46 + nameLen + extraLen + cmtLen;
+  }
+  return out;
+}
+
+const XML_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+function unxml(s) {
+  return String(s).replace(/&(#x?[0-9a-fA-F]+|[a-z]+);/g, (m, e) => {
+    if (e[0] === '#') {
+      const code = e[1] === 'x' || e[1] === 'X'
+        ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+    }
+    return XML_ENT[e] ?? m;
+  });
+}
+
+const colToIndex = ref => {
+  const letters = /^([A-Z]+)/.exec(ref);
+  if (!letters) return 0;
+  let n = 0;
+  for (const ch of letters[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+};
+
+/* Excel stores dates as day serials; without the style table they read as 45123. */
+function dateStyles(stylesXml) {
+  if (!stylesXml) return new Set();
+  const dateFmtIds = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47]);
+  for (const m of stylesXml.matchAll(/<numFmt[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g)) {
+    const code = unxml(m[2]).replace(/\[[^\]]*\]|"[^"]*"/g, '');
+    if (/[dy]/i.test(code)) dateFmtIds.add(+m[1]);
+  }
+  const isDateStyle = new Set();
+  const xfBlock = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml);
+  if (xfBlock) {
+    let i = 0;
+    for (const xf of xfBlock[1].matchAll(/<xf\b[^>]*>/g)) {
+      const id = /numFmtId="(\d+)"/.exec(xf[0]);
+      if (id && dateFmtIds.has(+id[1])) isDateStyle.add(i);
+      i++;
+    }
+  }
+  return isDateStyle;
+}
+
+const serialToDate = n => {
+  // Excel's epoch is 1899-12-30 (it believes 1900 was a leap year).
+  const ms = Math.round((n - 25569) * 86400000);
+  if (!Number.isFinite(ms)) return String(n);
+  return new Date(ms).toISOString().slice(0, 10);
+};
+
+async function readXlsx(buffer) {
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('This browser cannot open .xlsx files directly. ' +
+                    'In Excel choose File → Save As → CSV, then drop that in.');
+  }
+  const files = await unzip(new Uint8Array(buffer));
+  const td = new TextDecoder();
+  const text = name => files.has(name) ? td.decode(files.get(name)) : '';
+
+  // Shared strings: one <si> per string, possibly split across rich-text runs.
+  const shared = [];
+  const ssXml = text('xl/sharedStrings.xml');
+  if (ssXml) {
+    for (const si of ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
+      let s = '';
+      for (const t of si[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)) s += unxml(t[1]);
+      shared.push(s);
+    }
+  }
+
+  const isDateStyle = dateStyles(text('xl/styles.xml'));
+
+  // Follow workbook.xml through its rels to the first sheet: sheet order and
+  // filename order are not the same thing.
+  let target = 'xl/worksheets/sheet1.xml';
+  const firstSheet = /<sheet\b[^>]*?r:id="([^"]+)"/.exec(text('xl/workbook.xml'));
+  if (firstSheet) {
+    const rel = new RegExp('Id="' + firstSheet[1] + '"[^>]*Target="([^"]+)"')
+      .exec(text('xl/_rels/workbook.xml.rels'));
+    if (rel) target = 'xl/' + rel[1].replace(/^\//, '').replace(/^xl\//, '');
+  }
+  if (!files.has(target)) {
+    target = [...files.keys()].find(k => k.startsWith('xl/worksheets/') && k.endsWith('.xml'));
+  }
+  if (!target) throw new Error('No worksheet found inside the file.');
+
+  const rows = [];
+  for (const rowM of text(target).matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+    const cells = [];
+    for (const c of rowM[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const attrs = c[1], body = c[2] || '';
+      const ref = /r="([A-Z]+)\d+"/.exec(attrs);
+      const idx = ref ? colToIndex(ref[1]) : cells.length;
+      const type = (/t="([^"]+)"/.exec(attrs) || [, 'n'])[1];
+
+      let value = '';
+      if (type === 's') {
+        const v = /<v>([\s\S]*?)<\/v>/.exec(body);
+        value = v ? (shared[+unxml(v[1])] ?? '') : '';
+      } else if (type === 'inlineStr') {
+        for (const t of body.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)) value += unxml(t[1]);
+      } else {
+        const v = /<v>([\s\S]*?)<\/v>/.exec(body);
+        value = v ? unxml(v[1]) : '';
+        if (type === 'b') value = value === '1' ? 'TRUE' : 'FALSE';
+        else if (value !== '' && !isNaN(value)) {
+          const st = /s="(\d+)"/.exec(attrs);
+          if (st && isDateStyle.has(+st[1])) value = serialToDate(+value);
+        }
+      }
+      while (cells.length < idx) cells.push('');
+      cells[idx] = value;
+    }
+    rows.push(cells);
+  }
+  return rows;
+}
+
+/* ─── Turning a grid into records ───────────────────────────────────────── */
+const cleanCell = v => {
+  const s = String(v ?? '').trim();
+  return s === '' || /^(nan|null|n\/a|#n\/a)$/i.test(s) ? '' : s;
+};
+
+/* Exports often carry a title or logo row above the real table, so the header
+   is whichever early row has the most distinct non-empty labels. */
+function findHeaderRow(rows) {
+  let best = 0, bestScore = -1;
+  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+    const cells = rows[i].map(cleanCell).filter(Boolean);
+    if (cells.length < 2) continue;
+    const score = new Set(cells.map(s => s.toLowerCase())).size;
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return best;
+}
+
+function toRecords(grid) {
+  const rows = grid.filter(r => r.some(c => cleanCell(c) !== ''));
+  if (!rows.length) throw new Error('That file has no data in it.');
+
+  const h = findHeaderRow(rows);
+  const seen = new Map();
+  const headers = rows[h].map((c, i) => {
+    let name = cleanCell(c) || ('Column ' + (i + 1));
+    if (seen.has(name)) { seen.set(name, seen.get(name) + 1); name = name + ' (' + seen.get(name) + ')'; }
+    else seen.set(name, 1);
+    return name;
+  });
+
+  const records = [];
+  for (let r = h + 1; r < rows.length; r++) {
+    const rec = {};
+    let any = false;
+    headers.forEach((name, i) => {
+      const v = cleanCell(rows[r][i]);
+      rec[name] = v;
+      if (v) any = true;
+    });
+    if (any) records.push(rec);
+  }
+  if (!records.length) throw new Error('That file has a header but no rows under it.');
+  return { headers, records };
+}
+
+/* ─── Field catalogue ───────────────────────────────────────────────────────
+   Aliases are matched against headers reduced to bare alphanumerics, so
+   "Manager ID", "manager_id" and "MANAGER-ID" all land in the same place.
+   ───────────────────────────────────────────────────────────────────────── */
+const FIELDS = [
+  { key: 'id', label: 'Position / Employee ID', required: true, aliases: [
+    'positionid','positionno','positionnumber','positioncode','employeeid','empid','id',
+    'staffid','staffno','staffnumber','employeeno','employeenumber','empno','empcode',
+    'employeecode','personid','personno','personnelnumber','personnelno','workerid',
+    'workerno','badge','hrid','sapid','uid','recordid','idno'] },
+
+  { key: 'managerId', label: 'Manager ID', aliases: [
+    'managerid','managerempid','manageremployeeid','reportstoid','reportsto','reportto',
+    'supervisorid','supervisor','linemanagerid','linemanager','parentid','parent',
+    'managerpositionid','managerof','manager'] },
+
+  { key: 'title', label: 'Job Title', aliases: [
+    'jobtitle','positiontitle','title','position','role','jobname','designation',
+    'roletitle','postitle'] },
+
+  { key: 'name', label: 'Incumbent Name', aliases: [
+    'name','fullname','employeename','incumbent','incumbentname','displayname','employee',
+    'worker','preferredname','staffname','englishname'] },
+
+  { key: 'jobCode',   label: 'Job Code',   aliases: ['jobcode','positioncode','jobid','roleid','jobreq','jobrequisition'] },
+  { key: 'jobFamily', label: 'Job Family', aliases: ['jobfamily','family','jobgroup','careertrack','jobcategory','subfunction','stream'] },
+
+  { key: 'grade', label: 'Grade / Band', aliases: [
+    'grade','jobgrade','gradelevel','band','payband','paygrade','joblevel','level',
+    'seniority','rank','salarygrade','careerlevel'] },
+
+  { key: 'function',   label: 'Function',   aliases: ['function','businessfunction','orgfunction','discipline','practice','area'] },
+  { key: 'department', label: 'Department', aliases: ['department','dept','orgunit','organizationalunit','team','section','unit','subdepartment'] },
+  { key: 'division',   label: 'Division',   aliases: ['division','businessunit','bu','sector','group','segment','entity','company','branchgroup'] },
+  { key: 'location',   label: 'Location',   aliases: ['location','office','site','city','country','region','worklocation','basedin','branch'] },
+
+  { key: 'employmentType', label: 'Employment Type', aliases: ['employmenttype','workertype','contracttype','emptype','employeetype','staffcategory','category','type'] },
+
+  { key: 'status', label: 'Status', aliases: [
+    'status','positionstatus','employeestatus','occupancy','vacancystatus','fillstatus','state'] },
+
+  { key: 'fte',        label: 'FTE',         aliases: ['fte','fulltimeequivalent','ftevalue','headcountvalue','capacity'] },
+  { key: 'costCenter', label: 'Cost Center', aliases: ['costcenter','costcentre','cc','costcentercode','glcode','budgetcode','budgetowner'] },
+  { key: 'email',      label: 'Email',       aliases: ['email','emailaddress','workemail','mail','upn'] },
+  { key: 'hireDate',   label: 'Hire Date',   aliases: ['hiredate','startdate','joindate','dateofjoining','dateofhire','joiningdate','servicedate'] },
+  { key: 'nationality',label: 'Nationality', aliases: ['nationality','citizenship','nationalitycode','saudization','saudi'] },
+
+  { key: 'critical', label: 'Critical Role', flag: true, aliases: [
+    'criticalrole','critical','iscritical','criticalposition','keyrole','keyposition',
+    'criticality','businesscritical','criticalflag'] },
+
+  { key: 'sama', label: 'SAMA Non-Objection Role', flag: true, aliases: [
+    'samanonobjection','samanonobjectionrole','samanoc','samaapproval','samaapproved',
+    'samarole','sama','nonobjection','nonobjectionrole','noc','regulatoryapproval',
+    'regulatoryrole','controlledfunction'] },
+
+  { key: 'successor', label: 'Successor Identified', flag: true, aliases: [
+    'successoridentified','successorexists','hassuccessor','successionidentified',
+    'successorinplace','successorplanned','successionplan','successionplanned',
+    'successorassigned','identifiedsuccessor','successor'] },
+
+  { key: 'successorName', label: 'Successor Name', aliases: [
+    'successorname','nameofsuccessor','successoremployee','successorincumbent',
+    'successorid','successoremployeeid','designatedsuccessor','successorcandidate'] },
+
+  { key: 'successorReadiness', label: 'Successor Readiness', aliases: [
+    'successorreadiness','readiness','readinesslevel','readywhen','successorready',
+    'readinessstatus','timetoready'] },
+];
+
+const FIELD_BY_KEY = Object.fromEntries(FIELDS.map(f => [f.key, f]));
+const FLAG_KEYS = ['critical', 'sama', 'successor'];
+
+/* Dimensions offered for colouring and filtering. */
+const DIMENSIONS = [
+  { key: 'function',       label: 'Function' },
+  { key: 'department',     label: 'Department' },
+  { key: 'division',       label: 'Division' },
+  { key: 'grade',          label: 'Grade / Band' },
+  { key: 'jobFamily',      label: 'Job Family' },
+  { key: 'location',       label: 'Location' },
+  { key: 'employmentType', label: 'Employment Type' },
+  { key: 'costCenter',     label: 'Cost Center' },
+];
+
+const UNSET = 'Unspecified';
+const normHeader = s => String(s).toLowerCase().replace(/[^a-z0-9؀-ۿ]/g, '');
+
+/* ─── Column detection ──────────────────────────────────────────────────── */
+function detectColumns(headers, records) {
+  const norm = new Map(headers.map(h => [h, normHeader(h)]));
+  const map = {}, taken = new Set();
+  const claim = (key, header) => { map[key] = header; taken.add(header); };
+
+  // Exact alias matches first, in the order the aliases are listed.
+  for (const f of FIELDS) {
+    for (const alias of f.aliases) {
+      const hit = headers.find(h => norm.get(h) === alias && !taken.has(h));
+      if (hit) { claim(f.key, hit); break; }
+    }
+  }
+  // Then substring matches for anything still unmapped.
+  for (const f of FIELDS) {
+    if (map[f.key]) continue;
+    for (const alias of f.aliases) {
+      if (alias.length < 5) continue;
+      const hit = headers.find(h => !taken.has(h) && norm.get(h).includes(alias));
+      if (hit) { claim(f.key, hit); break; }
+    }
+  }
+  // Last resort for the one field nothing works without: the first fully
+  // populated, entirely unique column is almost certainly an identifier.
+  if (!map.id && records.length) {
+    for (const h of headers) {
+      if (taken.has(h)) continue;
+      const vals = records.map(r => r[h]);
+      if (vals.every(Boolean) && new Set(vals).size === vals.length) { claim('id', h); break; }
+    }
+  }
+  return map;
+}
+
+/* Flag columns are written every which way; read them generously. */
+const TRUE_WORDS = new Set(['yes','y','true','t','1','x','✓','✔','yes.','critical','required',
+                            'identified','inplace','applicable','نعم','مطلوب']);
+const FALSE_WORDS = new Set(['no','n','false','f','0','-','none','na','n/a','notapplicable',
+                             'notidentified','nil','لا']);
+
+function parseFlag(raw) {
+  const s = String(raw ?? '').trim().toLowerCase();
+  if (!s) return false;
+  const compact = s.replace(/\s+/g, '');
+  if (TRUE_WORDS.has(compact)) return true;
+  if (FALSE_WORDS.has(compact)) return false;
+  // Spacing is kept for this test so "not required" reads as a negation while
+  // a word like "nominated" does not.
+  if (/^(no|not|non|nil|none|لا)\b/.test(s)) return false;
+  return true;   // "Yes - tier 1", "Critical", "Identified" all mean yes
+}
+
+const VACANT_WORDS = /^(vacant|open|unfilled|tobehired|tbh|torecruit|newposition|newrole|hiring|backfill|notfilled|empty|شاغر)$/;
+const BLANK_NAMES = new Set(['','-','--','n/a','na','none','null','tbd','tbh','vacant','open','unknown','?','.']);
+
+function isVacant(name, status) {
+  const st = String(status ?? '').trim().toLowerCase().replace(/\s+/g, '');
+  if (st && VACANT_WORDS.test(st)) return true;
+  if (st && /vacant|unfilled|tobehired|openposition/.test(st)) return true;
+  return BLANK_NAMES.has(String(name ?? '').trim().toLowerCase());
+}
+
+function parseFte(raw) {
+  if (raw === '' || raw == null) return 1;
+  const n = parseFloat(String(raw).replace(/[%\s,]/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return n > 1.5 ? Math.round(n) / 100 : Math.round(n * 1000) / 1000;
+}
+
+/* ─── Build the position model ──────────────────────────────────────────── */
+function buildModel(headers, records, map) {
+  if (!map.id) throw new Error('No ID column could be found. Open Columns and point at the one that identifies each position.');
+
+  const extraHeaders = headers.filter(h => !Object.values(map).includes(h));
+  const issues = [];
+  const nodes = [];
+  const byId = new Map();
+
+  records.forEach((rec, i) => {
+    const get = key => map[key] ? (rec[map[key]] ?? '') : '';
+    let id = get('id');
+    const line = i + 2;
+
+    if (!id) {
+      issues.push({ type: 'noid', text: 'Row ' + line + ' has no ID and was skipped.' });
+      return;
+    }
+    if (byId.has(id)) {
+      // Two rows, same ID. Both are real seats — keep them, tag the duplicate.
+      const dup = id + ' #' + (byId.get(id).dupCount = (byId.get(id).dupCount || 1) + 1);
+      issues.push({ type: 'dupe', id: dup, text: 'Duplicate ID "' + id + '" on row ' + line + ' — kept as a separate position.' });
+      id = dup;
+    }
+
+    const name = get('name');
+    const status = get('status');
+    const vacant = isVacant(name, status);
+    const critical  = map.critical  ? parseFlag(get('critical'))  : false;
+    const sama      = map.sama      ? parseFlag(get('sama'))      : false;
+    const successorName = get('successorName');
+    const successor = map.successor ? parseFlag(get('successor')) : !!successorName;
+
+    let managerId = get('managerId');
+    if (managerId === id) {
+      issues.push({ type: 'self', id, text: (name || id) + ' is listed as their own manager.' });
+      managerId = '';
+    }
+
+    const node = {
+      id, managerId,
+      title:  get('title') || (vacant ? 'Vacant position' : ''),
+      name:   vacant ? '' : name,
+      vacant,
+      status: status || (vacant ? 'Vacant' : 'Filled'),
+      grade: get('grade'), jobCode: get('jobCode'), jobFamily: get('jobFamily'),
+      function: get('function'), department: get('department'), division: get('division'),
+      location: get('location'), employmentType: get('employmentType'),
+      costCenter: get('costCenter'), email: get('email'), hireDate: get('hireDate'),
+      nationality: get('nationality'),
+      fte: parseFte(get('fte')),
+      critical, sama, successor,
+      successorName, successorReadiness: get('successorReadiness'),
+      extra: Object.fromEntries(extraHeaders.map(h => [h, rec[h]]).filter(([, v]) => v)),
+      children: [],
+    };
+    nodes.push(node);
+    byId.set(id, node);
+  });
+
+  if (!nodes.length) throw new Error('No rows in that file had a usable ID.');
+
+  // Link, repairing anything that would stop the tree from forming.
+  const roots = [];
+  for (const n of nodes) {
+    if (n.managerId && !byId.has(n.managerId)) {
+      issues.push({ type: 'orphan', id: n.id,
+        text: 'Manager "' + n.managerId + '" of ' + (n.name || n.title || n.id) + ' is not in the file — moved to the top level.' });
+      n.orphanedFrom = n.managerId;
+      n.managerId = '';
+    }
+    if (n.managerId) byId.get(n.managerId).children.push(n);
+    else roots.push(n);
+  }
+
+  // Anything unreachable from a root sits in a reporting cycle; cut it loose.
+  const seen = new Set();
+  const walkFrom = start => {
+    const stack = [start];
+    while (stack.length) {
+      const n = stack.pop();
+      if (seen.has(n)) continue;
+      seen.add(n);
+      for (const c of n.children) stack.push(c);
+    }
+  };
+  roots.forEach(walkFrom);
+  for (const n of nodes) {
+    if (seen.has(n)) continue;
+    const parent = byId.get(n.managerId);
+    if (parent) parent.children = parent.children.filter(c => c !== n);
+    issues.push({ type: 'cycle', id: n.id,
+      text: 'Reporting loop at ' + (n.name || n.title || n.id) + ' — the link to "' + n.managerId + '" was cut.' });
+    n.inCycle = true;
+    n.managerId = '';
+    roots.push(n);
+    walkFrom(n);
+  }
+
+  const byName = (a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || '');
+  nodes.forEach(n => n.children.sort(byName));
+  roots.sort((a, b) => b.children.length - a.children.length || byName(a, b));
+
+  if (roots.length > 1) {
+    issues.push({ type: 'roots', text: roots.length + ' positions have no manager, so the file holds several separate trees.' });
+  }
+
+  rollUp(roots, byId);
+  return { nodes, byId, roots, issues, extraHeaders, map, headers };
+}
+
+/* Post-order rollups, done iteratively so a deep file cannot blow the stack. */
+function rollUp(roots, byId) {
+  for (const root of roots) {
+    const order = [];
+    const stack = [root];
+    while (stack.length) {
+      const n = stack.pop();
+      order.push(n);
+      for (const c of n.children) stack.push(c);
+    }
+    for (let i = order.length - 1; i >= 0; i--) {
+      const n = order[i];
+      n.directs = n.children.length;
+      n.isManager = n.directs > 0;
+      n.total = n.children.reduce((s, c) => s + c.total, 1);
+      n.fteTotal = Math.round(n.children.reduce((s, c) => s + c.fteTotal, n.fte) * 1000) / 1000;
+      n.vacantBelow = n.children.reduce((s, c) => s + c.vacantBelow, n.vacant ? 1 : 0);
+      n.criticalBelow = n.children.reduce((s, c) => s + c.criticalBelow, n.critical ? 1 : 0);
+      n.gapsBelow = n.children.reduce((s, c) => s + c.gapsBelow, (n.critical && !n.successor) ? 1 : 0);
+      n.depthBelow = 1 + Math.max(0, ...n.children.map(c => c.depthBelow));
+    }
+    // Layer numbers and the chain of command, walking back down.
+    const down = [[root, 1, []]];
+    while (down.length) {
+      const [n, layer, chain] = down.pop();
+      n.layer = layer;
+      n.chain = chain;
+      const next = chain.concat(n);
+      for (const c of n.children) down.push([c, layer + 1, next]);
+    }
+  }
+}
+
+/* ─── State ─────────────────────────────────────────────────────────────── */
+const S = {
+  model: null,
+  fileName: '',
+  collapsed: new Set(),
+  filters: { function: 'All', department: 'All', grade: 'All' },
+  rootId: '',
+  highlight: new Set(),
+  colorBy: 'function',
+  present: false,
+  selected: null,
+  search: '',
+  hits: new Set(),
+  view: { x: 0, y: 0, k: 1 },
+  drawn: [],
+  palette: new Map(),
+};
+
+const NODE_W = 252, NODE_H = 96;
+const SIB_GAP = 28, LEVEL_GAP = 56;
+const HANG_INDENT = 44, HANG_GAP = 8, HANG_TRUNK = 22;
+const DEFAULT_LAYERS = 3;
+const DRAW_CAP = 2500;
+const MIN_ZOOM = 0.04, MAX_ZOOM = 2.4;
+
+const PALETTE = ['#2563eb','#059669','#d97706','#7c3aed','#0891b2','#db2777',
+                 '#65a30d','#dc2626','#0d9488','#c026d3','#4f46e5','#ea580c',
+                 '#0284c7','#16a34a','#a16207','#9333ea'];
+const GREY = '#94a3b8';
+
+const HIGHLIGHTS = [
+  { key: 'gap',      label: 'Critical, no successor', colour: 'var(--critical)',
+    test: n => n.critical && !n.successor },
+  { key: 'critical', label: 'Critical role',          colour: 'var(--critical)', test: n => n.critical },
+  { key: 'sama',     label: 'SAMA non-objection',     colour: 'var(--sama)',     test: n => n.sama },
+  { key: 'successor',label: 'Successor identified',   colour: 'var(--ok)',       test: n => n.successor },
+  { key: 'vacant',   label: 'Vacant',                 colour: 'var(--vacant)',   test: n => n.vacant },
+];
+
+/* ─── Scope: branch selection, filters, visibility ──────────────────────── */
+const scopeRoots = () => {
+  if (S.rootId && S.model.byId.has(S.rootId)) return [S.model.byId.get(S.rootId)];
+  return S.model.roots;
+};
+
+function filtersActive() {
+  return Object.values(S.filters).some(v => v !== 'All');
+}
+
+/* Filtering keeps every ancestor of a match, so the tree never breaks into
+   floating fragments. */
+function computeAllowed() {
+  if (!filtersActive()) return null;
+  const allowed = new Set();
+  for (const n of S.model.nodes) {
+    let ok = true;
+    for (const [key, want] of Object.entries(S.filters)) {
+      if (want === 'All') continue;
+      if ((n[key] || UNSET) !== want) { ok = false; break; }
+    }
+    if (!ok) continue;
+    allowed.add(n.id);
+    for (const a of n.chain || []) allowed.add(a.id);
+  }
+  return allowed;
+}
+
+let _allowed = null;
+const visibleChildren = n => {
+  if (S.collapsed.has(n.id)) return [];
+  return _allowed ? n.children.filter(c => _allowed.has(c.id)) : n.children;
+};
+const hiddenCount = n => {
+  const kids = _allowed ? n.children.filter(c => _allowed.has(c.id)) : n.children;
+  return kids.reduce((s, c) => s + c.total, 0);
+};
+
+function applyDefaultCollapse() {
+  S.collapsed = new Set();
+  for (const n of S.model.nodes) {
+    if (n.children.length && n.layer >= DEFAULT_LAYERS) S.collapsed.add(n.id);
+  }
+}
+
+/* ─── Layout ────────────────────────────────────────────────────────────────
+   Parents are centred over their children; leaves take the next slot along.
+   A manager whose visible reports are all leaves gets them hung in one
+   indented column instead — otherwise a team of 15 stretches the canvas so
+   wide that fitting it to screen makes every box unreadable.
+   ───────────────────────────────────────────────────────────────────────── */
+function layout() {
+  const placed = [];
+  let cursor = 0, capped = false;
+
+  const canHang = kids => kids.length >= 3 && kids.every(k => visibleChildren(k).length === 0);
+
+  const walk = (n, depth) => {
+    if (placed.length >= DRAW_CAP) { capped = true; return cursor; }
+    const kids = visibleChildren(n);
+    let seq;
+
+    if (!kids.length) {
+      seq = cursor; cursor += NODE_W + SIB_GAP;
+      n.x = seq; n.y = depth * (NODE_H + LEVEL_GAP); n.hang = false;
+      placed.push(n);
+    } else if (canHang(kids)) {
+      seq = cursor; cursor += NODE_W + SIB_GAP + HANG_INDENT;
+      n.x = seq; n.y = depth * (NODE_H + LEVEL_GAP); n.hang = false;
+      placed.push(n);
+      kids.forEach((k, i) => {
+        k.x = n.x + HANG_INDENT;
+        k.y = n.y + NODE_H + LEVEL_GAP / 2 + i * (NODE_H + HANG_GAP);
+        k.hang = true;
+        placed.push(k);
+      });
+    } else {
+      const spans = kids.map(k => walk(k, depth + 1));
+      seq = (spans[0] + spans[spans.length - 1]) / 2;
+      n.x = seq; n.y = depth * (NODE_H + LEVEL_GAP); n.hang = false;
+      placed.push(n);
+    }
+    return seq;
+  };
+
+  // Each top-level tree is laid out on its own, then stacked underneath the
+  // previous one. A handful of orphaned rows sitting beside the real org would
+  // otherwise double the canvas width and shrink everything to fit.
+  let yOffset = 0;
+  for (const r of scopeRoots()) {
+    if (_allowed && !_allowed.has(r.id)) continue;
+    const from = placed.length;
+    cursor = 0;
+    walk(r, 0);
+    const tree = placed.slice(from);
+    if (!tree.length) continue;
+    if (yOffset) for (const n of tree) n.y += yOffset;
+    yOffset = Math.max(...tree.map(n => n.y + NODE_H)) + LEVEL_GAP * 1.6;
+  }
+  S.drawn = placed;
+  return capped;
+}
+
+/* ─── Colour ────────────────────────────────────────────────────────────── */
+function colourKey(n) {
+  if (S.colorBy === 'none') return null;
+  if (S.colorBy === 'vacancy') return n.vacant ? 'Vacant' : 'Filled';
+  return n[S.colorBy] || UNSET;
+}
+
+/* Built from the whole model, not just what is on screen, so colours stay put
+   as branches are opened and closed. */
+function buildPalette() {
+  const counts = new Map();
+  for (const n of S.model.nodes) {
+    const k = colourKey(n);
+    if (k) counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  const ordered = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+  S.palette = new Map();
+  ordered.forEach(([k], i) => {
+    S.palette.set(k, k === UNSET ? GREY : PALETTE[i % PALETTE.length]);
+  });
+  return counts;
+}
+
+function colourOf(n) {
+  if (S.colorBy === 'none') return 'var(--accent)';
+  if (S.colorBy === 'vacancy') return n.vacant ? '#d97706' : '#059669';
+  return S.palette.get(colourKey(n)) || GREY;
+}
+
+/* ─── Drawing ───────────────────────────────────────────────────────────── */
+const svgesc = s => esc(s);
+
+function badges(n) {
+  const chips = [];
+  if (n.critical) chips.push(['C', 'var(--critical)', '#fff', 'Critical role']);
+  if (n.sama)     chips.push(['S', 'var(--sama)', '#fff', 'SAMA non-objection role']);
+  if (n.critical && !n.successor) chips.push(['!', 'none', 'var(--critical)', 'Critical role with no successor identified']);
+  else if (n.successor)           chips.push(['✓', 'var(--ok)', '#fff', 'Successor identified']);
+
+  const size = 15, gap = 3;
+  let x = NODE_W - 11 - size;
+  return chips.map(([glyph, fill, ink, tip]) => {
+    const g = `<g transform="translate(${x},67)"><title>${svgesc(tip)}</title>` +
+      `<rect width="${size}" height="${size}" rx="4" fill="${fill}"` +
+      (fill === 'none' ? ` stroke="var(--critical)" stroke-width="1.4"` : '') + `/>` +
+      `<text x="${size / 2}" y="${size - 4}" text-anchor="middle" font-size="10" ` +
+      `font-weight="700" fill="${ink}">${glyph}</text></g>`;
+    x -= size + gap;
+    return g;
+  }).join('');
+}
+
+function cardSvg(n) {
+  const badgeCount = (n.critical ? 1 : 0) + (n.sama ? 1 : 0) + ((n.successor || n.critical) ? 1 : 0);
+  const titleMax = NODE_W - 28;
+  const countMax = NODE_W - 28 - (badgeCount ? badgeCount * 18 + 6 : 0);
+
+  const metaBits = [n.grade, n.function || n.department, n.location].filter(Boolean);
+  const meta = metaBits.join(' · ');
+  const counts = n.isManager
+    ? int(n.directs) + ' direct · ' + int(n.total) + ' total'
+    : (n.jobCode ? 'Job code ' + n.jobCode : 'Individual contributor');
+
+  const nameLine = n.vacant
+    ? `<text class="t-vacant" x="14" y="42">Vacant</text>`
+    : `<text class="t-name" x="14" y="42">${svgesc(fit(n.name || '—', NODE_W - 28, FONTS.name))}</text>`;
+
+  const cls = ['card'];
+  if (n.vacant) cls.push('vacant');
+  if (S.selected === n.id) cls.push('sel');
+  if (S.hits.has(n.id)) cls.push('hit');
+  if (isDimmed(n)) cls.push('dim');
+
+  return `<g class="${cls.join(' ')}" data-id="${svgesc(n.id)}" transform="translate(${n.x},${n.y})">` +
+    (S.hits.has(n.id) ? `<rect class="card-halo" x="-5" y="-5" width="${NODE_W + 10}" height="${NODE_H + 10}" rx="12"/>` : '') +
+    `<rect class="card-box" width="${NODE_W}" height="${NODE_H}"/>` +
+    `<rect x="0" y="10" width="4" height="${NODE_H - 20}" rx="2" fill="${colourOf(n)}"/>` +
+    `<text class="t-title" x="14" y="24">${svgesc(fit(n.title || n.name || n.id, titleMax, FONTS.title))}</text>` +
+    nameLine +
+    `<text class="t-meta" x="14" y="60">${svgesc(fit(meta || '—', NODE_W - 28, FONTS.meta))}</text>` +
+    `<text class="t-count" x="14" y="79">${svgesc(fit(counts, countMax, FONTS.count))}</text>` +
+    badges(n) +
+    `</g>`;
+}
+
+function expanderSvg(n) {
+  const kids = _allowed ? n.children.filter(c => _allowed.has(c.id)) : n.children;
+  if (!kids.length) return '';
+  const collapsed = S.collapsed.has(n.id);
+  const onTrunk = !collapsed && kids.some(k => k.hang);
+  const cx = onTrunk ? n.x + HANG_TRUNK : n.x + NODE_W / 2;
+  const cy = n.y + NODE_H;
+  const below = kids.reduce((s, c) => s + c.total, 0);
+
+  return `<g class="exp" data-toggle="${svgesc(n.id)}" transform="translate(${cx},${cy})">` +
+    `<title>${collapsed ? 'Show ' + below + ' below' : 'Hide'}</title>` +
+    `<circle class="exp-c" r="10"/>` +
+    `<text class="exp-s" y="4">${collapsed ? '+' : '−'}</text>` +
+    (collapsed ? `<text class="exp-n" y="24">${int(below)}</text>` : '') +
+    `</g>`;
+}
+
+function linkSvg(parent, child) {
+  if (child.hang) {
+    const x = parent.x + HANG_TRUNK;
+    return `<path class="link" d="M${x},${parent.y + NODE_H} V${child.y + NODE_H / 2} H${child.x}"/>`;
+  }
+  const x1 = parent.x + NODE_W / 2, y1 = parent.y + NODE_H;
+  const x2 = child.x + NODE_W / 2, y2 = child.y;
+  const mid = y1 + LEVEL_GAP / 2;
+  return `<path class="link" d="M${x1},${y1} V${mid} H${x2} V${y2}"/>`;
+}
+
+function isDimmed(n) {
+  if (S.hits.size) return !S.hits.has(n.id);
+  if (!S.highlight.size) return false;
+  return ![...S.highlight].some(k => HIGHLIGHTS.find(h => h.key === k).test(n));
+}
+
+function draw() {
+  _allowed = computeAllowed();
+  const capped = layout();
+
+  const links = [];
+  for (const n of S.drawn) {
+    for (const c of visibleChildren(n)) if (c.x != null) links.push(linkSvg(n, c));
+  }
+
+  $('#viewport').innerHTML =
+    '<g>' + links.join('') + '</g>' +
+    '<g>' + S.drawn.map(cardSvg).join('') + '</g>' +
+    '<g>' + S.drawn.map(expanderSvg).join('') + '</g>';
+
+  S.capped = capped;
+  const msg = $('#overlay-msg');
+  if (capped) {
+    msg.hidden = false;
+    msg.textContent = 'Showing the first ' + int(DRAW_CAP) + ' boxes — collapse a branch to see the rest.';
+  } else msg.hidden = true;
+
+  applyTransform();
+}
+
+/* ─── Pan and zoom ──────────────────────────────────────────────────────── */
+function applyTransform() {
+  $('#viewport').setAttribute('transform',
+    `translate(${S.view.x},${S.view.y}) scale(${S.view.k})`);
+}
+
+function contentBounds() {
+  if (!S.drawn.length) return { x: 0, y: 0, w: 1, h: 1 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of S.drawn) {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
+    if (n.y + NODE_H > maxY) maxY = n.y + NODE_H;
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+/* A wide organisation cannot be both fully visible and readable. Below the
+   legible floor, stop shrinking and open at the top of the tree instead —
+   an overview nobody can read is worse than one they scroll. */
+const LEGIBLE_ZOOM = 0.42;
+
+function fitToScreen() {
+  const r = $('#chart').getBoundingClientRect();
+  const b = contentBounds();
+  const pad = 56;
+  const ideal = Math.min((r.width - pad) / b.w, (r.height - pad) / b.h, 1.15);
+
+  if (ideal >= LEGIBLE_ZOOM) {
+    S.view.k = ideal;
+    S.view.x = (r.width - b.w * S.view.k) / 2 - b.x * S.view.k;
+    S.view.y = (r.height - b.h * S.view.k) / 2 - b.y * S.view.k;
+  } else {
+    S.view.k = LEGIBLE_ZOOM;
+    const top = S.drawn.reduce((a, n) => (n.y < a.y ? n : a), S.drawn[0]);
+    S.view.x = r.width / 2 - (top.x + NODE_W / 2) * S.view.k;
+    S.view.y = 76 - b.y * S.view.k;   // clear of the hint banner
+    if (!S.capped && !S.hintShown) {
+      S.hintShown = true;
+      showHint('Too wide to fit on screen — drag to pan, or narrow it with search, ' +
+               'a filter, or by picking one branch.');
+    }
+  }
+  applyTransform();
+}
+
+let hintTimer;
+function showHint(text) {
+  const el = $('#overlay-msg');
+  el.hidden = false;
+  el.textContent = text;
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => { el.hidden = true; }, 6000);
+}
+
+function zoomAt(factor, cx, cy) {
+  const k = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, S.view.k * factor));
+  S.view.x = cx - (cx - S.view.x) * (k / S.view.k);
+  S.view.y = cy - (cy - S.view.y) * (k / S.view.k);
+  S.view.k = k;
+  applyTransform();
+}
+
+function centreOn(node, zoom) {
+  const r = $('#chart').getBoundingClientRect();
+  if (zoom) S.view.k = Math.max(S.view.k, 0.75);
+  S.view.x = r.width / 2 - (node.x + NODE_W / 2) * S.view.k;
+  S.view.y = r.height / 2 - (node.y + NODE_H / 2) * S.view.k;
+  applyTransform();
+}
+
+/* Open every ancestor so a node is actually on screen. */
+function revealNode(node) {
+  for (const a of node.chain || []) S.collapsed.delete(a.id);
+}
+
+/* ─── Scope helpers for the stats strip and exports ─────────────────────── */
+function scopedNodes() {
+  const out = [];
+  const stack = [...scopeRoots()];
+  const seen = new Set();
+  while (stack.length) {
+    const n = stack.pop();
+    if (seen.has(n.id)) continue;
+    seen.add(n.id);
+    if (!_allowed || _allowed.has(n.id)) out.push(n);
+    for (const c of n.children) stack.push(c);
+  }
+  return out;
+}
+
+/* ─── Stats strip ───────────────────────────────────────────────────────── */
+function renderStats() {
+  const ns = scopedNodes();
+  const managers = ns.filter(n => n.isManager);
+  const spans = managers.map(n => n.directs);
+  const layers = ns.length ? (Math.max(...ns.map(n => n.layer)) - Math.min(...ns.map(n => n.layer)) + 1) : 0;
+  const vacant = ns.filter(n => n.vacant).length;
+  const critical = ns.filter(n => n.critical).length;
+  const gaps = ns.filter(n => n.critical && !n.successor).length;
+  const sama = ns.filter(n => n.sama).length;
+  const issues = S.model.issues.length;
+
+  const cell = (v, k, cls = '', attr = '') =>
+    `<div class="stat ${cls}" ${attr}><span class="v">${v}</span><span class="k">${k}</span></div>`;
+
+  let html = cell(int(ns.length), 'Positions')
+    + cell(dec(ns.reduce((s, n) => s + n.fte, 0), 1), 'FTE')
+    + cell(int(layers), 'Layers')
+    + cell(spans.length ? dec(spans.reduce((a, b) => a + b, 0) / spans.length, 1) : '—', 'Avg span')
+    + cell(int(vacant), 'Vacant', vacant ? 'warn' : '');
+
+  if (S.model.map.critical || critical) html += cell(int(critical), 'Critical roles');
+  if (S.model.map.sama || sama) html += cell(int(sama), 'SAMA roles');
+  if (S.model.map.critical) {
+    html += cell(int(gaps), 'Succession gaps', gaps ? 'alert' : '');
+  }
+  if (issues) {
+    html += cell(int(issues), 'Data issues ⓘ', 'warn clickable', 'id="stat-issues" title="Click to see what was repaired"');
+  }
+  $('#stats').innerHTML = html;
+  const si = $('#stat-issues');
+  if (si) si.onclick = showIssues;
+}
+
+/* ─── Highlight chips ───────────────────────────────────────────────────── */
+function renderChips() {
+  const ns = scopedNodes();
+  const html = HIGHLIGHTS.map(h => {
+    const n = ns.filter(h.test).length;
+    if (!n && !S.highlight.has(h.key)) return '';
+    return `<button class="chip" data-hl="${h.key}" aria-pressed="${S.highlight.has(h.key)}">` +
+      `<span class="dot" style="background:${h.colour}"></span>${esc(h.label)}` +
+      `<span class="n">${int(n)}</span></button>`;
+  }).join('');
+  $('#chips').innerHTML = html || '<span class="field-label">No flag columns found in this file</span>';
+}
+
+/* ─── Filter dropdowns ──────────────────────────────────────────────────── */
+function fillSelect(el, label, values, current) {
+  el.innerHTML = `<option value="All">${label}: all</option>` +
+    values.map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(v)}</option>`).join('');
+}
+
+function distinct(key) {
+  const set = new Set();
+  for (const n of S.model.nodes) if (n[key]) set.add(n[key]);
+  return [...set].sort((a, b) => String(a).localeCompare(String(b)));
+}
+
+function renderControls() {
+  const rootOpts = S.model.roots.length > 1 || S.model.nodes.length > 40;
+  const leaders = S.model.nodes
+    .filter(n => n.directs >= 2 && n.layer <= 3)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 60);
+
+  $('#f-root').innerHTML = '<option value="">Whole organisation</option>' +
+    leaders.map(n => `<option value="${esc(n.id)}"${n.id === S.rootId ? ' selected' : ''}>` +
+      esc((n.title || n.name || n.id) + ' (' + n.total + ')') + '</option>').join('');
+  $('#f-root').hidden = !rootOpts;
+
+  fillSelect($('#f-function'), 'Function', distinct('function'), S.filters.function);
+  fillSelect($('#f-department'), 'Department', distinct('department'), S.filters.department);
+  fillSelect($('#f-grade'), 'Grade', distinct('grade'), S.filters.grade);
+  $('#f-function').hidden = distinct('function').length < 2;
+  $('#f-department').hidden = distinct('department').length < 2;
+  $('#f-grade').hidden = distinct('grade').length < 2;
+
+  const dims = DIMENSIONS.filter(d => distinct(d.key).length > 1);
+  $('#color-by').innerHTML = '<option value="none">No colour</option>' +
+    '<option value="vacancy"' + (S.colorBy === 'vacancy' ? ' selected' : '') + '>Colour: filled / vacant</option>' +
+    dims.map(d => `<option value="${d.key}"${d.key === S.colorBy ? ' selected' : ''}>Colour: ${esc(d.label)}</option>`).join('');
+  if (!dims.some(d => d.key === S.colorBy) && S.colorBy !== 'vacancy' && S.colorBy !== 'none') {
+    S.colorBy = dims.length ? dims[0].key : 'none';
+    $('#color-by').value = S.colorBy;
+  }
+}
+
+/* ─── Legend ────────────────────────────────────────────────────────────── */
+let legendOpen = true;
+function renderLegend(counts) {
+  const el = $('#legend');
+  if (S.colorBy === 'none' || !S.palette.size) { el.hidden = true; return; }
+  const label = S.colorBy === 'vacancy' ? 'Filled / vacant'
+    : (DIMENSIONS.find(d => d.key === S.colorBy) || {}).label || S.colorBy;
+  const rows = [...S.palette.entries()].slice(0, 16);
+  el.hidden = false;
+  el.innerHTML = `<h4 id="legend-toggle">${esc(label)}<span class="caret">${legendOpen ? '▾' : '▸'}</span></h4>` +
+    (legendOpen ? rows.map(([v, c]) =>
+      `<div class="leg"><span class="sw" style="background:${c}"></span>` +
+      `<span class="lbl">${esc(v)}</span><span class="n">${int(counts.get(v) || 0)}</span></div>`).join('')
+      + (S.palette.size > 16 ? `<div class="leg"><span class="lbl">+${S.palette.size - 16} more</span></div>` : '')
+      : '');
+  $('#legend-toggle').onclick = () => { legendOpen = !legendOpen; renderLegend(counts); };
+}
+
+/* ─── Full refresh ──────────────────────────────────────────────────────── */
+function refresh(keepView) {
+  const counts = buildPalette();
+  const before = { ...S.view };
+  draw();
+  renderStats();
+  renderChips();
+  renderLegend(counts);
+  if (keepView) { S.view = before; applyTransform(); } else fitToScreen();
+}
+
+/* ─── Detail panel ──────────────────────────────────────────────────────── */
+const SENSITIVE = ['successorName', 'email', 'hireDate', 'nationality'];
+
+function fieldValue(node, key) {
+  if (S.present && SENSITIVE.includes(key)) return '<span class="redacted">hidden</span>';
+  const v = node[key];
+  return v ? esc(v) : '—';
+}
+
+function openDetail(id) {
+  const n = S.model.byId.get(id);
+  if (!n) return;
+  S.selected = id;
+
+  const tags = [];
+  if (n.vacant) tags.push('<span class="tag tag-vacant">Vacant</span>');
+  if (n.critical) tags.push('<span class="tag tag-critical">Critical role</span>');
+  if (n.sama) tags.push('<span class="tag tag-sama">SAMA non-objection</span>');
+  if (n.critical && !n.successor) tags.push('<span class="tag tag-critical">No successor</span>');
+  else if (n.successor) tags.push('<span class="tag tag-ok">Successor identified</span>');
+  if (n.grade) tags.push('<span class="tag tag-plain">' + esc(n.grade) + '</span>');
+  tags.push('<span class="tag tag-plain">Layer ' + n.layer + '</span>');
+
+  const kv = (k, key) => `<div><div class="k">${k}</div><div class="v">${fieldValue(n, key)}</div></div>`;
+  const raw = (k, v) => `<div><div class="k">${esc(k)}</div><div class="v">${v ? esc(v) : '—'}</div></div>`;
+
+  const crumbs = (n.chain || []).length
+    ? '<div class="dt-sec"><h4>Reports up through</h4><div class="crumbs">' +
+      n.chain.map(a => `<a data-goto="${esc(a.id)}">${esc(a.title || a.name || a.id)}</a>`)
+        .join('<span class="sep">›</span>') + '</div></div>'
+    : '';
+
+  const kids = n.children.slice().sort((a, b) => b.total - a.total);
+  const reports = kids.length ? '<div class="dt-sec"><h4>Direct reports (' + kids.length + ')</h4><div class="rlist">' +
+    kids.map(c => `<div class="ritem" data-goto="${esc(c.id)}">
+        <span class="txt"><div>${esc(c.title || c.name || c.id)}</div>
+        <div>${esc(c.vacant ? 'Vacant' : (c.name || '—'))}</div></span>
+        ${c.critical && !c.successor ? '<span class="tag tag-critical">gap</span>' : ''}
+        ${c.vacant ? '<span class="tag tag-vacant">vacant</span>' : ''}
+        <span class="tag tag-plain">${int(c.total)}</span>
+      </div>`).join('') + '</div></div>' : '';
+
+  const succ = (S.model.map.successor || n.successorName || S.model.map.successorName)
+    ? `<div class="dt-sec"><h4>Succession</h4><div class="kv">
+        ${raw('Successor identified', n.successor ? 'Yes' : 'No')}
+        ${kv('Successor', 'successorName')}
+        ${raw('Readiness', n.successorReadiness)}
+       </div>${n.successorName && !S.present && S.model.byId.has(n.successorName)
+         ? `<p class="note" style="margin-top:8px"><a class="crumbs" data-goto="${esc(n.successorName)}">Show the successor in the chart →</a></p>` : ''}</div>`
+    : '';
+
+  const extras = Object.keys(n.extra).length
+    ? '<div class="dt-sec"><h4>Other columns from your file</h4><div class="kv">' +
+      Object.entries(n.extra).map(([k, v]) => raw(k, v)).join('') + '</div></div>'
+    : '';
+
+  const gapNote = n.gapsBelow
+    ? `<p class="note" style="color:var(--critical)">${int(n.gapsBelow)} critical role${n.gapsBelow > 1 ? 's' : ''} in this branch ${n.gapsBelow > 1 ? 'have' : 'has'} no successor identified.</p>`
+    : '';
+
+  $('#detail').hidden = false;
+  $('#detail').innerHTML = `
+    <div class="dt-head">
+      <div style="flex:1;min-width:0">
+        <h3>${esc(n.title || n.name || n.id)}</h3>
+        <div class="sub">${n.vacant ? 'Vacant position' : esc(n.name || '—')}</div>
+      </div>
+      <button class="btn btn-sm btn-icon" id="dt-close" title="Close">✕</button>
+    </div>
+    <div class="dt-body">
+      <div class="tagrow">${tags.join('')}</div>
+      ${gapNote}
+      <div class="mini">
+        <div><div class="v">${int(n.directs)}</div><div class="k">Direct reports</div></div>
+        <div><div class="v">${int(n.total)}</div><div class="k">Total in branch</div></div>
+        <div><div class="v">${dec(n.fteTotal, 1)}</div><div class="k">Branch FTE</div></div>
+        <div><div class="v">${int(n.vacantBelow)}</div><div class="k">Vacant in branch</div></div>
+      </div>
+      ${crumbs}
+      <div class="dt-sec"><h4>Position</h4><div class="kv">
+        ${raw('ID', n.id)} ${raw('Job code', n.jobCode)} ${raw('Grade / band', n.grade)}
+        ${raw('Job family', n.jobFamily)} ${raw('Function', n.function)} ${raw('Department', n.department)}
+        ${raw('Division', n.division)} ${raw('Location', n.location)} ${raw('Employment type', n.employmentType)}
+        ${raw('FTE', n.fte)} ${raw('Cost center', n.costCenter)} ${raw('Status', n.status)}
+      </div></div>
+      <div class="dt-sec"><h4>Incumbent</h4><div class="kv">
+        ${raw('Name', n.vacant ? 'Vacant' : n.name)} ${kv('Email', 'email')}
+        ${kv('Hire date', 'hireDate')} ${kv('Nationality', 'nationality')}
+      </div></div>
+      ${succ}
+      ${reports}
+      ${extras}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" data-focus="${esc(n.id)}">Focus this branch</button>
+        <button class="btn btn-sm" data-printbranch="${esc(n.id)}">Print this branch</button>
+      </div>
+    </div>`;
+  $('#dt-close').onclick = closeDetail;
+  draw();
+}
+
+function closeDetail() {
+  S.selected = null;
+  $('#detail').hidden = true;
+  draw();
+}
+
+/* ─── Search ────────────────────────────────────────────────────────────── */
+const runSearch = debounce(() => {
+  const q = S.search.trim().toLowerCase();
+  S.hits = new Set();
+  if (q.length < 2) {
+    $('#search-count').textContent = '';
+    refresh(true);
+    return;
+  }
+  const matches = S.model.nodes.filter(n =>
+    (n.name && n.name.toLowerCase().includes(q)) ||
+    (n.title && n.title.toLowerCase().includes(q)) ||
+    String(n.id).toLowerCase().includes(q) ||
+    (n.email && n.email.toLowerCase().includes(q)));
+
+  matches.slice(0, 400).forEach(n => { S.hits.add(n.id); revealNode(n); });
+  $('#search-count').textContent = matches.length
+    ? matches.length + ' match' + (matches.length > 1 ? 'es' : '')
+    : 'no matches';
+
+  refresh(true);
+  if (matches.length) {
+    const first = matches.find(n => n.x != null) || matches[0];
+    if (first.x != null) centreOn(first, true);
+  }
+}, 220);
+
+/* ─── Export: CSV ───────────────────────────────────────────────────────── */
+const csvCell = v => {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+
+function exportCsv() {
+  const cols = [
+    ['ID', n => n.id], ['Job Title', n => n.title], ['Incumbent', n => n.vacant ? 'Vacant' : n.name],
+    ['Status', n => n.status], ['Grade', n => n.grade], ['Job Code', n => n.jobCode],
+    ['Job Family', n => n.jobFamily], ['Function', n => n.function], ['Department', n => n.department],
+    ['Division', n => n.division], ['Location', n => n.location], ['Employment Type', n => n.employmentType],
+    ['FTE', n => n.fte], ['Cost Center', n => n.costCenter],
+    ['Critical Role', n => n.critical ? 'Yes' : 'No'], ['SAMA Non-Objection', n => n.sama ? 'Yes' : 'No'],
+    ['Successor Identified', n => n.successor ? 'Yes' : 'No'],
+    ['Successor Name', n => S.present ? '' : n.successorName],
+    ['Successor Readiness', n => n.successorReadiness],
+    ['Manager ID', n => n.managerId], ['Manager', n => {
+      const m = S.model.byId.get(n.managerId); return m ? (m.title || m.name || m.id) : '';
+    }],
+    ['Layer', n => n.layer], ['Direct Reports', n => n.directs], ['Total In Branch', n => n.total],
+    ['Branch FTE', n => n.fteTotal], ['Vacant In Branch', n => n.vacantBelow],
+    ['Succession Gaps In Branch', n => n.gapsBelow],
+    ['Reporting Line', n => (n.chain || []).map(a => a.title || a.name || a.id).join(' > ')],
+  ];
+  const rows = scopedNodes().sort((a, b) => a.layer - b.layer ||
+    String(a.title).localeCompare(String(b.title)));
+  const csv = [cols.map(c => csvCell(c[0])).join(',')]
+    .concat(rows.map(n => cols.map(c => csvCell(c[1](n))).join(','))).join('\r\n');
+
+  download(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }), 'org-positions.csv');
+  toast('Exported ' + rows.length + ' positions');
+}
+
+function download(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+/* ─── Export: PNG ───────────────────────────────────────────────────────────
+   The chart's colours live in CSS variables, which a detached SVG cannot see,
+   so they are resolved to literals and inlined before serialising.
+   ───────────────────────────────────────────────────────────────────────── */
+function inlineStyles() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = name => cs.getPropertyValue(name).trim();
+  return `
+    text{font-family:${FONT_STACK};unicode-bidi:plaintext}
+    .link{fill:none;stroke:${v('--border-2')};stroke-width:1.4}
+    .card-box{fill:${v('--surface')};stroke:${v('--border')};stroke-width:1;rx:8}
+    .card.vacant .card-box{stroke:${v('--vacant')};stroke-dasharray:5 3}
+    .card.sel .card-box{stroke:${v('--accent')};stroke-width:2}
+    .card.hit .card-box{stroke:${v('--accent')};stroke-width:2.5}
+    .card-halo{fill:${v('--accent')};opacity:.1}
+    .card.dim{opacity:.22}
+    .t-title{fill:${v('--text')};font-size:13px;font-weight:640}
+    .t-name{fill:${v('--text-dim')};font-size:11.5px}
+    .t-meta{fill:${v('--text-mute')};font-size:10.5px}
+    .t-count{fill:${v('--text-dim')};font-size:10.5px}
+    .t-vacant{fill:${v('--vacant')};font-size:11.5px;font-weight:600}
+    .exp-c{fill:${v('--surface')};stroke:${v('--border-2')};stroke-width:1.2}
+    .exp-s{fill:${v('--text-dim')};font-size:12px;font-weight:700;text-anchor:middle}
+    .exp-n{fill:${v('--text-mute')};font-size:9.5px;text-anchor:middle}`
+    .replace(/var\(--critical\)/g, v('--critical'))
+    .replace(/var\(--sama\)/g, v('--sama'))
+    .replace(/var\(--ok\)/g, v('--ok'));
+}
+
+/* PNG captures exactly what is on screen, at slide proportions. Anything wider
+   than the window belongs in Print, which lays the whole branch out to fit a
+   page — a 20,000-pixel image is no use in a deck. */
+async function exportPng() {
+  const rect = $('#chart').getBoundingClientRect();
+  const k = S.view.k;
+  const view = {
+    x: -S.view.x / k, y: -S.view.y / k,
+    w: rect.width / k, h: rect.height / k,
+  };
+  const cs = getComputedStyle(document.documentElement);
+  const bg = cs.getPropertyValue('--bg').trim();
+
+  let body = $('#viewport').innerHTML;
+  for (const name of ['--critical', '--sama', '--ok', '--accent', '--vacant']) {
+    body = body.split('var(' + name + ')').join(cs.getPropertyValue(name).trim());
+  }
+
+  const out = { w: Math.round(rect.width * 2), h: Math.round(rect.height * 2) };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${out.w}" height="${out.h}" ` +
+    `viewBox="${view.x} ${view.y} ${view.w} ${view.h}">` +
+    `<style>${inlineStyles()}</style>` +
+    `<rect x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}" fill="${bg}"/>` +
+    body + `</svg>`;
+
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+  try {
+    const img = new Image();
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = () => rej(new Error('Could not render the chart to an image.'));
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = out.w;
+    canvas.height = out.h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, out.w, out.h);
+    ctx.drawImage(img, 0, 0, out.w, out.h);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    download(blob, 'org-chart.png');
+    toast('Saved what is on screen as org-chart.png');
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/* ─── Print ─────────────────────────────────────────────────────────────────
+   For paper the chart has to stop being a pan/zoom canvas and become a plain
+   scalable drawing: viewBox over the content, no transform, sized by CSS.
+   ───────────────────────────────────────────────────────────────────────── */
+function preparePrint() {
+  const svg = $('#chart'), vp = $('#viewport');
+  const b = contentBounds();
+  const pad = 24;
+  const saved = {
+    viewBox: svg.getAttribute('viewBox'),
+    cssWidth: svg.style.width,
+    cssHeight: svg.style.height,
+    transform: vp.getAttribute('transform'),
+  };
+
+  const scope = S.rootId ? S.model.byId.get(S.rootId) : null;
+  $('#print-head').innerHTML =
+    `<h2>${esc(scope ? (scope.title || scope.name || scope.id) : 'Organisation chart')}</h2>` +
+    `<p>${esc(S.fileName)} · ${int(scopedNodes().length)} positions · ` +
+    `${new Date().toLocaleDateString()}${S.present ? ' · names hidden' : ''}</p>`;
+
+  svg.setAttribute('viewBox',
+    `${b.x - pad} ${b.y - pad} ${b.w + pad * 2} ${b.h + pad * 2}`);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svg.style.width = '100%';
+  svg.style.height = 'auto';
+  vp.removeAttribute('transform');
+
+  return function restore() {
+    if (saved.viewBox) svg.setAttribute('viewBox', saved.viewBox);
+    else svg.removeAttribute('viewBox');
+    svg.style.width = saved.cssWidth;
+    svg.style.height = saved.cssHeight;
+    if (saved.transform) vp.setAttribute('transform', saved.transform);
+  };
+}
+
+function printChart() {
+  const restore = preparePrint();
+  const done = () => { restore(); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
+  setTimeout(done, 2000);   // Safari does not reliably fire afterprint
+}
+
+/* ─── Modals ────────────────────────────────────────────────────────────── */
+function openModal(title, body, foot) {
+  $('#modal').hidden = false;
+  $('#modal').innerHTML = `<div class="mbox">
+      <div class="mhead"><h3>${esc(title)}</h3><div class="spacer"></div>
+        <button class="btn btn-sm btn-icon" data-close-modal>✕</button></div>
+      <div class="mbody">${body}</div>
+      ${foot ? `<div class="mfoot">${foot}</div>` : ''}
+    </div>`;
+}
+const closeModal = () => { $('#modal').hidden = true; $('#modal').innerHTML = ''; };
+
+function showIssues() {
+  const groups = {};
+  for (const i of S.model.issues) (groups[i.type] = groups[i.type] || []).push(i);
+  const names = {
+    orphan: 'Manager not found in the file', cycle: 'Reporting loops',
+    dupe: 'Duplicate IDs', noid: 'Rows without an ID',
+    self: 'Positions reporting to themselves', roots: 'Multiple top-level positions',
+  };
+  const body = '<p class="note">The chart was drawn anyway — here is what had to be repaired to make the hierarchy resolve.</p>' +
+    Object.entries(groups).map(([type, items]) => `
+      <div><h4 style="font-size:.8rem;margin-bottom:6px">${esc(names[type] || type)}
+        <span class="tag tag-vacant">${items.length}</span></h4>
+      <div class="issue-list">${items.slice(0, 200).map(i =>
+        `<div class="row">${esc(i.text)}</div>`).join('')}
+      ${items.length > 200 ? `<div class="row note">…and ${items.length - 200} more</div>` : ''}</div></div>`).join('');
+  openModal('Data issues (' + S.model.issues.length + ')', body);
+}
+
+function showExpected() {
+  const rows = FIELDS.map(f => `<tr><td style="padding:3px 10px 3px 0">${esc(f.label)}` +
+    (f.required ? ' <span style="color:var(--critical)">*</span>' : '') +
+    `</td><td style="padding:3px 0;color:var(--text-mute)">${esc(f.aliases.slice(0, 4).join(', '))}…</td></tr>`).join('');
+  openModal('What the file should contain', `
+    <p class="note">One row per position. Only the ID is strictly required — everything
+    else is used when it is there. Column names are matched loosely, so most HR exports
+    work untouched, and anything that lands wrong can be corrected afterwards
+    with the <strong>Columns</strong> button.</p>
+    <table style="font-size:.82rem"><tbody>${rows}</tbody></table>`);
+}
+
+function showColumns(errorText) {
+  const { headers, map } = S.model ? S.model : window._pending;
+  const opts = sel => '<option value="">— not in file —</option>' +
+    headers.map(h => `<option value="${esc(h)}"${h === sel ? ' selected' : ''}>${esc(h)}</option>`).join('');
+  const body = (errorText ? `<div class="err">${esc(errorText)}</div>` : '') +
+    '<p class="note">These are the columns the tool matched in your file. Correct anything wrong — the choices are remembered for files with the same columns.</p>' +
+    '<div class="mapgrid">' + FIELDS.map(f => `<div class="maprow">
+        <label for="map-${f.key}">${esc(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>
+        <select id="map-${f.key}" data-field="${f.key}">${opts(map[f.key])}</select>
+      </div>`).join('') + '</div>';
+  openModal('Columns', body,
+    '<button class="btn" data-close-modal>Cancel</button>' +
+    '<button class="btn btn-primary" id="map-apply">Apply</button>');
+  $('#map-apply').onclick = applyColumns;
+}
+
+function applyColumns() {
+  const map = {};
+  $$('#modal select[data-field]').forEach(s => { if (s.value) map[s.dataset.field] = s.value; });
+  const src = S.model || window._pending;
+  try {
+    startModel(src.headers, src.records || window._pending.records, map, S.fileName, true);
+    closeModal();
+  } catch (e) {
+    $('#modal .err')?.remove();
+    $('#modal .mbody').insertAdjacentHTML('afterbegin', `<div class="err">${esc(e.message)}</div>`);
+  }
+}
+
+/* ─── Remembering column corrections ────────────────────────────────────── */
+const mapKey = headers => 'orgchart.map.' + headers.join('|').slice(0, 400);
+function saveMapping(headers, map) {
+  try { localStorage.setItem(mapKey(headers), JSON.stringify(map)); } catch { /* private mode */ }
+}
+function loadMapping(headers) {
+  try {
+    const raw = localStorage.getItem(mapKey(headers));
+    if (!raw) return null;
+    const map = JSON.parse(raw);
+    // Drop anything pointing at a column that is no longer there.
+    for (const k of Object.keys(map)) if (!headers.includes(map[k])) delete map[k];
+    return Object.keys(map).length ? map : null;
+  } catch { return null; }
+}
+
+/* ─── Loading a file ────────────────────────────────────────────────────── */
+function startModel(headers, records, map, fileName, remember) {
+  const model = buildModel(headers, records, map);
+  model.records = records;
+  S.model = model;
+  S.fileName = fileName || S.fileName;
+  S.rootId = '';
+  S.selected = null;
+  S.hits = new Set();
+  S.search = '';
+  S.filters = { function: 'All', department: 'All', grade: 'All' };
+  S.highlight = new Set();
+  S.hintShown = false;
+  applyDefaultCollapse();
+
+  if (remember) saveMapping(headers, map);
+  window._pending = { headers, records, map };
+
+  $('#drop-screen').hidden = true;
+  $('#app').hidden = false;
+  $('#detail').hidden = true;
+  $('#file-name').textContent = S.fileName;
+  $('#search').value = '';
+  $('#search-count').textContent = '';
+
+  renderControls();
+  refresh();
+
+  if (model.issues.length) {
+    toast(int(model.nodes.length) + ' positions loaded · ' + model.issues.length + ' rows needed repair');
+  } else {
+    toast(int(model.nodes.length) + ' positions loaded');
+  }
+}
+
+async function loadFile(file) {
+  const err = $('#drop-error');
+  err.innerHTML = '<p class="note" style="margin-top:14px">Reading ' + esc(file.name) + '…</p>';
+  try {
+    const grid = /\.(xlsx|xlsm)$/i.test(file.name)
+      ? await readXlsx(await file.arrayBuffer())
+      : parseDelimited(await file.text());
+    const { headers, records } = toRecords(grid);
+    const map = loadMapping(headers) || detectColumns(headers, records);
+    window._pending = { headers, records, map };
+    startModel(headers, records, map, file.name);
+    err.innerHTML = '';
+  } catch (e) {
+    err.innerHTML = `<div class="err" style="margin-top:14px">${esc(e.message)}</div>`;
+    if (window._pending) showColumns(e.message);
+  }
+}
+
+/* ─── Sample data ───────────────────────────────────────────────────────────
+   Generated rather than embedded, so the file stays small. Shaped like a bank
+   export: grades, functions, the three flags, vacancies and Arabic names.
+   ───────────────────────────────────────────────────────────────────────── */
+function sampleRecords() {
+  const rnd = (seed => () => (seed = seed * 16807 % 2147483647) / 2147483647)(42);
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const AR = ['أحمد الحربي','نورة القحطاني','خالد الدوسري','سارة العتيبي','فيصل الشمري','ريم الغامدي'];
+  const EN = ['Omar Nasser','Layla Haddad','Yusuf Karim','Huda Mansour','Tariq Aziz','Dana Rashed',
+              'Sami Farouk','Rana Idris','Bilal Osman','Maya Younes','Adel Saleh','Noor Baker'];
+  const FN = { 'Retail Banking': ['Branch Network','Cards','Wealth'],
+               'Corporate Banking': ['Large Corporate','SME','Trade Finance'],
+               'Risk': ['Credit Risk','Market Risk','Operational Risk'],
+               'Compliance': ['AML','Regulatory Affairs'],
+               'Technology': ['Core Banking','Digital Channels','Infrastructure'],
+               'Finance': ['Financial Control','Treasury'],
+               'Human Resources': ['Talent','HR Operations'] };
+  const LOC = ['Riyadh','Jeddah','Dammam','Khobar'];
+  const rows = [];
+  let seq = 0;
+  const nextId = () => 'P' + String(++seq).padStart(4, '0');
+
+  const add = (id, mgr, title, grade, fn, dept, opts = {}) => {
+    const vacant = opts.vacant ?? rnd() < 0.08;
+    const critical = opts.critical ?? (['G16','G15','G14'].includes(grade) && rnd() < 0.55);
+    const sama = opts.sama ?? (['G16','G15'].includes(grade) && ['Risk','Compliance','Finance'].includes(fn));
+    const hasSucc = critical ? rnd() < 0.55 : rnd() < 0.2;
+    rows.push({
+      'Position ID': id, 'Manager ID': mgr, 'Job Title': title, 'Grade': grade,
+      'Employee Name': vacant ? '' : (rnd() < 0.3 ? pick(AR) : pick(EN)),
+      'Function': fn, 'Department': dept, 'Location': pick(LOC),
+      'Position Status': vacant ? 'Vacant' : 'Filled',
+      'Employment Type': rnd() < 0.92 ? 'Full-time' : 'Contractor',
+      'FTE': rnd() < 0.95 ? '1' : '0.5',
+      'Cost Center': 'CC-' + (1000 + Math.floor(rnd() * 40)),
+      'Critical Role': critical ? 'Yes' : 'No',
+      'SAMA Non-Objection Role': sama ? 'Yes' : 'No',
+      'Successor Identified': hasSucc ? 'Yes' : 'No',
+      'Successor Name': hasSucc ? pick(EN) : '',
+      'Successor Readiness': hasSucc ? pick(['Ready now', 'Ready 1-2 years', 'Ready 3+ years']) : '',
+      'Hire Date': (2010 + Math.floor(rnd() * 15)) + '-0' + (1 + Math.floor(rnd() * 9)) + '-1' + Math.floor(rnd() * 9),
+    });
+    return id;
+  };
+
+  const ceo = add(nextId(), '', 'Chief Executive Officer', 'G17', 'Executive', 'Executive Office',
+                  { vacant: false, critical: true, sama: true });
+  for (const [fn, depts] of Object.entries(FN)) {
+    const head = add(nextId(), ceo, 'Chief ' + fn + ' Officer', 'G16', fn, depts[0], { vacant: false });
+    for (const dept of depts) {
+      const dir = add(nextId(), head, 'Head of ' + dept, 'G15', fn, dept);
+      for (let i = 0; i < 2 + Math.floor(rnd() * 2); i++) {
+        const mgr = add(nextId(), dir, pick(['Manager', 'Senior Manager']) + ' ' + dept, 'G13', fn, dept);
+        for (let j = 0; j < 3 + Math.floor(rnd() * 4); j++) {
+          add(nextId(), mgr, pick(['Officer', 'Senior Officer', 'Analyst', 'Specialist']) + ' ' + dept,
+              pick(['G9', 'G10', 'G11']), fn, dept, { critical: false, sama: false });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+function loadSample() {
+  const records = sampleRecords();
+  const headers = Object.keys(records[0]);
+  const map = detectColumns(headers, records);
+  window._pending = { headers, records, map };
+  startModel(headers, records, map, 'Sample bank org (generated)');
+}
+
+/* ─── Wiring ────────────────────────────────────────────────────────────── */
+function wireDropzone() {
+  const zone = $('#dropzone'), input = $('#file-input');
+  zone.onclick = () => input.click();
+  input.onchange = () => input.files[0] && loadFile(input.files[0]);
+  ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); zone.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); zone.classList.remove('over');
+  }));
+  zone.addEventListener('drop', e => e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]));
+
+  // Dropping anywhere on the window works too, once a chart is already open.
+  ['dragover', 'drop'].forEach(ev => window.addEventListener(ev, e => {
+    if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault();
+  }));
+  window.addEventListener('drop', e => {
+    const f = e.dataTransfer && e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+
+  $('#btn-sample').onclick = loadSample;
+  $('#btn-expected').onclick = showExpected;
+}
+
+function wirePanZoom() {
+  const svg = $('#chart');
+  let dragging = false, last = null, moved = 0;
+
+  const start = (x, y) => { dragging = true; moved = 0; last = { x, y }; svg.classList.add('dragging'); };
+  const move = (x, y) => {
+    if (!dragging) return;
+    moved += Math.abs(x - last.x) + Math.abs(y - last.y);
+    S.view.x += x - last.x; S.view.y += y - last.y;
+    last = { x, y };
+    applyTransform();
+  };
+  const end = () => { dragging = false; svg.classList.remove('dragging'); };
+
+  svg.addEventListener('mousedown', e => { if (e.button === 0) start(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+  window.addEventListener('mouseup', end);
+  svg.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) start(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  svg.addEventListener('touchmove', e => {
+    if (e.touches.length === 1) move(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  svg.addEventListener('touchend', end);
+
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  // A drag that moved the canvas should not also count as a click on a card.
+  svg.addEventListener('click', e => {
+    if (moved > 5) return;
+    const toggle = e.target.closest('[data-toggle]');
+    if (toggle) {
+      const id = toggle.dataset.toggle;
+      S.collapsed.has(id) ? S.collapsed.delete(id) : S.collapsed.add(id);
+      refresh(true);
+      return;
+    }
+    const card = e.target.closest('.card');
+    if (card) openDetail(card.dataset.id);
+  });
+
+  $('#btn-zoom-in').onclick = () => {
+    const r = svg.getBoundingClientRect(); zoomAt(1.25, r.width / 2, r.height / 2);
+  };
+  $('#btn-zoom-out').onclick = () => {
+    const r = svg.getBoundingClientRect(); zoomAt(0.8, r.width / 2, r.height / 2);
+  };
+  $('#btn-fit').onclick = fitToScreen;
+}
+
+function setTheme(theme) {
+  if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
+  else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem('orgchart.theme', theme); } catch { /* ignore */ }
+}
+
+function wireApp() {
+  $('#search').oninput = e => { S.search = e.target.value; runSearch(); };
+
+  $('#color-by').onchange = e => { S.colorBy = e.target.value; refresh(true); };
+
+  $('#f-root').onchange = e => {
+    S.rootId = e.target.value;
+    applyDefaultCollapse();
+    if (S.rootId) {
+      const n = S.model.byId.get(S.rootId);
+      if (n) { revealNode(n); S.collapsed.delete(n.id); }
+    }
+    refresh();
+  };
+
+  for (const key of ['function', 'department', 'grade']) {
+    $('#f-' + key).onchange = e => { S.filters[key] = e.target.value; refresh(); };
+  }
+
+  $('#chips').onclick = e => {
+    const b = e.target.closest('[data-hl]');
+    if (!b) return;
+    const k = b.dataset.hl;
+    S.highlight.has(k) ? S.highlight.delete(k) : S.highlight.add(k);
+    // Highlighting is only useful if the matches are actually on screen.
+    if (S.highlight.size) {
+      for (const n of S.model.nodes) {
+        if ([...S.highlight].some(h => HIGHLIGHTS.find(x => x.key === h).test(n))) revealNode(n);
+      }
+    }
+    refresh(true);
+  };
+
+  $('#btn-reset').onclick = () => {
+    S.filters = { function: 'All', department: 'All', grade: 'All' };
+    S.highlight = new Set();
+    S.rootId = '';
+    S.search = '';
+    S.hits = new Set();
+    $('#search').value = '';
+    $('#search-count').textContent = '';
+    applyDefaultCollapse();
+    renderControls();
+    refresh();
+  };
+
+  $('#btn-expand').onclick = () => {
+    S.collapsed = new Set();
+    refresh();
+    if (S.drawn.length >= DRAW_CAP) toast('That is a lot of boxes — collapse a branch if it feels slow.');
+  };
+  $('#btn-collapse').onclick = () => { applyDefaultCollapse(); refresh(); };
+
+  $('#btn-present').onclick = () => {
+    S.present = !S.present;
+    $('#btn-present').setAttribute('aria-pressed', String(S.present));
+    if (S.selected) openDetail(S.selected);
+    toast(S.present ? 'Presentation mode on — successor names and personal fields hidden'
+                    : 'Presentation mode off');
+  };
+
+  $('#btn-png').onclick = exportPng;
+  $('#btn-csv').onclick = exportCsv;
+  $('#btn-print').onclick = printChart;
+  $('#btn-columns').onclick = () => showColumns();
+  $('#btn-new').onclick = () => {
+    $('#app').hidden = true;
+    $('#drop-screen').hidden = false;
+    $('#drop-error').innerHTML = '';
+    $('#file-input').value = '';
+  };
+  $('#btn-theme').onclick = () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    setTheme(dark ? 'light' : 'dark');
+    refresh(true);
+  };
+
+  // Delegated actions from the detail panel and modals.
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-close-modal]')) return closeModal();
+
+    const goto = e.target.closest('[data-goto]');
+    if (goto) {
+      const n = S.model.byId.get(goto.dataset.goto);
+      if (n) { revealNode(n); refresh(true); centreOn(n, true); openDetail(n.id); }
+      return;
+    }
+    const focus = e.target.closest('[data-focus]');
+    if (focus) {
+      S.rootId = focus.dataset.focus;
+      $('#f-root').value = S.rootId;
+      applyDefaultCollapse();
+      const n = S.model.byId.get(S.rootId);
+      if (n) S.collapsed.delete(n.id);
+      closeDetail();
+      refresh();
+      return;
+    }
+    const pb = e.target.closest('[data-printbranch]');
+    if (pb) {
+      S.rootId = pb.dataset.printbranch;
+      $('#f-root').value = S.rootId;
+      applyDefaultCollapse();
+      S.collapsed.delete(S.rootId);
+      closeDetail();
+      refresh();
+      setTimeout(printChart, 120);
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (!$('#modal').hidden) closeModal();
+      else if (!$('#detail').hidden) closeDetail();
+    }
+    if (e.key === '/' && document.activeElement !== $('#search')) {
+      e.preventDefault(); $('#search').focus();
+    }
+  });
+
+  window.addEventListener('resize', debounce(() => { if (S.model) applyTransform(); }, 200));
+}
+
+/* ─── Boot ──────────────────────────────────────────────────────────────── */
+(function boot() {
+  let saved = 'light';
+  try { saved = localStorage.getItem('orgchart.theme') || 'light'; } catch { /* ignore */ }
+  setTheme(saved);
+  wireDropzone();
+  wirePanZoom();
+  wireApp();
+})();
+</script>
+</body>
+</html>
