@@ -17,7 +17,9 @@ pointing it at anything real; `sample-units.csv` is the matching org unit list
 and `sample-courses.csv` the mandatory-training list. Load the positions, then
 add the unit list with the **＋ Add unit list** button in the org-unit view — or
 put all three on separate tabs of one workbook and they are picked up together.
-The **Try it with sample data** button needs no files at all.
+The **Try it with sample data** button needs no files at all and carries the
+same shape in miniature — the full ladder, branches, job attributes, a unit list
+and a course list.
 
 ---
 

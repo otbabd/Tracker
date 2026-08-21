@@ -3623,6 +3623,32 @@ function sampleUnitList() {
   return list;
 }
 
+/* The rest of the ladder and the job attributes, so the demo exercises
+   everything the tool reads rather than a subset of it. Legal entities sit
+   above the divisions; the division rung is the function itself, which is how
+   most exports carry it and what the unit list is keyed on. */
+const SAMPLE_GROUPS = {
+  'Technology': 'Example Digital',
+  'Human Resources': 'Example Shared Services',
+};
+const SAMPLE_JOB_TYPE = {
+  'Retail Banking': 'Front office', 'Corporate Banking': 'Front office', 'Executive': 'Front office',
+  'Risk': 'Middle office', 'Compliance': 'Middle office', 'Finance': 'Middle office',
+  'Technology': 'Back office', 'Human Resources': 'Back office',
+};
+const SAMPLE_FAMILY = {
+  G17: 'Executive', G16: 'Executive', G15: 'Leadership', G13: 'Management',
+  G11: 'Professional', G10: 'Professional', G9: 'Professional',
+};
+const SAMPLE_POOLS = ['Emerging Leaders', 'Saudi Graduates', 'Future Executives', 'Specialist Bench'];
+const SAMPLE_BRANCHES = ['BR-001 Riyadh Olaya', 'BR-002 Riyadh Malaz', 'BR-003 Jeddah Tahlia',
+                         'BR-004 Dammam Corniche', 'BR-005 Khobar Corniche', 'BR-006 Madinah Central'];
+
+/* A job code shared by everyone doing the same job, so mandatory training can
+   hang off the job rather than off each seat. */
+const sampleJobCode = title =>
+  'JC' + (1000 + [...title].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 8999, 7));
+
 function sampleRecords() {
   const rnd = (seed => () => (seed = seed * 16807 % 2147483647) / 2147483647)(42);
   const pick = a => a[Math.floor(rnd() * a.length)];
@@ -3640,15 +3666,27 @@ function sampleRecords() {
     const critical = opts.critical ?? (['G16','G15','G14'].includes(grade) && rnd() < 0.55);
     const sama = opts.sama ?? (['G16','G15'].includes(grade) && ['Risk','Compliance','Finance'].includes(fn));
     const hasSucc = critical ? rnd() < 0.55 : rnd() < 0.2;
+    const jobType = SAMPLE_JOB_TYPE[fn] || '';
     rows.push({
       'Position ID': id, 'Manager ID': mgr, 'Job Title': title, 'Grade': grade,
       'Employee Name': vacant ? '' : (rnd() < 0.3 ? pick(AR) : pick(EN)),
-      'Function': fn, 'Department': dept, 'Location': pick(LOC),
+      'Job Code': sampleJobCode(title), 'Job Family': SAMPLE_FAMILY[grade] || 'Professional',
+      'Function': fn,
+      'Group': SAMPLE_GROUPS[fn] || 'Example Bank',
+      'Division': fn, 'Department': dept,
+      'Unit': opts.unit || '', 'Sub-unit': opts.subUnit || '', 'Section': opts.section || '',
+      'Branch': opts.branch || '',
+      'Location': pick(LOC),
       'Position Status': vacant ? 'Vacant' : 'Filled',
       'Employment Type': rnd() < 0.92 ? 'Full-time' : 'Contractor',
       'FTE': rnd() < 0.95 ? '1' : '0.5',
       'Cost Center': 'CC-' + (1000 + Math.floor(rnd() * 40)),
       'Function Type': SAMPLE_TYPES[fn] || '',
+      'Job Type': jobType,
+      'Pay Basis': jobType === 'Front office' && rnd() < 0.7 ? 'Incentive'
+                 : ['G17','G16','G15','G13'].includes(grade) ? 'Bonus'
+                 : pick(['Bonus', 'Fixed', 'Fixed']),
+      'Talent Pool': rnd() < (['G15','G13'].includes(grade) ? 0.3 : 0.08) ? pick(SAMPLE_POOLS) : '',
       'Critical Role': critical ? 'Yes' : 'No',
       'SAMA Non-Objection Role': sama ? 'Yes' : 'No',
       'Successor Identified': hasSucc ? 'Yes' : 'No',
@@ -3664,17 +3702,49 @@ function sampleRecords() {
   for (const [fn, depts] of Object.entries(FN)) {
     const head = add(nextId(), ceo, 'Chief ' + fn + ' Officer', 'G16', fn, depts[0], { vacant: false });
     for (const dept of depts) {
+      // Heads sit at the department: their ladder ends there, which is the
+      // ordinary case rather than a gap in the data.
       const dir = add(nextId(), head, 'Head of ' + dept, 'G15', fn, dept);
       for (let i = 0; i < 2 + Math.floor(rnd() * 2); i++) {
-        const mgr = add(nextId(), dir, pick(['Manager', 'Senior Manager']) + ' ' + dept, 'G13', fn, dept);
+        const unit = dept + ' Unit ' + (i + 1);
+        const mgr = add(nextId(), dir, pick(['Manager', 'Senior Manager']) + ' ' + dept, 'G13',
+                        fn, dept, { unit });
         for (let j = 0; j < 3 + Math.floor(rnd() * 4); j++) {
+          const subUnit = unit + ' — Team ' + 'AB'[j % 2];
           add(nextId(), mgr, pick(['Officer', 'Senior Officer', 'Analyst', 'Specialist']) + ' ' + dept,
-              pick(['G9', 'G10', 'G11']), fn, dept, { critical: false, sama: false });
+              pick(['G9', 'G10', 'G11']), fn, dept, {
+                critical: false, sama: false, unit, subUnit,
+                // Sections only where the work is split that finely, so the
+                // ladder is partly populated the way a real export is.
+                section: fn === 'Retail Banking' || fn === 'Technology'
+                  ? subUnit + ' / Section ' + (1 + (j % 2)) : '',
+                branch: dept === 'Branch Network' ? SAMPLE_BRANCHES[j % SAMPLE_BRANCHES.length] : '',
+              });
         }
       }
     }
   }
   return rows;
+}
+
+/* Training obliged by the job, not by the seat — so it is keyed on job code and
+   lands on everyone holding that job. */
+function sampleCourses(records) {
+  const seen = new Set(), out = [];
+  const req = (ref, course, frequency) => out.push({ ref, course, mandatory: true, frequency });
+  for (const r of records) {
+    const code = r['Job Code'];
+    if (seen.has(code)) continue;
+    seen.add(code);
+    req(code, 'Code of Conduct', 'Annual');
+    req(code, 'AML & Sanctions Awareness', 'Annual');
+    req(code, 'Information Security', 'Annual');
+    if (['G17', 'G16', 'G15', 'G13'].includes(r.Grade)) req(code, 'Leading Teams', 'Once');
+    if (r.Function === 'Risk') req(code, 'Operational Risk Framework', 'Every 2 years');
+    if (r.Function === 'Compliance') req(code, 'SAMA Regulatory Update', 'Annual');
+    if (r['Job Type'] === 'Front office') req(code, 'Consumer Protection Principles', 'Annual');
+  }
+  return out;
 }
 
 function loadSample() {
@@ -3683,7 +3753,8 @@ function loadSample() {
   const map = detectColumns(headers, records);
   window._pending = { headers, records, map };
   startModel(headers, records, map, 'Sample bank org (generated)',
-             false, sampleUnitList(), 'built-in unit list', [], '');
+             false, sampleUnitList(), 'built-in unit list',
+             sampleCourses(records), 'built-in course list');
 }
 
 /* ─── Wiring ────────────────────────────────────────────────────────────── */
