@@ -266,6 +266,10 @@ select:disabled { opacity: .5; cursor: not-allowed; }
 .card:hover .card-box { stroke: var(--text-mute); }
 .card.sel .card-box { stroke: var(--accent); stroke-width: 1.8; }
 .card.vacant .card-box, .card.hollow .card-box { stroke: var(--vacant); stroke-dasharray: 4 3; }
+/* A unit that exists only as a tag on the position rows: real people are in it,
+   but the approved structure has never heard of it. */
+.card.offstruct .card-box { stroke: var(--critical); stroke-dasharray: 5 3; }
+.card.offstruct .t-meta.foot { fill: var(--critical); }
 .card.dim { opacity: .24; }
 .card.hit .card-box { stroke: var(--accent); stroke-width: 2; }
 .card.hit .card-halo { fill: var(--accent); opacity: .08; }
@@ -321,14 +325,14 @@ svg text { unicode-bidi: plaintext; }
    A chart shows structure but ranks nothing, so the table sits under it rather
    than replacing it — the shape stays visible while you read the order.
    ════════════════════════════════════════════════════════════════════════ */
-#compare {
+#compare, #reconcile {
   position: absolute; left: 0; right: 0; bottom: 0; height: 46%; min-height: 200px;
   max-height: calc(100% - 120px);
   background: var(--surface); border-top: 1px solid var(--border);
   z-index: 18; display: flex; flex-direction: column;
   box-shadow: 0 -8px 24px rgba(16,24,40,.07);
 }
-[data-theme="dark"] #compare { box-shadow: 0 -10px 30px rgba(0,0,0,.35); }
+[data-theme="dark"] #compare, [data-theme="dark"] #reconcile { box-shadow: 0 -10px 30px rgba(0,0,0,.35); }
 .cmp-head {
   display: flex; align-items: center; gap: 9px; padding: 9px 12px;
   border-bottom: 1px solid var(--border); flex: none;
@@ -366,6 +370,26 @@ svg text { unicode-bidi: plaintext; }
 #cmp-table .warn { color: var(--vacant); }
 #cmp-table .alert { color: var(--critical); }
 #cmp-table .muted { color: var(--text-mute); }
+
+/* Reconcile sheet: findings in bands, each row a click through to the thing
+   it is complaining about. */
+.rec-band { border-bottom: 1px solid var(--border); }
+.rec-band h4 {
+  display: flex; align-items: baseline; gap: 8px; padding: 9px 12px 3px;
+  font-size: .69rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-mute);
+}
+.rec-band h4 b { color: var(--text); font-size: .8rem; letter-spacing: 0; }
+.rec-band .why { padding: 0 12px 6px; font-size: .76rem; color: var(--text-mute); }
+.rec-row {
+  display: flex; align-items: baseline; gap: 10px; padding: 5px 12px;
+  font-size: .82rem; cursor: pointer; border-top: 1px solid var(--border-soft, var(--border));
+}
+.rec-row:hover { background: var(--surface-2); }
+.rec-row .who { font-weight: 550; }
+.rec-row .said { color: var(--text-mute); }
+.rec-row .num { margin-left: auto; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+.rec-none { padding: 22px 12px; font-size: .84rem; color: var(--text-mute); }
 
 /* ═══ Detail panel ═════════════════════════════════════════════════════════ */
 /* With the compare sheet open the panel stops above it, so both stay usable. */
@@ -643,12 +667,13 @@ svg text { unicode-bidi: plaintext; }
       <div class="pop" id="pop-nest" hidden>
         <h3>Structure</h3>
         <div class="field" id="u-source-wrap" hidden>
-          <label for="u-source">Build the hierarchy from</label>
+          <label for="u-source">Structure comes from</label>
           <select id="u-source">
-            <option value="columns">Column nesting</option>
-            <option value="list">The org unit list</option>
+            <option value="structure">The approved unit list</option>
+            <option value="columns">The tags on the positions</option>
           </select>
         </div>
+        <p class="note" id="u-source-note" hidden></p>
         <div id="u-nesting">
           <div class="field"><label for="u-l1">Level 1</label><select id="u-l1"></select></div>
           <div class="field"><label for="u-l2">Level 2</label><select id="u-l2"></select></div>
@@ -673,6 +698,9 @@ svg text { unicode-bidi: plaintext; }
 
     <button class="btn btn-sm" id="btn-compare" aria-pressed="false" hidden
             title="Rank the units side by side">Compare</button>
+
+    <button class="btn btn-sm" id="btn-reconcile" aria-pressed="false" hidden
+            title="Where the structure and the reporting line disagree">Reconcile</button>
 
     <div class="spacer"></div>
 
@@ -701,6 +729,16 @@ svg text { unicode-bidi: plaintext; }
         <button class="icon-btn" id="cmp-close" title="Close" aria-label="Close">✕</button>
       </div>
       <div class="cmp-body"><table id="cmp-table"></table></div>
+    </section>
+
+    <section id="reconcile" hidden>
+      <div class="cmp-head">
+        <h3>Reconcile</h3>
+        <span class="cmp-count" id="rec-count"></span>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="rec-close" title="Close" aria-label="Close">✕</button>
+      </div>
+      <div class="cmp-body" id="rec-body"></div>
     </section>
 
     <aside id="detail" hidden></aside>
@@ -1642,52 +1680,116 @@ function unitNode(id, label, dim, level) {
    structure, which column nesting can only approximate. In that mode the tree
    comes from the list and positions attach to the deepest of their own unit
    values that names one. */
-function buildUnitsFromList(positions, levels, unitList) {
+/* ── Org first ───────────────────────────────────────────────────────────────
+   When a unit list is supplied it is the approved structure, and the chart is
+   built on it rather than derived from whatever the position rows happen to be
+   tagged with. The list gives the frame; the ladder columns fill in the detail
+   below the deepest declared unit; and a tag naming no declared unit at a level
+   the list describes becomes a visible, reportable exception instead of a box
+   that looks as official as the rest.
+   ────────────────────────────────────────────────────────────────────────── */
+function buildUnitsDeclared(positions, levels, declaredUnits, unitList) {
   const root = unitNode('u:', 'Whole organisation', null, 0);
   const byId = new Map([[root.id, root]]);
   const byLabel = new Map();
+  const key = v => String(v).trim().toLowerCase();
 
+  // 1. The frame: one node per declared unit, parented as the list says.
   for (const u of unitList) {
-    const node = unitNode('u:/' + u.name, u.name, 'unit', 1);
+    if (!u.name || byLabel.has(key(u.name))) continue;
+    const node = unitNode('u:/' + u.name, u.name, null, 1);
     node.listed = true;
     node.functionType = u.type || '';
     node.responsibilities = u.responsibilities || '';
     node.code = u.code || '';
     node.declaredHead = u.head || '';
+    node.listParent = u.parent || '';
     if (u.status) node.unitStatus = u.status;
     byId.set(node.id, node);
-    byLabel.set(u.name.trim().toLowerCase(), node);
+    byLabel.set(key(u.name), node);
   }
-  for (const u of unitList) {
-    const node = byLabel.get(u.name.trim().toLowerCase());
-    const parent = (u.parent && byLabel.get(u.parent.trim().toLowerCase())) || root;
-    if (parent === node) { root.children.push(node); node.parent = root; continue; }
-    parent.children.push(node);
+  for (const node of byLabel.values()) {
+    let parent = (node.listParent && byLabel.get(key(node.listParent))) || root;
+    // A parent chain that loops back would hide both units; hang it off the top
+    // instead, the same repair the position tree makes for a reporting loop.
+    for (let a = parent; a && a !== root; a = a.parent) if (a === node) { parent = root; break; }
     node.parent = parent;
+    parent.children.push(node);
+  }
+  const depth = [[root, 0]];
+  while (depth.length) {
+    const [n, d] = depth.pop();
+    n.unitLevel = d;
+    for (const c of n.children) depth.push([c, d + 1]);
   }
 
-  const unplaced = unitNode('u:/' + UNSET, UNSET, 'unit', 1);
+  // 2. Which rung of the ladder each declared unit describes, and therefore
+  //    which rungs the list is describing at all. Everything below those is
+  //    detail the list never claimed to cover.
+  const seen = levels.map(d => new Set());
   for (const p of positions) {
-    // Deepest first: a department name is more specific than its division.
-    let target = null;
-    for (const dim of [...levels].reverse()) {
-      const hit = p[dim] && byLabel.get(String(p[dim]).trim().toLowerCase());
-      if (hit) { target = hit; break; }
+    levels.forEach((d, i) => { if (p[d]) seen[i].add(key(p[d])); });
+  }
+  for (const node of byLabel.values()) {
+    const i = seen.findIndex(set => set.has(key(node.label)));
+    node.dim = i >= 0 ? levels[i]
+      : levels[Math.min(node.unitLevel, levels.length - 1)] || 'unit';
+    node.inData = i >= 0;
+  }
+  const described = new Set([...byLabel.values()].filter(n => n.inData).map(n => n.dim));
+
+  // 3. Anchor a row on the deepest declared unit it names, then nest whatever
+  //    ladder it carries below that.
+  const place = (rec, stopAtBlank) => {
+    let from = -1, parent = root;
+    for (let i = levels.length - 1; i >= 0; i--) {
+      const hit = rec[levels[i]] && byLabel.get(key(rec[levels[i]]));
+      if (hit) { parent = hit; from = i; break; }
     }
-    (target || unplaced).positions.push(p);
+    let path = parent.id;
+    for (let i = from + 1; i < levels.length; i++) {
+      const raw = rec[levels[i]];
+      if (!raw && (stopAtBlank || !levels.slice(i + 1).some(d => rec[d]))) {
+        if (i > 0 || stopAtBlank || parent !== root) break;
+      }
+      path += '/' + (raw || UNSET);
+      let node = byId.get(path);
+      if (!node) {
+        node = unitNode(path, raw || UNSET, levels[i], parent.unitLevel + 1);
+        node.undeclared = true;
+        // Undeclared at a rung the list describes is a unit that exists only as
+        // a tag. Undeclared below those rungs is ordinary detail.
+        node.offStructure = described.has(levels[i]) && raw;
+        node.parent = parent;
+        parent.children.push(node);
+        byId.set(path, node);
+      }
+      parent = node;
+    }
+    return parent;
+  };
+
+  for (const p of positions) place(p, false).positions.push(p);
+  for (const d of declaredUnits) {
+    const node = place(d, true);
+    if (node === root) continue;
+    node.declared = true;
+    if (d.functionType && !node.functionType) node.functionType = d.functionType;
+    if (d.responsibilities && !node.responsibilities) node.responsibilities = d.responsibilities;
   }
-  if (unplaced.positions.length) {
-    unplaced.parent = root;
-    root.children.push(unplaced);
-    byId.set(unplaced.id, unplaced);
-  }
-  return { root, byId };
+
+  const built = finishUnits(root, byId, levels);
+  built.described = [...described];
+  built.fromList = true;
+  return built;
 }
 
 function buildUnits(positions, levels, declaredUnits = [], unitList = []) {
-  if (S.unitSource === 'list' && unitList.length) {
-    const { root, byId } = buildUnitsFromList(positions, levels, unitList);
-    return finishUnits(root, byId, levels);
+  // Org first: with an approved structure to hand, that is what the chart is
+  // built on. Only when there is none — or when you deliberately ask for it —
+  // is the hierarchy inferred from the tags on the position rows.
+  if (S.unitSource !== 'columns' && unitList.length) {
+    return buildUnitsDeclared(positions, levels, declaredUnits, unitList);
   }
 
   const root = unitNode('u:', 'Whole organisation', null, 0);
@@ -1903,7 +2005,8 @@ const S = {
   unitOrder: 'size',
   cmpSort: { key: 'headcount', dir: 'desc' },
   cmpLevel: 'all',
-  unitSource: 'columns',
+  unitSource: 'structure',
+  findings: [],
   fileName: '',
   collapsed: new Set(),
   unitCollapsed: new Set(),
@@ -1978,6 +2081,93 @@ function filteredPositions() {
 function rebuildUnits() {
   S.unitModel = buildUnits(filteredPositions(), S.unitLevels,
                            S.model.declaredUnits || [], S.unitList || []);
+  S.findings = reconcile();
+}
+
+/* ── Reconciling the two hierarchies ─────────────────────────────────────────
+   The org hierarchy says where a job sits; the reporting line says who it
+   answers to. They are meant to agree, and every place they do not is worth a
+   sentence. Six of them, and the counts are only meaningful because a manager
+   sitting in a unit *above* yours is the ordinary case, not a finding: in a
+   ladder where every rung has its own head, a team lead in a sub-unit manages
+   staff sitting in a section beneath it.
+   ────────────────────────────────────────────────────────────────────────── */
+const BANDS = [
+  ['offStructure', 'Not in the approved structure',
+   'Tagged on position rows, but no such unit in the org unit list.'],
+  ['empty', 'Declared, nobody in it',
+   'In the approved structure with no positions mapped to it.'],
+  ['parent', 'Declared parent disagrees',
+   'The list puts the unit in one place, the position columns in another.'],
+  ['outside', 'Head reports outside the unit',
+   'The most senior position answers to neither its own unit nor its parent.'],
+  ['skips', 'Reporting line skips a level',
+   'The head reports past the parent unit to something above it.'],
+  ['foreign', 'Managed from another unit',
+   'Staff whose manager sits neither in their unit nor anywhere above it.'],
+];
+
+function reconcile() {
+  const m = S.unitModel, pm = S.model;
+  if (!m || !pm) return [];
+  const out = [];
+  const unitOf = new Map();
+  for (const u of m.nodes) for (const p of u.positions) unitOf.set(p.id, u);
+  const above = (a, u) => u.chain.includes(a);
+  const key = v => String(v || '').trim().toLowerCase();
+
+  for (const u of m.nodes) {
+    if (u.offStructure) out.push({ band: 'offStructure', unit: u, position: u.leader });
+    if (u.listed && u.empty) out.push({ band: 'empty', unit: u });
+  }
+
+  // The list's parenting wins, so a disagreement shows up as the column above
+  // naming a different unit from the one the list put this one under.
+  const levels = m.levels || [];
+  const described = new Set(m.described || []);
+  for (const u of m.nodes) {
+    if (!u.listed || !u.parent || !u.parent.listed || !u.positions.length) continue;
+    const rung = levels.indexOf(u.dim);
+    if (rung < 1) continue;
+    const dim = levels.slice(0, rung).reverse().find(d => described.has(d) && u.positions[0][d]);
+    const tagged = dim && u.positions[0][dim];
+    if (tagged && key(tagged) !== key(u.parent.label)) {
+      out.push({ band: 'parent', unit: u, note: tagged });
+    }
+  }
+
+  // Only a unit that is actually run by someone has a head worth checking. The
+  // most senior position in a three-person section is whoever the sort landed
+  // on, not an office; a unit with sub-units, or whose top position manages
+  // people inside it, has a real head.
+  const heads = new Set();
+  const runs = u => u.leader
+    && (u.children.length > 0 || u.positions.some(p => p.managerId === u.leader.id));
+  for (const u of m.nodes) {
+    if (!u.dim || !runs(u)) continue;
+    heads.add(u.leader.id);
+    // A unit at the top of the structure has nothing above it to disagree
+    // with: the CRO reporting to the CEO is not a crossed line.
+    if (!u.parent || !u.parent.dim) continue;
+    const mgr = pm.byId.get(u.leader.managerId);
+    const mu = mgr && unitOf.get(mgr.id);
+    if (!mu || mu === u || mu === u.parent) continue;
+    out.push({ band: above(mu, u) ? 'skips' : 'outside', unit: u, position: u.leader, other: mu });
+  }
+
+  for (const [id, u] of unitOf) {
+    const p = pm.byId.get(id);
+    if (!p || heads.has(id)) continue;
+    const mgr = pm.byId.get(p.managerId);
+    const mu = mgr && unitOf.get(mgr.id);
+    if (!mu || mu === u || above(mu, u)) continue;
+    out.push({ band: 'foreign', unit: u, position: p, other: mu });
+  }
+
+  const order = BANDS.map(b => b[0]);
+  out.sort((a, b) => order.indexOf(a.band) - order.indexOf(b.band)
+    || (a.unit.label || '').localeCompare(b.unit.label || ''));
+  return out;
 }
 
 /* The positions behind whatever is currently in scope — the stats and the
@@ -2237,6 +2427,7 @@ function unitCardSvg(n) {
   if (S.hits.has(n.id)) cls.push('hit');
   if (isDimmed(n)) cls.push('dim');
   if (n.empty || n.unstaffed) cls.push('hollow');
+  if (n.offStructure) cls.push('offstruct');
 
   const lead = n.empty
     ? ((S.present ? '' : n.declaredHead) || 'No positions mapped')
@@ -2261,8 +2452,9 @@ function unitCardSvg(n) {
     ? int(n.children.length) + ' ' + (n.children[0].dim === 'department' ? 'departments'
         : n.children[0].dim === 'function' ? 'functions' : 'sub-units')
     : '';
-  const foot = [n.functionType, sub].filter(Boolean).join(' · ') ||
-    (n.dim ? 'lowest level' : '');
+  const foot = n.offStructure
+    ? ['Not in the approved structure', sub].filter(Boolean).join(' · ')
+    : [n.functionType, sub].filter(Boolean).join(' · ') || (n.dim ? 'lowest level' : '');
 
   const gapChip = n.gaps ? (() => {
     const label = String(n.gaps);
@@ -2285,7 +2477,7 @@ function unitCardSvg(n) {
     `<text class="${n.empty || n.unstaffed ? 't-vacant' : 't-meta'}" x="14" y="61">` +
       `${svgesc(fit(people, NODE_W - 28, FONTS.meta))}</text>` +
     (shape ? `<text class="t-count" x="14" y="80">${svgesc(fit(shape, NODE_W - 28, FONTS.count))}</text>` : '') +
-    `<text class="t-meta" x="14" y="101">${svgesc(fit(foot, footMax, FONTS.meta))}</text>` +
+    `<text class="t-meta foot" x="14" y="101">${svgesc(fit(foot, footMax, FONTS.meta))}</text>` +
     gapChip + mixStrip(n) +
     `</g>`;
 }
@@ -2535,11 +2727,19 @@ function renderStats() {
     out.push(m(int(issues), 'data issues', 'warn link',
       'id="stat-issues" title="See what was repaired"'));
   }
+  // Where the structure and the reporting line disagree. Silent at zero: a
+  // chart with nothing to reconcile should not carry a badge saying so.
+  if (isUnits() && (S.findings || []).length) {
+    out.push(m(int(S.findings.length), 'to reconcile', 'warn link',
+      'id="stat-recon" title="Where the structure and the reporting line disagree"'));
+  }
 
   $('#stats').innerHTML = out.join('');
   fitMetrics();
   const si = $('#stat-issues');
   if (si) si.onclick = showIssues;
+  const sr = $('#stat-recon');
+  if (sr) sr.onclick = () => setReconcile(true);
 }
 
 /* ─── Highlight chips ───────────────────────────────────────────────────── */
@@ -2588,7 +2788,8 @@ function renderControls() {
 
   $('#nest-wrap').hidden = !isUnits();
   $('#btn-compare').hidden = !isUnits();
-  if (!isUnits()) setCompare(false);
+  $('#btn-reconcile').hidden = !isUnits();
+  if (!isUnits()) { setCompare(false); setReconcile(false); }
   $('#btn-unitlist').textContent = S.unitList.length ? 'Replace unit list' : 'Attach a unit list';
   // A listed unit that names a column the chart is not nesting by has no box to
   // carry its type and mandate. Say so, and name the lever that fixes it.
@@ -2634,13 +2835,18 @@ const NEST_SELECTS = ['#u-l1', '#u-l2', '#u-l3', '#u-l4', '#u-l5', '#u-l6'];
 function renderUnitLevels() {
   if (!isUnits()) return;
 
-  // Building from the list means the hierarchy is the list's, so the nesting
-  // pickers only decide how positions find their unit.
-  const listed = S.unitSource === 'list' && S.unitList.length;
-  const hasParents = S.unitList.some(u => u.parent);
-  $('#u-source-wrap').hidden = !(S.unitList.length && hasParents);
+  // With an approved structure loaded, the list is the frame and the nesting
+  // columns govern the detail below it, so the pickers stay live either way.
+  const onList = S.unitSource !== 'columns' && S.unitList.length;
+  $('#u-source-wrap').hidden = !S.unitList.length;
   $('#u-source').value = S.unitSource;
-  $('#u-nesting').hidden = listed;
+  $('#u-nesting').hidden = false;
+  const note = $('#u-source-note');
+  note.hidden = !S.unitList.length;
+  note.textContent = onList
+    ? 'The ' + S.unitList.length + ' units in the list are the structure. The levels below '
+      + 'fill in from the columns, marked as not declared.'
+    : 'Every value in the nesting columns becomes a unit, declared or not.';
   $('#u-order').value = S.unitOrder;
 
   const available = UNIT_DIMS.filter(d => distinct(d).length > 1);
@@ -2669,12 +2875,17 @@ function readUnitLevels() {
 /* A clipped figure reads as broken, so optional ones are dropped from the end
    until the strip fits — which a media query cannot decide, since it depends on
    how much room the toolbar controls happen to be using. */
+/* The strip has to fit whatever the toolbar leaves it, so items are shed by
+   priority rather than by position: the nice-to-knows first, then the merely
+   useful, and never the two counts that are a call to action. */
 function fitMetrics() {
   const el = $('#stats');
-  const opt = [...el.querySelectorAll('.m.opt')];
-  opt.forEach(x => { x.hidden = false; });
-  for (let i = opt.length - 1; i >= 0 && el.scrollWidth > el.clientWidth + 1; i--) {
-    opt[i].hidden = true;
+  const all = [...el.querySelectorAll('.m')];
+  all.forEach(x => { x.hidden = false; });
+  const shed = all.filter(x => !x.classList.contains('link'));
+  shed.sort((a, b) => (a.classList.contains('opt') ? 0 : 1) - (b.classList.contains('opt') ? 0 : 1));
+  for (let i = 0; i < shed.length - 2 && el.scrollWidth > el.clientWidth + 1; i++) {
+    shed[i].hidden = true;
   }
 }
 
@@ -2752,6 +2963,7 @@ function refresh(keepView) {
   renderBadges();
   renderLegend(counts);
   renderCompare();
+  renderReconcile();
   if (keepView) { S.view = before; applyTransform(); } else fitToScreen();
 }
 
@@ -2835,12 +3047,85 @@ function renderCompare() {
 }
 
 function setCompare(open) {
+  if (open) setReconcile(false);
   $('#compare').hidden = !open;
   $('#stage').classList.toggle('comparing', open);
   $('#btn-compare').setAttribute('aria-pressed', String(open));
   if (open) renderCompare();
   if (S.model) applyTransform();
 }
+
+function setReconcile(open) {
+  if (open) setCompare(false);
+  $('#reconcile').hidden = !open;
+  $('#stage').classList.toggle('comparing', open);
+  $('#btn-reconcile').setAttribute('aria-pressed', String(open));
+  if (open) renderReconcile();
+  if (S.model) applyTransform();
+}
+
+function renderReconcile() {
+  if ($('#reconcile').hidden || !isUnits()) return;
+  const all = S.findings || [];
+  const scope = new Set(scopedNodes().map(u => u.id));
+  const found = all.filter(f => scope.has(f.unit.id));
+
+  $('#rec-count').textContent = found.length
+    ? found.length + (found.length === 1 ? ' finding' : ' findings')
+    : 'nothing to reconcile';
+
+  if (!found.length) {
+    $('#rec-body').innerHTML = `<p class="rec-none">${S.unitList.length
+      ? 'Every unit in view is in the approved structure, and every reporting line agrees with it.'
+      : 'No org unit list is loaded, so there is no approved structure to compare against — '
+        + 'add one with <strong>Attach a unit list</strong> and the first two checks light up. '
+        + 'The reporting-line checks found nothing.'}</p>`;
+    return;
+  }
+
+  const html = BANDS.map(([band, title, why]) => {
+    const rows = found.filter(f => f.band === band);
+    if (!rows.length) return '';
+    return `<div class="rec-band"><h4>${esc(title)} <b>${rows.length}</b></h4>
+      <div class="why">${esc(why)}</div>` +
+      rows.slice(0, 200).map(f => recRow(band, f)).join('') +
+      (rows.length > 200 ? `<div class="rec-row said">…and ${rows.length - 200} more</div>` : '') +
+      '</div>';
+  }).join('');
+
+  // What the list describes, so the first band is never mistaken for a claim
+  // about levels the list was never trying to cover.
+  const described = (S.unitModel.described || [])
+    .map(d => ((DIMENSIONS.find(x => x.key === d) || {}).label || d).toLowerCase());
+  const note = described.length
+    ? `<p class="rec-none">Compared at ${described.join(', ')} level — the unit list does not
+        describe anything below that, so units there are detail, not exceptions.</p>`
+    : '';
+  $('#rec-body').innerHTML = html + note;
+}
+
+function recRow(band, f) {
+  const u = f.unit;
+  const goto = f.position && (band === 'outside' || band === 'skips' || band === 'foreign')
+    ? ` data-goto-position="${esc(f.position.id)}"` : ` data-goto-unit="${esc(u.id)}"`;
+  const path = (u.chain || []).filter(a => a.dim).map(a => a.label).join(' › ');
+  let said = '';
+  if (band === 'offStructure') {
+    said = (path || 'top level')
+      + (f.position ? '  ·  ' + (f.position.title || f.position.id) : '');
+  }
+  else if (band === 'empty') said = u.code ? 'unit code ' + u.code : 'declared in the list';
+  else if (band === 'parent') said = 'list says ' + (u.parent ? u.parent.label : '—')
+    + ' · columns say ' + f.note;
+  else if (band === 'skips' || band === 'outside') said =
+    (f.position.title || f.position.id) + ' → ' + (unitTitleOf(f.other) || f.other.label);
+  else said = 'managed from ' + f.other.label;
+  const count = band === 'foreign' ? '' : (u.headcount ? int(u.headcount) + ' positions' : '');
+  return `<div class="rec-row"${goto}><span class="who">${esc(u.label)}</span>
+    <span class="said">${esc(said)}</span><span class="num">${count}</span></div>`;
+}
+
+const unitTitleOf = u => u && u.leader ? (u.leader.title || u.label) : (u ? u.label : '');
 
 /* ─── Detail panel ──────────────────────────────────────────────────────── */
 const SENSITIVE = ['successorName', 'email', 'hireDate', 'nationality'];
@@ -2937,6 +3222,9 @@ function openUnitDetail(u) {
     </div>
     <div class="dt-body">
       ${u.empty ? `<p class="note" style="color:var(--vacant)">This unit has no positions mapped to it${u.listed ? ' \u2014 it comes from the unit list' : ''}.</p>` : ''}
+      ${u.offStructure ? `<p class="note" style="color:var(--critical)">Not in the approved structure. ` +
+        `${int(u.headcount)} position${u.headcount === 1 ? '' : 's'} are tagged to this name, ` +
+        `but the org unit list does not declare it.</p>` : ''}
       ${u.unstaffed ? `<p class="note" style="color:var(--vacant)">All ${int(u.headcount)} positions here are vacant \u2014 nobody is in post.</p>` : ''}
       ${u.unmapped ? `<p class="note" style="color:var(--critical)">These positions have no value in the ${esc((DIMENSIONS.find(d => d.key === u.dim) || {}).label || u.dim)} column, so they could not be placed.</p>` : ''}
       ${u.gaps ? `<p class="note" style="color:var(--critical)">${int(u.gaps)} critical role${u.gaps > 1 ? 's' : ''} here with no successor identified.</p>` : ''}
@@ -2997,6 +3285,15 @@ function openDetail(id) {
   // A field your file does not carry is left out entirely rather than shown as
   // a dash: an empty row reads as missing data when it is simply not a column.
   const col = (k, key) => S.model.map[key] ? raw(k, n[key]) : '';
+  // The other half of the round trip: a unit name on a position card goes back
+  // to that unit in the org view, the way "Show these positions" comes here.
+  const where = (k, key) => {
+    if (!S.model.map[key]) return '';
+    const v = n[key];
+    if (!v) return raw(k, v);
+    return `<div><div class="k">${esc(k)}</div>` +
+      `<div class="v"><a class="crumbs" data-find-unit="${esc(key)}|${esc(v)}">${esc(v)}</a></div></div>`;
+  };
 
   const crumbs = (n.chain || []).length
     ? '<div class="dt-sec"><h4>Reports up through</h4><div class="crumbs">' +
@@ -3029,8 +3326,8 @@ function openDetail(id) {
   const placement = ['group', 'division', 'department', 'unit', 'subUnit', 'section',
                      'branch', 'function', 'location', 'costCenter'].some(k => S.model.map[k])
     ? `<div class="dt-sec"><h4>Where it sits</h4><div class="kv">
-        ${col('Group', 'group')} ${col('Division', 'division')} ${col('Department', 'department')}
-        ${col('Unit', 'unit')} ${col('Sub-unit', 'subUnit')} ${col('Section', 'section')}
+        ${where('Group', 'group')} ${where('Division', 'division')} ${where('Department', 'department')}
+        ${where('Unit', 'unit')} ${where('Sub-unit', 'subUnit')} ${where('Section', 'section')}
         ${col('Branch', 'branch')} ${col('Function', 'function')}
         ${col('Location', 'location')} ${col('Cost center', 'costCenter')}
       </div></div>`
@@ -3169,7 +3466,33 @@ function exportUnitCsv() {
   toast('Exported ' + rows.length + ' units (' + levels.join(' > ') + ')');
 }
 
+/* The findings list is what gets sent to whoever owns the HRIS, so it exports
+   like anything else — and the button follows whichever sheet is open. */
+function exportFindingsCsv() {
+  const label = Object.fromEntries(BANDS.map(b => [b[0], b[1]]));
+  const cols = [
+    ['Finding', f => label[f.band] || f.band],
+    ['Unit', f => f.unit.label],
+    ['Path', f => (f.unit.chain || []).filter(a => a.dim).map(a => a.label).join(' > ')],
+    ['Level', f => (DIMENSIONS.find(x => x.key === f.unit.dim) || {}).label || f.unit.dim || ''],
+    ['Unit Code', f => f.unit.code],
+    ['Positions', f => f.unit.headcount],
+    ['Position', f => f.position ? (f.position.title || f.position.id) : ''],
+    ['Position ID', f => f.position ? f.position.id : ''],
+    ['Reports Into', f => f.other ? f.other.label : ''],
+    ['Structure Says', f => f.band === 'parent' && f.unit.parent ? f.unit.parent.label : ''],
+    ['Columns Say', f => f.note || ''],
+  ];
+  const scope = new Set(scopedNodes().map(u => u.id));
+  const rows = (S.findings || []).filter(f => scope.has(f.unit.id));
+  const csv = [cols.map(c => csvCell(c[0])).join(',')]
+    .concat(rows.map(f => cols.map(c => csvCell(c[1](f))).join(','))).join('\r\n');
+  download(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), 'org-reconcile.csv');
+  toast('Exported ' + rows.length + ' finding' + (rows.length === 1 ? '' : 's'));
+}
+
 function exportCsv() {
+  if (isUnits() && !$('#reconcile').hidden) return exportFindingsCsv();
   if (isUnits()) return exportUnitCsv();
   const cols = [
     ['ID', n => n.id], ['Job Title', n => n.title], ['Incumbent', n => n.vacant ? 'Vacant' : n.name],
@@ -3663,22 +3986,36 @@ function sampleUnitList() {
     'Technology Group': 'Delivers and runs core banking, digital channels and infrastructure, accountable for availability, change delivery and technology risk.',
     'Human Resources Group': 'Owns workforce strategy, talent, learning and the succession framework for critical and controlled roles.',
   };
+  const divisionMandates = {
+    'Credit Risk Division': 'Sets credit policy and underwriting standards and approves exposures above delegated limits.',
+    'Learning & Development Division': 'Owns mandatory training and its evidence, the leadership academy and the professional certification pathway.',
+  };
+  // Two departments deliberately left out, so the reconciliation has something
+  // true to find; and one the list has moved but the columns have not.
+  const undeclared = new Set(['Leadership Academy', 'Payments Systems']);
+  const moved = { 'Compliance Monitoring': 'Financial Crime Division' };
   const groups = Object.keys(SAMPLE_STRUCTURE);
   const list = groups.map((g, i) => ({
     name: g, parent: '', code: 'ORG-' + (100 + i * 10),
     type: SAMPLE_TYPES[g] || '', responsibilities: mandates[g] || '', head: '', status: 'Active',
   }));
-  // A mandate can sit at more than one level.
-  list.push({
-    name: 'Credit Risk Division', parent: 'Risk Group', code: 'ORG-405',
-    type: 'Control (2nd line)', head: '', status: 'Active',
-    responsibilities: 'Sets credit policy and underwriting standards and approves exposures above delegated limits.',
-  });
-  list.push({
-    name: 'Learning & Development Division', parent: 'Human Resources Group', code: 'ORG-410',
-    type: 'Enabling', head: '', status: 'Active',
-    responsibilities: 'Owns mandatory training and its evidence, the leadership academy and the professional certification pathway.',
-  });
+  let code = 400;
+  for (const [g, [, , divisions]] of Object.entries(SAMPLE_STRUCTURE)) {
+    for (const [division, depts] of Object.entries(divisions)) {
+      list.push({
+        name: division, parent: g, code: 'ORG-' + ++code,
+        type: SAMPLE_TYPES[g] || '', responsibilities: divisionMandates[division] || '',
+        head: '', status: 'Active',
+      });
+      for (const dept of depts) {
+        if (undeclared.has(dept)) continue;
+        list.push({
+          name: dept, parent: moved[dept] || division, code: 'ORG-' + ++code,
+          type: SAMPLE_TYPES[g] || '', responsibilities: '', head: '', status: 'Active',
+        });
+      }
+    }
+  }
   list.push({
     name: 'Data Governance Office', parent: 'Data & Analytics Division', code: 'ORG-310',
     type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
@@ -3794,6 +4131,17 @@ function sampleRecords() {
         }
       }
     }
+  }
+  // The same disagreements a real export carries: a department head reporting
+  // past their division head, and staff managed from another group. Invisible
+  // in the org view by design — only the Manager ID says otherwise.
+  const byTitle = t => rows.find(r => r['Job Title'] === t);
+  const skip = byTitle('Head of Audit - Data');
+  if (skip) skip['Manager ID'] = byTitle('Chief Audit Executive')['Position ID'];
+  const host = byTitle('Manager Business Intelligence');
+  for (const r of rows.filter(r => r.Department === 'Cash Management'
+                                && ['G9', 'G10', 'G11'].includes(r.Grade)).slice(0, 2)) {
+    r['Manager ID'] = host['Position ID'];
   }
   return rows;
 }
@@ -4063,6 +4411,14 @@ function wireApp() {
   wirePopovers();
 
   $('#btn-compare').onclick = () => setCompare($('#compare').hidden);
+  $('#btn-reconcile').onclick = () => setReconcile($('#reconcile').hidden);
+  $('#rec-close').onclick = () => setReconcile(false);
+  $('#rec-body').onclick = e => {
+    const row = e.target.closest('[data-goto-unit]');
+    if (!row) return;
+    const u = S.unitModel.byId.get(row.dataset.gotoUnit);
+    if (u) { revealNode(u); refresh(true); centreOn(u, true); openDetail(u.id); }
+  };
   $('#cmp-close').onclick = () => setCompare(false);
   $('#cmp-level').onchange = e => { S.cmpLevel = e.target.value; renderCompare(); };
   $('#cmp-table').onclick = e => {
@@ -4136,6 +4492,15 @@ function wireApp() {
       toast('Showing positions in ' + v);
       return;
     }
+    const findUnit = e.target.closest('[data-find-unit]');
+    if (findUnit) {
+      const [, label] = findUnit.dataset.findUnit.split('|');
+      setMode('units');
+      const u = S.unitModel.nodes.find(x => x.dim && x.label === label);
+      if (u) { revealNode(u); refresh(true); centreOn(u, true); openDetail(u.id); }
+      else { refresh(); toast('"' + label + '" is not a unit in the current structure.'); }
+      return;
+    }
     const gotoPos = e.target.closest('[data-goto-position]');
     if (gotoPos) {
       const id = gotoPos.dataset.gotoPosition;
@@ -4161,6 +4526,7 @@ function wireApp() {
       if (anyPopoverOpen()) closePopovers();
       else if (!$('#modal').hidden) closeModal();
       else if (!$('#detail').hidden) closeDetail();
+      else if (!$('#reconcile').hidden) setReconcile(false);
     }
     if (e.key === '/' && document.activeElement !== $('#search')) {
       e.preventDefault(); $('#search').focus();

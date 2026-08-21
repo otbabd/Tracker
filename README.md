@@ -16,7 +16,8 @@ your machine.
 Saudi one, twelve groups deep to section level — if you want to try it before
 pointing it at anything real; `sample-units.csv` is the matching org unit list
 and `sample-courses.csv` the mandatory-training list. Nothing in it is real: the
-names, the reporting lines and the deliberately broken rows are all generated.
+names, the reporting lines, the deliberately broken rows and the deliberate
+disagreements between the structure and the reporting line are all generated.
 
 Load the positions, then add the unit list with the **＋ Add unit list** button in
 the org-unit view — or put all three on separate tabs of one workbook and they
@@ -77,6 +78,49 @@ dimension — colour, filter, nest — but is never picked as a default level, s
 the branch network can be looked at on its own (nest by Branch alone) without
 disturbing the head-office hierarchy.
 
+### Which hierarchy is the authority
+
+**Org first.** Supply an org unit list and it becomes the structure: the chart is
+built on the units you have approved, parented the way the list says, and each
+position is tagged into the deepest declared unit its columns name. Below the
+deepest declared unit the ladder columns still nest — the units, sub-units and
+sections stay on screen, marked as *not declared* rather than hidden.
+
+That matters because of what it makes visible. A unit that exists only as a tag
+— someone typed a department name into an export and nobody ever approved it —
+used to become a box indistinguishable from the real ones. Now it is drawn with
+a red dashed outline, labelled *not in the approved structure*, and listed in
+**Reconcile** with its headcount and the head running it.
+
+With no unit list, the hierarchy comes from the columns as before. The **Units…**
+panel lets you switch between the two deliberately.
+
+### Reconcile
+
+Six ways the approved structure and the reporting line can disagree, counted in
+the toolbar and listed in a sheet under the chart. Each row clicks through to the
+unit or the position it names, and the CSV button exports the list.
+
+| Finding | What it means |
+|---|---|
+| **Not in the approved structure** | Positions are tagged to a unit the org unit list does not declare |
+| **Declared, nobody in it** | A unit in the list with no positions mapped to it |
+| **Declared parent disagrees** | The list puts the unit in one place, the position columns in another |
+| **Head reports outside the unit** | The most senior position answers to neither its own unit nor its parent |
+| **Reporting line skips a level** | The head reports past the parent unit to something above it |
+| **Managed from another unit** | Staff whose manager sits neither in their unit nor anywhere above it |
+
+Two things keep the counts meaningful. **A manager in a unit above yours is
+normal**, not a finding — in a ladder where every rung has its own head, a team
+lead in a sub-unit manages the staff sitting in a section beneath. And **only a
+unit somebody actually runs has a head worth checking**: a unit with sub-units,
+or whose top position manages people inside it. The most senior of three people
+in a section is whoever the sort landed on, not an office.
+
+The first two checks need a unit list; the last four work from the position file
+alone. The sheet says which levels the list describes, so the first finding is
+never mistaken for a claim about levels the list was never trying to cover.
+
 ### Working with units
 
 - **Compare** ranks the units side by side — positions, FTE, vacancies, layers,
@@ -85,10 +129,9 @@ disturbing the head-office hierarchy.
   sortable on any column, with a level picker so you compare like with like
   rather than a division against a department. The unit name stays put as you
   scroll across. Clicking a row selects that unit in the chart.
-- **Units…** controls the structure: nest by up to six columns, order siblings
-  by size, name or vacancies, and — when your unit list carries parent
-  relationships — build the hierarchy from the list itself rather than from
-  column nesting.
+- **Units…** controls the structure: where it comes from — the approved unit
+  list or the tags on the positions — the nesting columns for the detail below
+  the frame, and the sibling order.
 - **Function type** is a full lens: colour by it, filter by it, or nest by it, so
   the chart can be arranged by line of defence.
 
@@ -140,13 +183,14 @@ with more than one setting opens a popover rather than taking a row of its own.
 | **Branch** | Pick one leader — or one unit — to work inside alone. |
 | **Units…** | Structure of the org view: nesting columns, sibling order, and whether the hierarchy comes from columns or from the unit list. |
 | **Compare** | A sortable table of units under the chart, filtered to one level so the ranking means something. |
+| **Reconcile** | Where the approved structure and the reporting line disagree, banded by finding and clickable through to each one. |
 | **Flag chips** | Highlight critical roles, SAMA roles, succession gaps or vacancies in place. |
 | **Colour by** | Recolour the boxes by function, department, grade, location and so on. |
 | **Click a box** | Everything held about that position, in two parts: **The job** — code, grade, family, function type, job type, pay basis, talent pool, employment type, FTE, status — and **Where it sits**, the full ladder from group down to section plus branch, function, location and cost centre. Below them the incumbent, succession, mandatory training, direct reports and any column the tool did not recognise. A field your file does not carry is left out rather than shown as a dash. |
 | **Presentation** | One switch hides successor names, emails, hire dates and nationality, so the chart is safe to project or screen-share. |
 | **PNG** | Saves exactly what is on screen, at slide proportions. |
 | **Print** | Lays the current branch out to fit a page, in light theme — use it to save a branch as PDF. |
-| **CSV** | Follows the view: positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts, flag totals and the full profile. |
+| **CSV** | Follows the view — and the open sheet, so with **Reconcile** open it exports the findings. Otherwise positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts, flag totals and the full profile. |
 
 ## Units with nobody in them
 

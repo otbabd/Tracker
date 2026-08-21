@@ -3,6 +3,10 @@
 Produces sample-org.csv (and an .xlsx twin) with grades, functions, the three
 succession/regulatory flags, vacancies, Arabic names, and the kinds of broken
 rows a real HRIS export contains.
+
+sample-units.csv is the approved structure the chart is built on — every group,
+division and department except four left out on purpose, so reconciling the two
+hierarchies has something true to find.
 """
 import csv
 import random
@@ -292,6 +296,31 @@ for group, (fn, head_title, divisions) in STRUCTURE.items():
                                     if dept in BRANCH_REGIONS else ""),
                             vac_p=0.11, crit=False, sama=False)
 
+# ── Where the reporting line and the structure disagree ─────────────────────
+# Real exports carry these and nobody notices until someone compares the two
+# hierarchies. They are invisible in the org view by design: the columns still
+# say where the job sits, only the Manager ID says otherwise.
+by_title = {}
+for r in rows:
+    by_title.setdefault(r["Job Title"], []).append(r)
+
+# Two department heads reporting straight past their division head.
+for dept, chief in (("Tax & Zakat", "Chief Financial Officer"),
+                    ("Contact Centre", "Chief Retail Banking Officer")):
+    head = by_title[f"Head of {dept}"][0]
+    head["Manager ID"] = by_title[chief][0]["Position ID"]
+
+# One department head answering sideways into another group entirely.
+by_title["Head of Fraud Prevention"][0]["Manager ID"] = \
+    by_title["Head of Security Operations"][0]["Position ID"]
+
+# Three staff sitting in one group but managed from another — embedded IT and a
+# secondment, both ordinary and both worth knowing about.
+host = by_title["Manager Service Desk"][0]["Position ID"]
+for r in [r for r in rows if r["Department"] == "Local Payments"
+          and r["Grade"] in ("G9", "G10", "G11")][:3]:
+    r["Manager ID"] = host
+
 # Defects a real export contains, so the repair path is exercised. They are
 # copied from ordinary staff rows spread across the file rather than from fixed
 # indices, so restructuring the org never turns one of them into a duplicate of
@@ -315,19 +344,45 @@ with open("sample-org.csv", "w", newline="", encoding="utf-8-sig") as f:
     w.writeheader()
     w.writerows(rows)
 
-# The companion org unit list: structure, classification and mandates at two
-# levels, plus three units that exist on paper with nobody mapped to them.
+# ── The approved structure ──────────────────────────────────────────────────
+# The org unit list is the frame the chart is built on, so it names every group,
+# every division and every department — except four, deliberately left out, so
+# the reconciliation has something true to find: a department that exists in the
+# HR export as a tag and in nobody's approved structure.
+UNDECLARED = {"Digital Onboarding", "Leadership Academy", "Cost & Performance",
+              "Privilege Banking"}
+
+# One department the list and the columns disagree about: the structure moved it
+# to Talent & Performance, the HRIS still tags it under HR Operations.
+MOVED = {"Payroll & Benefits": "Talent & Performance Division"}
+
 unit_rows = [{
     "Org Unit": group, "Parent Unit": "", "Unit Code": f"ORG-{100 + i * 10}",
     "Function Type": FUNCTION_TYPE.get(group, ""), "Unit Head": "",
     "Unit Status": "Active", "Roles and Responsibilities": MANDATES.get(group, ""),
 } for i, group in enumerate(STRUCTURE)]
 
-unit_rows += [{
-    "Org Unit": division, "Parent Unit": parent, "Unit Code": f"ORG-{400 + i * 5}",
-    "Function Type": ftype, "Unit Head": "", "Unit Status": "Active",
-    "Roles and Responsibilities": mandate,
-} for i, (division, (parent, ftype, mandate)) in enumerate(DIVISION_MANDATES.items())]
+code = 400
+for group, (fn, _head, divisions) in STRUCTURE.items():
+    for division, depts in divisions.items():
+        code += 1
+        declared = DIVISION_MANDATES.get(division)
+        unit_rows.append({
+            "Org Unit": division, "Parent Unit": group, "Unit Code": f"ORG-{code}",
+            "Function Type": FUNCTION_TYPE.get(group, ""), "Unit Head": "",
+            "Unit Status": "Active",
+            "Roles and Responsibilities": declared[2] if declared else "",
+        })
+        for dept in depts:
+            if dept in UNDECLARED:
+                continue
+            code += 1
+            unit_rows.append({
+                "Org Unit": dept, "Parent Unit": MOVED.get(dept, division),
+                "Unit Code": f"ORG-{code}",
+                "Function Type": FUNCTION_TYPE.get(group, ""), "Unit Head": "",
+                "Unit Status": "Active", "Roles and Responsibilities": "",
+            })
 
 unit_rows += [
     {"Org Unit": "Data Governance Office", "Parent Unit": "Data & Analytics Division",
