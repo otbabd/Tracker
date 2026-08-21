@@ -25,17 +25,32 @@ files at all and includes both.
 A switch in the toolbar changes what a box means. The file is loaded once and
 the filters carry across.
 
-**Positions** — one box per seat. The job title leads, the person in it sits
-underneath, and a vacancy is a normal state of a position rather than a gap in
-the data. Boxes are joined by reporting lines, taken from Manager ID.
+**Org units** — the view it opens on. One box per organisational unit, showing
+its headcount, FTE and vacancies, the shape of it — layers, average span,
+managers against individual contributors — its function type, sub-unit count and
+the most senior position inside it. Roughly fifty boxes instead of a few
+thousand: the shape of the organisation rather than the seats in it.
 
-**Org units** — one box per organisational unit, nested by Division → Function →
-Department (you can change the nesting to any columns your file has, up to three
-levels deep). Each unit shows its headcount, FTE, vacancies, function type, how
-many sub-units it contains and the most senior position inside it. Roughly fifty
-boxes instead of a few thousand: the shape of the organisation rather than the
-seats in it. "Show these positions" on any unit drops you back into the position
-view, filtered to it.
+**Positions** — one box per seat, reached from a unit through *Show these
+positions* or the switch. The job title leads, the person in it sits underneath,
+and a vacancy is a normal state of a position rather than a gap in the data.
+Boxes are joined by reporting lines, taken from Manager ID.
+
+A file with no division / function / department columns has no structure to
+draw, so it opens on positions instead.
+
+### Working with units
+
+- **Compare** ranks the units side by side — positions, FTE, vacancies, layers,
+  span, managers, ICs, critical roles, SAMA roles and succession gaps — sortable
+  on any column, with a level picker so you compare like with like rather than a
+  division against a department. Clicking a row selects that unit in the chart.
+- **Units…** controls the structure: nest by up to four columns, order siblings
+  by size, name or vacancies, and — when your unit list carries parent
+  relationships — build the hierarchy from the list itself rather than from
+  column nesting.
+- **Function type** is a full lens: colour by it, filter by it, or nest by it, so
+  the chart can be arranged by line of defence.
 
 ## What it does
 
@@ -62,7 +77,8 @@ with more than one setting opens a popover rather than taking a row of its own.
 | **Search** | Name, job title or ID. Matches are highlighted and their branches opened. Press `/` to jump to the box. |
 | **Filters** | Narrow by function, department or grade. Matches keep their reporting line, so the tree never breaks into fragments. |
 | **Branch** | Pick one leader — or one unit — to work inside alone. |
-| **Nest by** | In the org-unit view, choose which columns build the hierarchy. |
+| **Units…** | Structure of the org view: nesting columns, sibling order, and whether the hierarchy comes from columns or from the unit list. |
+| **Compare** | A sortable table of units under the chart, filtered to one level so the ranking means something. |
 | **Flag chips** | Highlight critical roles, SAMA roles, succession gaps or vacancies in place. |
 | **Colour by** | Recolour the boxes by function, department, grade, location and so on. |
 | **Click a box** | Everything held about that position, its reporting line, its direct reports, and its successor with readiness. |
@@ -150,14 +166,24 @@ Every row is a position, so somebody holding two roles occupies two boxes and
 counts twice. That is what you want for position-based headcount, but it is not
 the same as a headcount of people — worth knowing before quoting a number.
 
-The two views count the same population: a division's headcount in the org-unit
-view is exactly the number of positions carrying that division. Note that this
+The two views count the same population, but they filter differently on purpose.
+Filtering to a function in the **org view** is strict, so the unit's headcount is
+exactly the positions carrying it. The **position view** keeps each match's
+reporting line so the tree stays connected, which pulls in managers above the
+filter — the same filter can show one or two more positions there.
+
+A division's headcount in the org-unit view is exactly the number of positions
+carrying that division. Note that this
 is not the same as the branch size of the person who runs it — a unit is defined
 by the column value on each row, not by who reports to whom, so a position sits
 in the unit its data says it does even if it reports elsewhere.
 
 A unit's "most senior position" is the one running the largest part of the
 organisation, not simply the highest grade.
+
+A unit's average span counts every direct report of every manager in it,
+including the occasional report sitting in another unit, so the figure never
+disagrees with the one the position view shows for the same person.
 
 Roles & responsibilities are held at unit level, so they come from the org unit
 list rather than from the positions. Presentation mode hides a named unit head
