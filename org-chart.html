@@ -1697,12 +1697,17 @@ function buildUnits(positions, levels, declaredUnits = [], unitList = []) {
     let parent = root, path = 'u:';
     for (let i = 0; i < levels.length; i++) {
       const raw = rec[levels[i]];
-      if (!raw) {
+      if (!raw && (stopAtBlank || !levels.slice(i + 1).some(d => rec[d]))) {
         // A blank rung with nothing filled below it means the ladder simply ends
         // here — a department head belongs at the department, not in a phantom
         // "Unspecified" unit beneath it. A blank with something filled below is
         // a real gap, so it is kept and shows as Unspecified.
-        if (stopAtBlank || !levels.slice(i + 1).some(d => rec[d])) break;
+        //
+        // The exception is the top rung: a position that matched no level at all
+        // would otherwise sit on the root itself, where it is counted but has no
+        // box, and the units stop summing to the whole. That one goes to
+        // Unspecified, which is what the unmapped count is for.
+        if (i > 0 || stopAtBlank) break;
       }
       path += '/' + (raw || UNSET);
       let node = byId.get(path);
@@ -1922,6 +1927,8 @@ const nodeH = () => (S.mode === 'units' ? NODE_H_UNIT : NODE_H);
 const SIB_GAP = 28, LEVEL_GAP = 56;
 const HANG_INDENT = 44, HANG_GAP = 8, HANG_TRUNK = 22;
 const DEFAULT_LAYERS = 3;
+/* Boxes that fit side by side before the chart stops being readable. */
+const LEGIBLE_WIDTH = 14;
 const DRAW_CAP = 2500;
 const MIN_ZOOM = 0.04, MAX_ZOOM = 2.4;
 
@@ -2016,12 +2023,20 @@ const hiddenCount = n => {
 
 function applyDefaultCollapse() {
   if (isUnits()) {
-    // There are only ever a few dozen units, so show the structure whole
-    // unless the file is unusually granular.
+    // A small structure is shown whole. A large one opens one layer at a time
+    // while the next layer still fits across the screen legibly — the limit
+    // that matters is width, not how many boxes exist. Twelve groups read as
+    // an organisation; the thirty-odd divisions beneath them read as a wall.
     S.unitCollapsed = new Set();
     if (S.unitModel.nodes.length > 80) {
+      const perLayer = new Map();
+      for (const u of S.unitModel.nodes) perLayer.set(u.layer, (perLayer.get(u.layer) || 0) + 1);
+      let open = 1;
+      while (open < 6 && (perLayer.get(open + 1) || 0) <= LEGIBLE_WIDTH) open++;
       for (const u of S.unitModel.nodes) {
-        if (u.children.length && u.layer >= DEFAULT_LAYERS) S.unitCollapsed.add(u.id);
+        if (u.children.length && u.layer >= Math.max(open, DEFAULT_LAYERS - 1)) {
+          S.unitCollapsed.add(u.id);
+        }
       }
     }
     return;
@@ -2042,7 +2057,11 @@ function layout() {
   const placed = [];
   let cursor = 0, capped = false;
 
-  const canHang = kids => kids.length >= 3 && kids.every(k => visibleChildren(k).length === 0);
+  // Hang a row into a column when it is genuinely a team of individuals, or
+  // when there are simply too many to sit side by side. A handful of collapsed
+  // units are neither: they are the structure, and they read as a row.
+  const canHang = kids => kids.length >= 3 && (
+    kids.every(k => !k.children.length) || kids.length > LEGIBLE_WIDTH);
 
   const walk = (n, depth) => {
     if (placed.length >= DRAW_CAP) { capped = true; return cursor; }
@@ -3577,72 +3596,116 @@ function applyUnitList(list, source) {
    Generated rather than embedded, so the file stays small. Shaped like a bank
    export: grades, functions, the three flags, vacancies and Arabic names.
    ───────────────────────────────────────────────────────────────────────── */
-const SAMPLE_FUNCTIONS = {
-  'Retail Banking':    ['Branch Network', 'Cards', 'Wealth'],
-  'Corporate Banking': ['Large Corporate', 'SME', 'Trade Finance'],
-  'Risk':              ['Credit Risk', 'Market Risk', 'Operational Risk'],
-  'Compliance':        ['AML', 'Regulatory Affairs'],
-  'Technology':        ['Core Banking', 'Digital Channels', 'Infrastructure'],
-  'Finance':           ['Financial Control', 'Treasury'],
-  'Human Resources':   ['Talent', 'HR Operations'],
+/* The structure the demo is shaped like: a group is the top block under the
+   CEO, named after its discipline and headed by a C-level officer. Divisions
+   sit inside it, departments inside those. CEO Office is the one entry on the
+   top rung that is not a group. */
+const SAMPLE_STRUCTURE = {
+  'CEO Office': ['Executive', 'Chief Executive Officer', {
+    'Strategy & Communications Division': ['Corporate Strategy', 'Corporate Communications'],
+  }],
+  'Retail Banking Group': ['Retail Banking', 'Chief Retail Banking Officer', {
+    'Branch Network Division': ['Central Region Branches', 'Western Region Branches'],
+    'Products & Cards Division': ['Cards & Payments', 'Wealth Management'],
+  }],
+  'Corporate Banking Group': ['Corporate Banking', 'Chief Corporate Banking Officer', {
+    'Corporate Coverage Division': ['Large Corporate', 'Mid Corporate'],
+    'Transaction Banking Division': ['Trade Finance', 'Cash Management'],
+  }],
+  'Risk Group': ['Risk', 'Chief Risk Officer', {
+    'Credit Risk Division': ['Corporate Credit Risk', 'Retail Credit Risk'],
+    'Operational Risk Division': ['Operational Risk', 'Risk Analytics'],
+  }],
+  'Compliance Group': ['Compliance', 'Chief Compliance Officer', {
+    'Financial Crime Division': ['AML & Sanctions', 'Fraud Prevention'],
+    'Regulatory Compliance Division': ['Regulatory Affairs', 'Compliance Monitoring'],
+  }],
+  'Internal Audit Group': ['Internal Audit', 'Chief Audit Executive', {
+    'Business Audit Division': ['Audit - Retail & Corporate', 'Audit - Treasury'],
+    'Technology Audit Division': ['Audit - Technology', 'Audit - Data'],
+  }],
+  'Technology Group': ['Technology', 'Chief Technology Officer', {
+    'Core Banking Division': ['Core Banking Platform', 'Payments Systems'],
+    'Data & Analytics Division': ['Data Engineering', 'Business Intelligence'],
+  }],
+  'Human Resources Group': ['Human Resources', 'Chief Human Capital Officer', {
+    'Talent Acquisition Division': ['Talent Acquisition', 'Saudization & Graduate Programmes'],
+    'Learning & Development Division': ['Learning & Development', 'Leadership Academy'],
+  }],
 };
 
 const SAMPLE_TYPES = {
-  'Retail Banking': 'Business (1st line)', 'Corporate Banking': 'Business (1st line)',
-  'Risk': 'Control (2nd line)', 'Compliance': 'Control (2nd line)',
-  'Finance': 'Control (2nd line)', 'Technology': 'Enabling',
-  'Human Resources': 'Enabling',
+  'CEO Office': 'Governance',
+  'Retail Banking Group': 'Business (1st line)', 'Corporate Banking Group': 'Business (1st line)',
+  'Risk Group': 'Control (2nd line)', 'Compliance Group': 'Control (2nd line)',
+  'Internal Audit Group': 'Assurance (3rd line)',
+  'Technology Group': 'Enabling', 'Human Resources Group': 'Enabling',
 };
 
-/* The unit list that ships with the demo: function types, mandates, and two
-   units that exist on paper with nobody in them yet. */
+const SAMPLE_JOB_TYPE = {
+  'CEO Office': 'Front office',
+  'Retail Banking Group': 'Front office', 'Corporate Banking Group': 'Front office',
+  'Risk Group': 'Middle office', 'Compliance Group': 'Middle office',
+  'Internal Audit Group': 'Middle office',
+  'Technology Group': 'Back office', 'Human Resources Group': 'Back office',
+};
+
+/* The unit list that ships with the demo: function types and mandates at group
+   and division level, and two units that exist on paper with nobody in them. */
 function sampleUnitList() {
   const mandates = {
-    'Retail Banking': 'Runs the branch network, cards and wealth propositions for individual customers, owning revenue, service quality and channel migration.',
-    'Corporate Banking': 'Serves corporate and SME clients across lending and trade finance, owning the corporate credit portfolio and relationship coverage.',
-    'Risk': 'Owns the bank-wide risk framework — appetite, limits, stress testing — and provides independent challenge of first-line decisions to the Board Risk Committee.',
-    'Compliance': 'Ensures adherence to SAMA regulation and internal policy, covering AML, sanctions screening and the non-objection process for controlled functions.',
-    'Technology': 'Delivers and runs core banking, digital channels and infrastructure, accountable for availability, change delivery and technology risk.',
-    'Finance': 'Owns financial control, treasury and planning, producing statutory and regulatory reporting and managing liquidity and capital.',
-    'Human Resources': 'Owns workforce strategy, talent, learning and the succession framework for critical and controlled roles.',
+    'CEO Office': "Sets strategy and owns delivery of the bank's plan to the Board. Holds corporate strategy and communications directly.",
+    'Retail Banking Group': 'Runs the branch network, cards and wealth propositions for individual customers, owning revenue, service quality and channel migration.',
+    'Corporate Banking Group': 'Serves corporate and SME clients across lending and trade finance, owning the corporate credit portfolio and relationship coverage.',
+    'Risk Group': 'Owns the bank-wide risk framework — appetite, limits, stress testing — and provides independent challenge of first-line decisions to the Board Risk Committee.',
+    'Compliance Group': 'Ensures adherence to SAMA regulation and internal policy, covering AML, sanctions screening and the non-objection process for controlled functions.',
+    'Internal Audit Group': 'Provides independent assurance to the Audit Committee over the effectiveness of governance, risk management and internal control.',
+    'Technology Group': 'Delivers and runs core banking, digital channels and infrastructure, accountable for availability, change delivery and technology risk.',
+    'Human Resources Group': 'Owns workforce strategy, talent, learning and the succession framework for critical and controlled roles.',
   };
-  const list = Object.keys(SAMPLE_FUNCTIONS).map(fn => ({
-    name: fn, parent: '', code: 'ORG-' + (100 + Object.keys(SAMPLE_FUNCTIONS).indexOf(fn) * 10),
-    type: SAMPLE_TYPES[fn] || '', responsibilities: mandates[fn] || '', head: '', status: 'Active',
+  const groups = Object.keys(SAMPLE_STRUCTURE);
+  const list = groups.map((g, i) => ({
+    name: g, parent: '', code: 'ORG-' + (100 + i * 10),
+    type: SAMPLE_TYPES[g] || '', responsibilities: mandates[g] || '', head: '', status: 'Active',
   }));
+  // A mandate can sit at more than one level.
   list.push({
-    name: 'Data Governance Office', parent: 'Technology', code: 'ORG-310',
+    name: 'Credit Risk Division', parent: 'Risk Group', code: 'ORG-405',
+    type: 'Control (2nd line)', head: '', status: 'Active',
+    responsibilities: 'Sets credit policy and underwriting standards and approves exposures above delegated limits.',
+  });
+  list.push({
+    name: 'Learning & Development Division', parent: 'Human Resources Group', code: 'ORG-410',
+    type: 'Enabling', head: '', status: 'Active',
+    responsibilities: 'Owns mandatory training and its evidence, the leadership academy and the professional certification pathway.',
+  });
+  list.push({
+    name: 'Data Governance Office', parent: 'Data & Analytics Division', code: 'ORG-310',
     type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
     responsibilities: 'Approved in the current structure to own data quality, lineage and the data catalogue. No positions have been created yet.',
   });
   list.push({
-    name: 'Climate Risk Unit', parent: 'Risk', code: 'ORG-230',
+    name: 'Climate Risk Unit', parent: 'Risk Group', code: 'ORG-230',
     type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
     responsibilities: 'Established to meet SAMA climate-related disclosure expectations. Mandate approved, headcount pending Board approval.',
   });
   return list;
 }
 
-/* The rest of the ladder and the job attributes, so the demo exercises
-   everything the tool reads rather than a subset of it. Legal entities sit
-   above the divisions; the division rung is the function itself, which is how
-   most exports carry it and what the unit list is keyed on. */
-const SAMPLE_GROUPS = {
-  'Technology': 'Example Digital',
-  'Human Resources': 'Example Shared Services',
-};
-const SAMPLE_JOB_TYPE = {
-  'Retail Banking': 'Front office', 'Corporate Banking': 'Front office', 'Executive': 'Front office',
-  'Risk': 'Middle office', 'Compliance': 'Middle office', 'Finance': 'Middle office',
-  'Technology': 'Back office', 'Human Resources': 'Back office',
-};
 const SAMPLE_FAMILY = {
-  G17: 'Executive', G16: 'Executive', G15: 'Leadership', G13: 'Management',
+  G17: 'Executive', G16: 'Executive', G15: 'Leadership', G14: 'Leadership',
+  G13: 'Management', G12: 'Management',
   G11: 'Professional', G10: 'Professional', G9: 'Professional',
 };
 const SAMPLE_POOLS = ['Emerging Leaders', 'Saudi Graduates', 'Future Executives', 'Specialist Bench'];
-const SAMPLE_BRANCHES = ['BR-001 Riyadh Olaya', 'BR-002 Riyadh Malaz', 'BR-003 Jeddah Tahlia',
-                         'BR-004 Dammam Corniche', 'BR-005 Khobar Corniche', 'BR-006 Madinah Central'];
+const SAMPLE_BRANCHES = {
+  'Central Region Branches': ['BR-001 Riyadh Olaya', 'BR-002 Riyadh Malaz', 'BR-003 Riyadh Sahafa'],
+  'Western Region Branches': ['BR-004 Jeddah Tahlia', 'BR-005 Madinah Central', 'BR-006 Makkah Aziziyah'],
+};
+/* One legal entity on every row. A single-value column is a redundant nesting
+   level, so it is not a rung — it rides as a column the tool does not
+   recognise, keeps, and shows on the position card. */
+const SAMPLE_ENTITY = 'BSF';
 
 /* A job code shared by everyone doing the same job, so mandatory training can
    hang off the job rather than off each seat. */
@@ -3655,38 +3718,41 @@ function sampleRecords() {
   const AR = ['أحمد الحربي','نورة القحطاني','خالد الدوسري','سارة العتيبي','فيصل الشمري','ريم الغامدي'];
   const EN = ['Omar Nasser','Layla Haddad','Yusuf Karim','Huda Mansour','Tariq Aziz','Dana Rashed',
               'Sami Farouk','Rana Idris','Bilal Osman','Maya Younes','Adel Saleh','Noor Baker'];
-  const FN = SAMPLE_FUNCTIONS;
   const LOC = ['Riyadh','Jeddah','Dammam','Khobar'];
+  const SECTIONED = ['Retail Banking Group', 'Technology Group'];
   const rows = [];
   let seq = 0;
   const nextId = () => 'P' + String(++seq).padStart(4, '0');
 
-  const add = (id, mgr, title, grade, fn, dept, opts = {}) => {
-    const vacant = opts.vacant ?? rnd() < 0.08;
-    const critical = opts.critical ?? (['G16','G15','G14'].includes(grade) && rnd() < 0.55);
-    const sama = opts.sama ?? (['G16','G15'].includes(grade) && ['Risk','Compliance','Finance'].includes(fn));
+  const add = (id, mgr, title, grade, group, fn, o = {}) => {
+    const vacant = o.vacant ?? rnd() < 0.08;
+    const critical = o.critical ?? (['G16','G15','G14'].includes(grade) && rnd() < 0.55);
+    const sama = o.sama ?? (['G16','G15'].includes(grade)
+      && ['Risk','Compliance','Internal Audit'].includes(fn));
     const hasSucc = critical ? rnd() < 0.55 : rnd() < 0.2;
-    const jobType = SAMPLE_JOB_TYPE[fn] || '';
+    const jobType = SAMPLE_JOB_TYPE[group] || '';
     rows.push({
       'Position ID': id, 'Manager ID': mgr, 'Job Title': title, 'Grade': grade,
       'Employee Name': vacant ? '' : (rnd() < 0.3 ? pick(AR) : pick(EN)),
       'Job Code': sampleJobCode(title), 'Job Family': SAMPLE_FAMILY[grade] || 'Professional',
+      'Legal Entity': SAMPLE_ENTITY,
       'Function': fn,
-      'Group': SAMPLE_GROUPS[fn] || 'Example Bank',
-      'Division': fn, 'Department': dept,
-      'Unit': opts.unit || '', 'Sub-unit': opts.subUnit || '', 'Section': opts.section || '',
-      'Branch': opts.branch || '',
+      // Each role sits at its own rung and the ladder ends there: the CHCO
+      // belongs to Human Resources Group, not to a phantom unit beneath it.
+      'Group': group, 'Division': o.division || '', 'Department': o.dept || '',
+      'Unit': o.unit || '', 'Sub-unit': o.subUnit || '', 'Section': o.section || '',
+      'Branch': o.branch || '',
       'Location': pick(LOC),
       'Position Status': vacant ? 'Vacant' : 'Filled',
       'Employment Type': rnd() < 0.92 ? 'Full-time' : 'Contractor',
       'FTE': rnd() < 0.95 ? '1' : '0.5',
       'Cost Center': 'CC-' + (1000 + Math.floor(rnd() * 40)),
-      'Function Type': SAMPLE_TYPES[fn] || '',
+      'Function Type': SAMPLE_TYPES[group] || '',
       'Job Type': jobType,
       'Pay Basis': jobType === 'Front office' && rnd() < 0.7 ? 'Incentive'
-                 : ['G17','G16','G15','G13'].includes(grade) ? 'Bonus'
+                 : ['G17','G16','G15','G14','G13'].includes(grade) ? 'Bonus'
                  : pick(['Bonus', 'Fixed', 'Fixed']),
-      'Talent Pool': rnd() < (['G15','G13'].includes(grade) ? 0.3 : 0.08) ? pick(SAMPLE_POOLS) : '',
+      'Talent Pool': rnd() < (['G15','G14','G13'].includes(grade) ? 0.3 : 0.08) ? pick(SAMPLE_POOLS) : '',
       'Critical Role': critical ? 'Yes' : 'No',
       'SAMA Non-Objection Role': sama ? 'Yes' : 'No',
       'Successor Identified': hasSucc ? 'Yes' : 'No',
@@ -3697,29 +3763,34 @@ function sampleRecords() {
     return id;
   };
 
-  const ceo = add(nextId(), '', 'Chief Executive Officer', 'G17', 'Executive', 'Executive Office',
+  const ceo = add(nextId(), '', 'Chief Executive Officer', 'G17', 'CEO Office', 'Executive',
                   { vacant: false, critical: true, sama: true });
-  for (const [fn, depts] of Object.entries(FN)) {
-    const head = add(nextId(), ceo, 'Chief ' + fn + ' Officer', 'G16', fn, depts[0], { vacant: false });
-    for (const dept of depts) {
-      // Heads sit at the department: their ladder ends there, which is the
-      // ordinary case rather than a gap in the data.
-      const dir = add(nextId(), head, 'Head of ' + dept, 'G15', fn, dept);
-      for (let i = 0; i < 2 + Math.floor(rnd() * 2); i++) {
-        const unit = dept + ' Unit ' + (i + 1);
-        const mgr = add(nextId(), dir, pick(['Manager', 'Senior Manager']) + ' ' + dept, 'G13',
-                        fn, dept, { unit });
-        for (let j = 0; j < 3 + Math.floor(rnd() * 4); j++) {
-          const subUnit = unit + ' — Team ' + 'AB'[j % 2];
-          add(nextId(), mgr, pick(['Officer', 'Senior Officer', 'Analyst', 'Specialist']) + ' ' + dept,
-              pick(['G9', 'G10', 'G11']), fn, dept, {
-                critical: false, sama: false, unit, subUnit,
-                // Sections only where the work is split that finely, so the
-                // ladder is partly populated the way a real export is.
-                section: fn === 'Retail Banking' || fn === 'Technology'
-                  ? subUnit + ' / Section ' + (1 + (j % 2)) : '',
-                branch: dept === 'Branch Network' ? SAMPLE_BRANCHES[j % SAMPLE_BRANCHES.length] : '',
-              });
+  for (const [group, [fn, headTitle, divisions]] of Object.entries(SAMPLE_STRUCTURE)) {
+    // The CEO heads the CEO Office; every other group has its own C-level.
+    const head = group === 'CEO Office' ? ceo
+      : add(nextId(), ceo, headTitle, 'G16', group, fn, { vacant: false });
+    for (const [division, depts] of Object.entries(divisions)) {
+      const gm = add(nextId(), head, 'General Manager - ' + division.replace(/ Division$/, ''),
+                     'G15', group, fn, { division });
+      for (const dept of depts) {
+        const d = add(nextId(), gm, 'Head of ' + dept, 'G14', group, fn, { division, dept });
+        for (let i = 0; i < 2; i++) {
+          const unit = dept + ' Unit ' + (i + 1);
+          const mgr = add(nextId(), d, 'Manager ' + dept, 'G13', group, fn,
+                          { division, dept, unit });
+          const subUnit = unit + ' - Team A';
+          const lead = add(nextId(), mgr, 'Team Lead ' + dept, 'G12', group, fn,
+                           { division, dept, unit, subUnit });
+          for (let j = 0; j < 3 + Math.floor(rnd() * 3); j++) {
+            add(nextId(), lead, pick(['Officer', 'Senior Officer', 'Analyst', 'Specialist']) + ' ' + dept,
+                pick(['G9', 'G10', 'G11']), group, fn, {
+                  critical: false, sama: false, division, dept, unit, subUnit,
+                  // Sections only where the work is split that finely, so the
+                  // ladder is partly populated the way a real export is.
+                  section: SECTIONED.includes(group) ? subUnit + ' / Section ' + (1 + (j % 2)) : '',
+                  branch: SAMPLE_BRANCHES[dept] ? pick(SAMPLE_BRANCHES[dept]) : '',
+                });
+          }
         }
       }
     }

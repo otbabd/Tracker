@@ -12,11 +12,16 @@ to a colleague — there is no server, no install, no build step and no internet
 connection involved. Your file is read inside your own browser and never leaves
 your machine.
 
-`sample-org.csv` is synthetic data (2,600 positions) if you want to try it before
+`sample-org.csv` is synthetic data — 2,567 positions in a bank shaped like a
+Saudi one, twelve groups deep to section level — if you want to try it before
 pointing it at anything real; `sample-units.csv` is the matching org unit list
-and `sample-courses.csv` the mandatory-training list. Load the positions, then
-add the unit list with the **＋ Add unit list** button in the org-unit view — or
-put all three on separate tabs of one workbook and they are picked up together.
+and `sample-courses.csv` the mandatory-training list. Nothing in it is real: the
+names, the reporting lines and the deliberately broken rows are all generated.
+
+Load the positions, then add the unit list with the **＋ Add unit list** button in
+the org-unit view — or put all three on separate tabs of one workbook and they
+are picked up together.
+
 The **Try it with sample data** button needs no files at all and carries the
 same shape in miniature — the full ladder, branches, job attributes, a unit list
 and a course list.
@@ -32,8 +37,9 @@ the filters carry across.
 its headcount, FTE and vacancies, the shape of it — layers, average span,
 managers against individual contributors — its function type, sub-unit count, the
 most senior position inside it and the mix of work it does. The shape of the
-organisation rather than the seats in it: you open on the top few levels and go
-down only where you want to.
+organisation rather than the seats in it. It opens as many levels as fit across
+the screen legibly — for a twelve-group bank that is the groups themselves — and
+the rest is a click away.
 
 **Positions** — one box per seat, reached from a unit through *Show these
 positions* or the switch. The job title leads, the person in it sits underneath,
@@ -51,18 +57,25 @@ The org view nests down the levels a bank actually uses, in this order:
 Group → Division → Department → Unit → Sub-unit → Section
 ```
 
+A group is the top block under the CEO, named after its discipline and headed by
+a C-level officer: **Human Resources Group** under the Chief Human Capital
+Officer, holding its divisions, each of those holding its departments.
+
 Whichever of the six your file carries become the nesting, in that order. A
 column with the same value on every row is skipped — a single-value level is a
-redundant box — and a position stops at the rung where its own ladder ends, so a
-department head sits at the department rather than in a phantom unit beneath it.
+redundant box, which is why a legal entity that never varies belongs outside the
+ladder rather than on its top rung.
+
+**Every role sits at its own rung, and the ladder ends there.** The CHCO's row
+names the group and stops; a division head names the division and stops. A
+position is placed at the last rung it fills rather than pushed into a phantom
+unit beneath it — the one exception being a position that fills no rung at all,
+which goes to *Unspecified* so the units still add up to the whole.
 
 **Branches run across the ladder, not inside it.** A `Branch` column is a full
 dimension — colour, filter, nest — but is never picked as a default level, so
 the branch network can be looked at on its own (nest by Branch alone) without
 disturbing the head-office hierarchy.
-
-Six levels of a large file makes hundreds of units, so the view opens with the
-top layers expanded and the rest a click away.
 
 ### Working with units
 
@@ -108,8 +121,9 @@ lined up behind it. The filter chips above the chart light those up wherever the
 are in the hierarchy.
 
 **Sized for a real organisation.** Only the branches you have open are drawn, so a
-2,600-position file opens in about a quarter of a second and stays responsive. It
-starts at the top three layers with everything below collapsed behind a click.
+2,600-position file across seven hundred units opens in about a third of a second
+and stays responsive. It opens as many layers as stay readable across the screen
+and collapses the rest behind a click.
 
 ## Using it
 
@@ -204,7 +218,8 @@ those named columns. Talent pool takes a pool name or a plain Yes/No.
 
 Column names are matched loosely, so `Manager ID`, `manager_id` and `Reports To`
 all land in the same place. Anything the tool does not recognise is kept and
-shown on the position's detail card, so nothing in your file is lost. If
+shown on the position's detail card under *Other columns from your file*, so
+nothing is lost — the sample's `Legal Entity` column is there to show it. If
 something is matched wrongly, the **Columns** button fixes it, and the correction
 is remembered for the next export with the same columns.
 
@@ -256,6 +271,7 @@ along with the other personal fields; the mandate text stays visible.
 ## Development
 
 `.build/make_sample.py` regenerates `sample-org.csv`, `sample-units.csv` and
-`sample-courses.csv`; pass a path to also write a three-sheet `.xlsx`. Everything
-else lives in
-`org-chart.html`.
+`sample-courses.csv`; pass a path to also write a three-sheet `.xlsx`. The
+structure it generates lives in one `STRUCTURE` table at the top of that file —
+group, then division, then departments. Everything else lives in
+`org-chart.html`, whose built-in demo mirrors the same shape in miniature.
