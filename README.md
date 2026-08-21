@@ -51,11 +51,11 @@ starts at the top three layers with everything below collapsed behind a click.
 
 ## Using it
 
-The window is a 52-pixel bar and a panel. The bar carries identity, the view
+Two rows of chrome and then the chart. The top bar carries identity, the view
 switch, search and the presentation toggle, with everything occasional behind
-**⋯**. The panel holds the summary, view options, filters, highlights and the
-legend — collapse it with **☰** and the chart has the screen to itself.
-Presentation mode collapses it for you.
+**⋯**. The toolbar under it holds what you are looking at — branch, filters,
+highlights, colour — on the left, and what it adds up to on the right. Anything
+with more than one setting opens a popover rather than taking a row of its own.
 
 | | |
 |---|---|

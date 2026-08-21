@@ -6,22 +6,22 @@
 <title>Org Chart</title>
 <style>
 /* ═══ Tokens ═══════════════════════════════════════════════════════════════
-   Near-monochrome chrome with a single navy accent. Colour is reserved for
-   meaning — red for succession gaps, amber for vacancies — so nothing on a
-   projector or in a board pack competes with the org itself.
+   Near-monochrome chrome on a single navy accent. Colour carries meaning and
+   nothing else — red for succession gaps, amber for vacancies — so the chart
+   still reads on a projector and on paper.
    ════════════════════════════════════════════════════════════════════════ */
 :root {
-  --bg:          #f6f7f9;
+  --bg:          #f5f6f8;
   --surface:     #ffffff;
-  --surface-2:   #f1f3f6;
-  --surface-3:   #e6eaef;
+  --surface-2:   #f0f2f5;
+  --surface-3:   #e5e9ee;
   --border:      #e4e8ed;
-  --border-2:    #ccd3dc;
-  --text:        #14181f;
-  --text-dim:    #4d5663;
-  --text-mute:   #7c8794;
+  --border-2:    #cbd2db;
+  --text:        #131820;
+  --text-dim:    #4c5563;
+  --text-mute:   #7b8694;
   --accent:      #24466b;
-  --accent-soft: #eef2f7;
+  --accent-soft: #edf1f6;
   --critical:    #a4262c;
   --sama:        #4b3f8f;
   --ok:          #1a6b45;
@@ -29,26 +29,27 @@
   --radius:      6px;
   --radius-sm:   4px;
   --topbar-h:    52px;
-  --panel-w:     268px;
-  --ring:        0 0 0 3px rgba(36,70,107,.14);
+  --ring:        0 0 0 3px rgba(36,70,107,.15);
+  --pop-shadow:  0 10px 28px rgba(16,24,40,.13), 0 2px 6px rgba(16,24,40,.06);
 }
 [data-theme="dark"] {
-  --bg:          #12151a;
-  --surface:     #1a1e25;
-  --surface-2:   #222831;
-  --surface-3:   #2c333d;
-  --border:      #2a313a;
-  --border-2:    #3b4450;
+  --bg:          #11141a;
+  --surface:     #191d24;
+  --surface-2:   #212730;
+  --surface-3:   #2b323c;
+  --border:      #292f38;
+  --border-2:    #3a434f;
   --text:        #eef1f5;
-  --text-dim:    #a7b0bb;
-  --text-mute:   #77818e;
+  --text-dim:    #a6b0bb;
+  --text-mute:   #78828f;
   --accent:      #85abd6;
-  --accent-soft: #1e2937;
+  --accent-soft: #1d2836;
   --critical:    #e28a83;
   --sama:        #a99ae4;
   --ok:          #56b98d;
   --vacant:      #d69a45;
-  --ring:        0 0 0 3px rgba(133,171,214,.18);
+  --ring:        0 0 0 3px rgba(133,171,214,.2);
+  --pop-shadow:  0 12px 34px rgba(0,0,0,.5);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -70,18 +71,18 @@ body {
   display: flex; align-items: center; justify-content: center;
   padding: 24px; background: var(--bg);
 }
-.drop-inner { width: 100%; max-width: 560px; text-align: center; }
-.drop-inner h1 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.015em; }
-.drop-inner .lede { color: var(--text-dim); margin: 6px 0 24px; font-size: .95rem; }
+.drop-inner { width: 100%; max-width: 540px; text-align: center; }
+.drop-inner h1 { font-size: 1.3rem; font-weight: 600; letter-spacing: -.015em; }
+.drop-inner .lede { color: var(--text-dim); margin: 6px 0 22px; }
 #dropzone {
   border: 1px dashed var(--border-2); border-radius: var(--radius);
-  padding: 44px 24px; background: var(--surface); cursor: pointer;
-  transition: border-color .15s, background .15s;
+  padding: 40px 24px; background: var(--surface); cursor: pointer;
+  transition: border-color .14s, background .14s;
 }
 #dropzone:hover, #dropzone.over { border-color: var(--accent); background: var(--accent-soft); }
 #dropzone .glyph { color: var(--text-mute); display: block; margin: 0 auto; }
 #dropzone .main { font-weight: 550; margin-top: 10px; }
-#dropzone .sub { color: var(--text-mute); font-size: .82rem; margin-top: 5px; }
+#dropzone .sub { color: var(--text-mute); font-size: .82rem; margin-top: 4px; }
 .drop-note { margin-top: 18px; font-size: .82rem; color: var(--text-mute); line-height: 1.65; text-align: left; }
 .drop-actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
 
@@ -91,92 +92,66 @@ body {
 #topbar {
   height: var(--topbar-h); flex: none;
   display: flex; align-items: center; gap: 10px;
-  padding: 0 12px 0 8px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  padding: 0 12px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
   z-index: 40;
 }
 .brand { font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
 .brand-file {
   font-size: .8rem; color: var(--text-mute); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; max-width: 190px;
+  overflow: hidden; text-overflow: ellipsis; max-width: 200px;
 }
 .divider { width: 1px; height: 22px; background: var(--border); flex: none; }
 .spacer { flex: 1 1 auto; }
 
-#body { flex: 1; display: flex; min-height: 0; }
+/* ═══ Toolbar ══════════════════════════════════════════════════════════════
+   One row: what you are looking at on the left, what it adds up to on the
+   right. Anything with more than one setting opens a popover rather than
+   claiming a row of its own.
+   ════════════════════════════════════════════════════════════════════════ */
+#toolbar {
+  flex: none; display: flex; align-items: center; gap: 7px;
+  padding: 7px 12px; min-height: 44px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  z-index: 30;
+}
+.tb-field { display: inline-flex; align-items: center; gap: 6px; }
+.tb-field > span { font-size: .78rem; color: var(--text-mute); white-space: nowrap; }
+.tb-field select { width: auto; min-width: 112px; max-width: 220px; }
+.tb-sep { width: 1px; height: 20px; background: var(--border); flex: none; margin: 0 2px; }
 
-/* ═══ Panel ════════════════════════════════════════════════════════════════ */
-#panel {
-  width: var(--panel-w); flex: none;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  overflow-y: auto; overscroll-behavior: contain;
-  padding: 4px 0 24px;
+.count-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 4px; margin-left: 1px;
+  border-radius: 8px; background: var(--accent); color: #fff;
+  font-size: .68rem; font-weight: 600; font-variant-numeric: tabular-nums;
 }
-#app.panel-hidden #panel { display: none; }
+[data-theme="dark"] .count-badge { color: #0f1319; }
 
-.sec { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.sec:last-child { border-bottom: none; }
-.sec > h2 {
-  font-size: .68rem; font-weight: 600; letter-spacing: .07em;
-  text-transform: uppercase; color: var(--text-mute); margin-bottom: 9px;
+/* Figures read as a line of facts, not a row of dashboard tiles. */
+.metrics {
+  display: flex; align-items: center; font-size: .82rem; color: var(--text-dim);
+  overflow-x: auto; scrollbar-width: none; white-space: nowrap; min-width: 0;
 }
-.sec-row { display: flex; flex-direction: column; gap: 7px; }
-
-/* Summary figures — a quiet ledger, not a row of dashboard tiles. */
-.fig { display: flex; align-items: baseline; gap: 8px; padding: 2.5px 0; }
-.fig .v {
-  font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums;
-  min-width: 58px; text-align: right; letter-spacing: -.01em;
-}
-.fig .k { font-size: .82rem; color: var(--text-dim); }
-.fig.alert .v { color: var(--critical); }
-.fig.warn  .v { color: var(--vacant); }
-.fig.link { cursor: pointer; border-radius: var(--radius-sm); margin: 0 -4px; padding: 2.5px 4px; }
-.fig.link:hover { background: var(--surface-2); }
-.fig.link .k { text-decoration: underline; text-decoration-color: var(--border-2); }
-
-/* Highlight toggles read as a checklist, not a row of pills. */
-.toggle {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 5px 6px; margin: 0 -6px; border: none; background: none;
-  border-radius: var(--radius-sm); cursor: pointer; font: inherit;
-  color: var(--text-dim); text-align: left;
-}
-.toggle:hover { background: var(--surface-2); color: var(--text); }
-.toggle[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); font-weight: 550; }
-.toggle .box {
-  width: 13px; height: 13px; border-radius: 3px; flex: none;
-  border: 1.5px solid var(--border-2); position: relative;
-}
-.toggle[aria-pressed="true"] .box { border-color: currentColor; }
-.toggle[aria-pressed="true"] .box::after {
-  content: ''; position: absolute; inset: 2px; border-radius: 1px; background: currentColor;
-}
-.toggle .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .84rem; }
-.toggle .n { font-size: .78rem; color: var(--text-mute); font-variant-numeric: tabular-nums; }
-
-/* Legend */
-.leg { display: flex; align-items: center; gap: 8px; padding: 2.5px 0; color: var(--text-dim); font-size: .82rem; }
-.leg .sw { width: 9px; height: 9px; border-radius: 2px; flex: none; }
-.leg .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.leg .n { color: var(--text-mute); font-variant-numeric: tabular-nums; font-size: .78rem; }
-
-.field-label {
-  display: block; font-size: .72rem; color: var(--text-mute); margin-bottom: 3px;
-}
-.nest-row { display: flex; flex-direction: column; gap: 5px; }
+.metrics::-webkit-scrollbar { display: none; }
+.m { display: inline-flex; align-items: baseline; gap: 4px; padding: 1px 11px; }
+.m + .m { border-left: 1px solid var(--border); }
+.m b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.m.alert b { color: var(--critical); }
+.m.warn  b { color: var(--vacant); }
+.m.link { cursor: pointer; border-radius: var(--radius-sm); }
+.m.link:hover { background: var(--surface-2); }
+.m.link span { text-decoration: underline; text-decoration-color: var(--border-2); text-underline-offset: 2px; }
 
 /* ═══ Controls ═════════════════════════════════════════════════════════════ */
 select, input[type="search"], input[type="text"] {
   width: 100%; background: var(--surface);
   border: 1px solid var(--border-2); border-radius: var(--radius-sm);
-  color: var(--text); padding: 5px 8px; font: inherit; font-size: .84rem;
+  color: var(--text); padding: 5px 8px; font: inherit; font-size: .83rem;
 }
 select { cursor: pointer; }
 select:focus, input:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
-select:disabled { opacity: .5; }
+select:disabled { opacity: .5; cursor: not-allowed; }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -188,13 +163,15 @@ select:disabled { opacity: .5; }
 .btn:hover { background: var(--surface-2); }
 .btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-primary:hover { background: var(--accent); filter: brightness(1.12); }
+.btn-primary:hover { background: var(--accent); filter: brightness(1.14); }
 .btn-quiet { border-color: transparent; background: none; color: var(--text-dim); }
 .btn-quiet:hover { background: var(--surface-2); color: var(--text); }
 .btn-wide { width: 100%; }
-.btn-sm { padding: 4px 8px; font-size: .8rem; }
+.btn-sm { padding: 4px 9px; font-size: .81rem; }
 .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.btn[aria-expanded="true"] { background: var(--surface-2); border-color: var(--border-2); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+
 .icon-btn {
   width: 30px; height: 30px; padding: 0; display: inline-flex;
   align-items: center; justify-content: center;
@@ -204,55 +181,81 @@ select:disabled { opacity: .5; }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 .icon-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 
-/* Segmented view switch */
 .seg { display: inline-flex; background: var(--surface-2); border-radius: var(--radius-sm); padding: 2px; }
 .seg button {
-  border: none; background: none; font: inherit; font-size: .83rem;
+  border: none; background: none; font: inherit; font-size: .82rem;
   padding: 4px 12px; border-radius: 3px; cursor: pointer; color: var(--text-dim);
   white-space: nowrap;
 }
 .seg button:hover { color: var(--text); }
 .seg button[aria-pressed="true"] {
   background: var(--surface); color: var(--text); font-weight: 550;
-  box-shadow: 0 1px 2px rgba(16,24,40,.07);
+  box-shadow: 0 1px 2px rgba(16,24,40,.08);
 }
 [data-theme="dark"] .seg button[aria-pressed="true"] { box-shadow: none; border: 1px solid var(--border); }
 
-/* Search */
-.search-wrap { position: relative; width: 260px; }
-.search-wrap input { padding-left: 27px; }
+.search-wrap { position: relative; width: 250px; }
+.search-wrap input { padding-left: 27px; padding-right: 60px; }
 .search-wrap .ic {
   position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
-  color: var(--text-mute); font-size: .82rem; pointer-events: none;
+  color: var(--text-mute); font-size: .85rem; pointer-events: none;
 }
 .search-wrap .cnt {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  color: var(--text-mute); font-size: .74rem; pointer-events: none;
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  color: var(--text-mute); font-size: .73rem; pointer-events: none;
 }
 
-/* ═══ Overflow menu ════════════════════════════════════════════════════════ */
-.menu-wrap { position: relative; }
-.menu {
-  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60;
+/* ═══ Popovers and menu ════════════════════════════════════════════════════ */
+.pop-wrap, .menu-wrap { position: relative; }
+.pop, .menu {
+  position: absolute; top: calc(100% + 7px); z-index: 60;
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); min-width: 208px; padding: 5px;
-  box-shadow: 0 8px 24px rgba(16,24,40,.12), 0 2px 6px rgba(16,24,40,.06);
+  border-radius: var(--radius); box-shadow: var(--pop-shadow);
 }
-[data-theme="dark"] .menu { box-shadow: 0 10px 30px rgba(0,0,0,.5); }
-.menu h3 {
-  font-size: .66rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--text-mute); padding: 7px 9px 4px;
+.pop { left: 0; min-width: 236px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.pop.right { left: auto; right: 0; }
+.pop h3, .menu h3 {
+  font-size: .66rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-mute);
 }
-.menu .btn, .menu button {
+.pop .field { display: flex; flex-direction: column; gap: 3px; }
+.pop .field > label { font-size: .74rem; color: var(--text-mute); }
+.pop-foot { display: flex; justify-content: flex-end; gap: 6px; }
+.pop .hint { font-size: .77rem; color: var(--text-mute); line-height: 1.5; }
+
+.menu { right: 0; min-width: 214px; padding: 5px; }
+.menu h3 { padding: 8px 9px 4px; }
+.menu button {
   display: flex; width: 100%; justify-content: flex-start; text-align: left;
   border: none; background: none; border-radius: var(--radius-sm);
   padding: 6px 9px; font: inherit; font-size: .84rem; color: var(--text); cursor: pointer;
 }
-.menu .btn:hover, .menu button:hover { background: var(--surface-2); }
+.menu button:hover { background: var(--surface-2); }
 .menu hr { border: none; border-top: 1px solid var(--border); margin: 5px 0; }
 
+/* Highlight toggles: a checklist, not a row of pills. */
+.toggle {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 5px 7px; margin: 0 -7px; border: none; background: none;
+  border-radius: var(--radius-sm); cursor: pointer; font: inherit;
+  color: var(--text-dim); text-align: left;
+}
+.toggle:hover { background: var(--surface-2); color: var(--text); }
+.toggle[aria-pressed="true"] { color: var(--text); font-weight: 550; }
+.toggle .box {
+  width: 14px; height: 14px; border-radius: 3px; flex: none;
+  border: 1.5px solid var(--border-2); position: relative;
+}
+.toggle[aria-pressed="true"] .box { border-color: currentColor; background: currentColor; }
+.toggle[aria-pressed="true"] .box::after {
+  content: ''; position: absolute; left: 4px; top: 1px; width: 3.5px; height: 7.5px;
+  border: solid var(--surface); border-width: 0 1.8px 1.8px 0; transform: rotate(43deg);
+}
+.toggle .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .84rem; }
+.toggle .n { font-size: .77rem; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+
 /* ═══ Stage ════════════════════════════════════════════════════════════════ */
-#stage { position: relative; flex: 1; min-width: 0; overflow: hidden; background: var(--bg); }
+#stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--bg); }
 #chart { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
 #chart.dragging { cursor: grabbing; }
 
@@ -263,7 +266,7 @@ select:disabled { opacity: .5; }
 .card:hover .card-box { stroke: var(--text-mute); }
 .card.sel .card-box { stroke: var(--accent); stroke-width: 1.8; }
 .card.vacant .card-box, .card.hollow .card-box { stroke: var(--vacant); stroke-dasharray: 4 3; }
-.card.dim { opacity: .25; }
+.card.dim { opacity: .24; }
 .card.hit .card-box { stroke: var(--accent); stroke-width: 2; }
 .card.hit .card-halo { fill: var(--accent); opacity: .08; }
 
@@ -286,6 +289,25 @@ svg text { unicode-bidi: plaintext; }
   padding: 7px 13px; font-size: .81rem; color: var(--text-dim); z-index: 12;
   box-shadow: 0 2px 8px rgba(16,24,40,.06); max-width: min(560px, 90%);
 }
+
+#legend {
+  position: absolute; left: 14px; bottom: 14px; z-index: 12;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 9px 11px; max-width: 224px; max-height: 44%; overflow-y: auto;
+  box-shadow: 0 2px 8px rgba(16,24,40,.06);
+}
+#legend h4 {
+  font-size: .66rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-mute); margin-bottom: 6px; cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+}
+#legend h4 .caret { margin-left: auto; font-size: .72rem; }
+#legend h4:hover { color: var(--text-dim); }
+.leg { display: flex; align-items: center; gap: 8px; padding: 2px 0; color: var(--text-dim); font-size: .81rem; }
+.leg .sw { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.leg .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leg .n { color: var(--text-mute); font-variant-numeric: tabular-nums; font-size: .77rem; }
+
 #zoombar {
   position: absolute; right: 14px; bottom: 14px; z-index: 12;
   display: flex; gap: 2px; align-items: center; padding: 2px;
@@ -304,18 +326,17 @@ svg text { unicode-bidi: plaintext; }
 }
 [data-theme="dark"] #detail { box-shadow: -10px 0 30px rgba(0,0,0,.35); }
 .dt-head { display: flex; align-items: flex-start; gap: 8px; padding: 13px 14px; border-bottom: 1px solid var(--border); }
-.dt-head h3 { font-size: .98rem; font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
+.dt-head h3 { font-size: .97rem; font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
 .dt-head .sub { font-size: .82rem; color: var(--text-mute); margin-top: 2px; }
 .dt-body { padding: 14px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 15px; }
 .dt-sec h4 {
-  font-size: .67rem; color: var(--text-mute); text-transform: uppercase;
-  letter-spacing: .07em; font-weight: 600; margin-bottom: 7px;
+  font-size: .66rem; color: var(--text-mute); text-transform: uppercase;
+  letter-spacing: .08em; font-weight: 600; margin-bottom: 7px;
 }
-.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 9px 12px; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 9px 12px; }
 .kv .k { font-size: .68rem; color: var(--text-mute); text-transform: uppercase; letter-spacing: .05em; }
 .kv .v { font-size: .85rem; word-break: break-word; }
 
-/* Figures in the detail read as a small table, not tiles. */
 .mini { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 .mini > div {
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
@@ -354,12 +375,11 @@ svg text { unicode-bidi: plaintext; }
 
 /* ═══ Modal ════════════════════════════════════════════════════════════════ */
 #modal {
-  position: fixed; inset: 0; z-index: 70; background: rgba(20,24,31,.4);
+  position: fixed; inset: 0; z-index: 70; background: rgba(19,24,32,.42);
   display: flex; align-items: center; justify-content: center; padding: 24px;
 }
 .mbox {
-  background: var(--surface); border-radius: var(--radius);
-  border: 1px solid var(--border);
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
   box-shadow: 0 20px 48px rgba(16,24,40,.18);
   width: 100%; max-width: 680px; max-height: 86vh; display: flex; flex-direction: column;
 }
@@ -391,8 +411,8 @@ svg text { unicode-bidi: plaintext; }
   @page { size: landscape; margin: 12mm; }
   body, #stage, #chart { background: #fff; }
   body { overflow: visible; }
-  #topbar, #panel, #zoombar, #detail, #overlay-msg, #modal, #toast, #drop-screen { display: none !important; }
-  #app, #body, #stage { height: auto; overflow: visible; display: block; }
+  #topbar, #toolbar, #zoombar, #detail, #overlay-msg, #legend, #modal, #toast, #drop-screen { display: none !important; }
+  #app, #stage { height: auto; overflow: visible; display: block; }
   #stage { page-break-inside: avoid; }
   #chart { width: 100%; height: auto; max-height: 150mm; }
   .print-head { display: block !important; margin-bottom: 6mm; }
@@ -408,18 +428,19 @@ svg text { unicode-bidi: plaintext; }
 .print-head p { font-size: 9pt; color: #555; }
 
 /* ═══ Narrow screens ═══════════════════════════════════════════════════════ */
-@media (max-width: 860px) {
-  .search-wrap { width: 160px; }
-  .brand-file { display: none; }
-  #panel {
-    position: absolute; top: var(--topbar-h); bottom: 0; left: 0; z-index: 30;
-    box-shadow: 4px 0 20px rgba(16,24,40,.12);
-  }
-  #detail { width: 100%; }
+@media (max-width: 1100px) {
+  .metrics .m.opt { display: none; }
 }
-@media (max-width: 560px) {
+@media (max-width: 900px) {
+  .search-wrap { width: 170px; }
+  .brand-file { display: none; }
+  .tb-field > span { display: none; }
+}
+@media (max-width: 620px) {
   .brand { display: none; }
-  .search-wrap { width: 120px; }
+  .search-wrap { width: 130px; }
+  #legend { display: none; }
+  #detail { width: 100%; }
 }
 
 </style>
@@ -462,7 +483,6 @@ svg text { unicode-bidi: plaintext; }
 <div id="app" hidden>
 
   <header id="topbar">
-    <button class="icon-btn" id="btn-panel" title="Show or hide the panel" aria-label="Toggle panel">☰</button>
     <span class="brand">Org Chart</span>
     <span class="brand-file" id="file-name"></span>
 
@@ -485,7 +505,8 @@ svg text { unicode-bidi: plaintext; }
             title="Hide successor names and personal fields for screen-sharing">Presentation</button>
 
     <div class="menu-wrap">
-      <button class="icon-btn" id="btn-more" title="More actions" aria-label="More actions">⋯</button>
+      <button class="icon-btn" id="btn-more" title="More actions" aria-label="More actions"
+              aria-expanded="false">⋯</button>
       <div class="menu" id="more-menu" hidden>
         <h3>Chart</h3>
         <button id="btn-expand">Expand all branches</button>
@@ -505,72 +526,75 @@ svg text { unicode-bidi: plaintext; }
     </div>
   </header>
 
-  <div id="body">
+  <div id="toolbar">
+    <label class="tb-field">
+      <span>Show</span>
+      <select id="f-root" title="Focus on one branch"></select>
+    </label>
 
-    <aside id="panel">
-      <section class="sec" id="sec-summary">
-        <h2>Summary</h2>
-        <div id="stats"></div>
-      </section>
+    <span class="tb-sep"></span>
 
-      <section class="sec" id="sec-view">
-        <h2>View</h2>
-        <div class="sec-row">
-          <label class="field-label" for="f-root">Show</label>
-          <select id="f-root" title="Focus on one branch"></select>
-
-          <label class="field-label" for="color-by">Colour</label>
-          <select id="color-by" title="Colour the boxes by"></select>
-
-          <div id="unit-levels" hidden>
-            <label class="field-label">Nest units by</label>
-            <div class="nest-row">
-              <select id="u-l1"></select>
-              <select id="u-l2"></select>
-              <select id="u-l3"></select>
-            </div>
-          </div>
-
-          <button class="btn btn-sm btn-wide" id="btn-unitlist" hidden></button>
-          <input type="file" id="unitlist-input" hidden accept=".csv,.tsv,.txt,.xlsx,.xlsm">
-        </div>
-      </section>
-
-      <section class="sec" id="sec-filter">
-        <h2>Filter</h2>
-        <div class="sec-row">
-          <select id="f-function"></select>
-          <select id="f-department"></select>
-          <select id="f-grade"></select>
-          <button class="btn btn-sm btn-wide btn-quiet" id="btn-reset">Clear filters</button>
-        </div>
-      </section>
-
-      <section class="sec" id="sec-highlight">
-        <h2>Highlight</h2>
-        <div id="chips"></div>
-      </section>
-
-      <section class="sec" id="sec-legend" hidden>
-        <h2 id="legend-title">Legend</h2>
-        <div id="legend"></div>
-      </section>
-    </aside>
-
-    <div id="stage">
-      <div class="print-head" id="print-head"></div>
-      <svg id="chart" xmlns="http://www.w3.org/2000/svg"><g id="viewport"></g></svg>
-
-      <div id="overlay-msg" hidden></div>
-
-      <div id="zoombar">
-        <button class="icon-btn" id="btn-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
-        <button class="icon-btn" id="btn-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
-        <button class="btn btn-sm" id="btn-fit" title="Fit to screen">Fit</button>
+    <div class="pop-wrap">
+      <button class="btn btn-sm" id="btn-filters" aria-expanded="false">
+        Filters<span class="count-badge" id="filter-count" hidden></span>
+      </button>
+      <div class="pop" id="pop-filters" hidden>
+        <h3>Filter</h3>
+        <div class="field"><label for="f-function">Function</label><select id="f-function"></select></div>
+        <div class="field"><label for="f-department">Department</label><select id="f-department"></select></div>
+        <div class="field"><label for="f-grade">Grade</label><select id="f-grade"></select></div>
+        <div class="pop-foot"><button class="btn btn-sm btn-quiet" id="btn-reset">Clear all</button></div>
       </div>
-
-      <aside id="detail" hidden></aside>
     </div>
+
+    <div class="pop-wrap">
+      <button class="btn btn-sm" id="btn-highlight" aria-expanded="false">
+        Highlight<span class="count-badge" id="hl-count" hidden></span>
+      </button>
+      <div class="pop" id="pop-highlight" hidden>
+        <h3>Highlight</h3>
+        <div id="chips"></div>
+      </div>
+    </div>
+
+    <label class="tb-field">
+      <span>Colour</span>
+      <select id="color-by" title="Colour the boxes by"></select>
+    </label>
+
+    <div class="pop-wrap" id="nest-wrap" hidden>
+      <button class="btn btn-sm" id="btn-nest" aria-expanded="false">Units…</button>
+      <div class="pop" id="pop-nest" hidden>
+        <h3>Nest units by</h3>
+        <div class="field"><label for="u-l1">Level 1</label><select id="u-l1"></select></div>
+        <div class="field"><label for="u-l2">Level 2</label><select id="u-l2"></select></div>
+        <div class="field"><label for="u-l3">Level 3</label><select id="u-l3"></select></div>
+        <h3 style="margin-top:2px">Org unit list</h3>
+        <p class="hint" id="unitlist-hint"></p>
+        <button class="btn btn-sm btn-wide" id="btn-unitlist"></button>
+        <input type="file" id="unitlist-input" hidden accept=".csv,.tsv,.txt,.xlsx,.xlsm">
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="metrics" id="stats"></div>
+  </div>
+
+  <div id="stage">
+    <div class="print-head" id="print-head"></div>
+    <svg id="chart" xmlns="http://www.w3.org/2000/svg"><g id="viewport"></g></svg>
+
+    <div id="overlay-msg" hidden></div>
+    <div id="legend" hidden></div>
+
+    <div id="zoombar">
+      <button class="icon-btn" id="btn-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+      <button class="icon-btn" id="btn-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+      <button class="btn btn-sm" id="btn-fit" title="Fit to screen">Fit</button>
+    </div>
+
+    <aside id="detail" hidden></aside>
   </div>
 </div>
 
@@ -1998,32 +2022,31 @@ function renderStats() {
   const emptyUnits = unitBoxes.filter(u => u.empty || u.unstaffed).length;
   const unmappedPos = unitBoxes.filter(u => u.unmapped).reduce((t, u) => t + u.headcount, 0);
 
-  const fig = (v, k, cls = '', attr = '') =>
-    `<div class="fig ${cls}" ${attr}><span class="v">${v}</span><span class="k">${k}</span></div>`;
+  const m = (v, k, cls = '', attr = '') =>
+    `<span class="m ${cls}" ${attr}><b>${v}</b><span>${k}</span></span>`;
 
-  const rows = [];
-  if (isUnits()) rows.push(fig(int(unitBoxes.length), 'Org units'));
-  rows.push(fig(int(ns.length), 'Positions'));
-  rows.push(fig(dec(ns.reduce((s, n) => s + n.fte, 0), 1), 'FTE'));
-  rows.push(fig(int(layers), isUnits() ? 'Unit levels' : 'Layers'));
-  if (!isUnits()) {
-    rows.push(fig(spans.length ? dec(spans.reduce((a, b) => a + b, 0) / spans.length, 1) : '—',
-                  'Average span'));
+  const out = [];
+  if (isUnits()) out.push(m(int(unitBoxes.length), 'units'));
+  out.push(m(int(ns.length), 'positions'));
+  out.push(m(dec(ns.reduce((s, n) => s + n.fte, 0), 1), 'FTE', 'opt'));
+  out.push(m(int(layers), isUnits() ? 'levels' : 'layers', 'opt'));
+  if (!isUnits() && spans.length) {
+    out.push(m(dec(spans.reduce((a, b) => a + b, 0) / spans.length, 1), 'avg span', 'opt'));
   }
-  rows.push(fig(int(vacant), 'Vacant', vacant ? 'warn' : ''));
+  out.push(m(int(vacant), 'vacant', vacant ? 'warn' : ''));
   if (isUnits() && (emptyUnits || S.unitList.length || (S.model.declaredUnits || []).length)) {
-    rows.push(fig(int(emptyUnits), 'Nobody in post', emptyUnits ? 'warn' : ''));
+    out.push(m(int(emptyUnits), 'nobody in post', emptyUnits ? 'warn' : ''));
   }
-  if (isUnits() && unmappedPos) rows.push(fig(int(unmappedPos), 'Unmapped positions', 'alert'));
-  if (S.model.map.critical || critical) rows.push(fig(int(critical), 'Critical roles'));
-  if (S.model.map.sama || sama) rows.push(fig(int(sama), 'SAMA roles'));
-  if (S.model.map.critical) rows.push(fig(int(gaps), 'Succession gaps', gaps ? 'alert' : ''));
+  if (isUnits() && unmappedPos) out.push(m(int(unmappedPos), 'unmapped', 'alert'));
+  if (S.model.map.critical || critical) out.push(m(int(critical), 'critical', 'opt'));
+  if (S.model.map.sama || sama) out.push(m(int(sama), 'SAMA', 'opt'));
+  if (S.model.map.critical) out.push(m(int(gaps), 'succession gaps', gaps ? 'alert' : ''));
   if (issues) {
-    rows.push(fig(int(issues), 'Data issues', 'warn link',
+    out.push(m(int(issues), 'data issues', 'warn link',
       'id="stat-issues" title="See what was repaired"'));
   }
 
-  $('#stats').innerHTML = rows.join('');
+  $('#stats').innerHTML = out.join('');
   const si = $('#stat-issues');
   if (si) si.onclick = showIssues;
 }
@@ -2040,7 +2063,7 @@ function renderChips() {
   const html = HIGHLIGHTS.map(h => row(h, ns.filter(h.test).length)).join('') +
     (isUnits() ? UNIT_HIGHLIGHTS.map(h => row(h, units.filter(h.test).length)).join('') : '');
   $('#chips').innerHTML = html ||
-    '<p class="note text-mute">No flag columns found in this file.</p>';
+    '<p class="hint">No flag columns were found in this file.</p>';
 }
 
 /* ─── Filter dropdowns ──────────────────────────────────────────────────── */
@@ -2072,14 +2095,13 @@ function renderControls() {
       `<option value="${esc(id)}"${id === S.rootId ? ' selected' : ''}>${esc(label)}</option>`).join('');
   $('#f-root').hidden = branches.length < 2;
 
-  const ul = $('#btn-unitlist');
-  ul.hidden = !isUnits();
-  ul.textContent = S.unitList.length ? '↺ Unit list (' + S.unitList.length + ')' : '＋ Add unit list';
-  ul.title = S.unitList.length
-    ? 'Replace the org unit list — the source of function type and roles & responsibilities'
-    : 'Attach an org unit list: unit name, parent, function type and roles & responsibilities. ' +
-      'It also brings in units that have no positions.';
+  $('#nest-wrap').hidden = !isUnits();
+  $('#btn-unitlist').textContent = S.unitList.length ? 'Replace unit list' : 'Attach a unit list';
+  $('#unitlist-hint').textContent = S.unitList.length
+    ? S.unitList.length + ' units read from "' + S.unitListSource + '".'
+    : 'Where function type, roles & responsibilities and units with no positions come from.';
 
+  renderBadges();
   renderUnitLevels();
 
   fillSelect($('#f-function'), 'Function', distinct('function'), S.filters.function);
@@ -2105,7 +2127,6 @@ function renderControls() {
 /* The nesting columns are the whole definition of the unit hierarchy, so they
    are picked in the open rather than assumed. */
 function renderUnitLevels() {
-  $('#unit-levels').hidden = !isUnits();
   if (!isUnits()) return;
 
   const available = UNIT_DIMS.filter(d => distinct(d).length > 1);
@@ -2131,24 +2152,42 @@ function readUnitLevels() {
   return picked.length ? picked : [UNIT_DIMS.find(d => distinct(d).length > 1) || 'department'];
 }
 
-/* ─── Legend ────────────────────────────────────────────────────────────── */
-function renderLegend(counts) {
-  const sec = $('#sec-legend');
-  if (S.colorBy === 'none' && !isUnits()) { sec.hidden = true; return; }
-  if (!S.palette.size) { sec.hidden = true; return; }
+/* Counts on the Filters and Highlight buttons, so an active setting is visible
+   without opening the popover that holds it. */
+function renderBadges() {
+  const active = Object.values(S.filters).filter(v => v !== 'All').length;
+  const fc = $('#filter-count');
+  fc.hidden = active === 0;
+  fc.textContent = active;
 
-  sec.hidden = false;
-  $('#legend-title').textContent = isUnits()
+  const hl = $('#hl-count');
+  hl.hidden = S.highlight.size === 0;
+  hl.textContent = S.highlight.size;
+}
+
+/* ─── Legend ────────────────────────────────────────────────────────────── */
+let legendOpen = true;
+
+function renderLegend(counts) {
+  const el = $('#legend');
+  if ((S.colorBy === 'none' && !isUnits()) || !S.palette.size) { el.hidden = true; return; }
+
+  const label = isUnits()
     ? (DIMENSIONS.find(d => d.key === S.unitLevels[0]) || {}).label || 'Top level'
     : S.colorBy === 'vacancy' ? 'Filled / vacant'
     : (DIMENSIONS.find(d => d.key === S.colorBy) || {}).label || S.colorBy;
 
   const rows = [...S.palette.entries()].slice(0, 14);
-  $('#legend').innerHTML = rows.map(([v, c]) =>
-    `<div class="leg"><span class="sw" style="background:${c}"></span>` +
-    `<span class="lbl">${esc(v)}</span><span class="n">${int(counts.get(v) || 0)}</span></div>`).join('') +
-    (S.palette.size > 14
-      ? `<div class="leg"><span class="lbl text-mute">+${S.palette.size - 14} more</span></div>` : '');
+  el.hidden = false;
+  el.innerHTML = `<h4 id="legend-toggle">${esc(label)}<span class="caret">${legendOpen ? '▾' : '▸'}</span></h4>` +
+    (legendOpen ? rows.map(([v, c]) =>
+      `<div class="leg"><span class="sw" style="background:${c}"></span>` +
+      `<span class="lbl">${esc(v)}</span><span class="n">${int(counts.get(v) || 0)}</span></div>`).join('') +
+      (S.palette.size > 14
+        ? `<div class="leg"><span class="lbl text-mute">+${S.palette.size - 14} more</span></div>` : '')
+      : '');
+
+  $('#legend-toggle').onclick = () => { legendOpen = !legendOpen; renderLegend(counts); };
 }
 
 /* ─── Full refresh ──────────────────────────────────────────────────────── */
@@ -2159,6 +2198,7 @@ function refresh(keepView) {
   draw();
   renderStats();
   renderChips();
+  renderBadges();
   renderLegend(counts);
   if (keepView) { S.view = before; applyTransform(); } else fitToScreen();
 }
@@ -3015,15 +3055,40 @@ function setMode(mode) {
   refresh();
 }
 
-function setPanel(open) {
-  $('#app').classList.toggle('panel-hidden', !open);
-  $('#btn-panel').setAttribute('aria-pressed', String(open));
-  try { localStorage.setItem('orgchart.panel', open ? '1' : '0'); } catch { /* ignore */ }
-  if (S.model) applyTransform();
-}
-const panelOpen = () => !$('#app').classList.contains('panel-hidden');
+/* One popover open at a time, closing on outside click or Escape. */
+const POPOVERS = [
+  ['#btn-filters',   '#pop-filters'],
+  ['#btn-highlight', '#pop-highlight'],
+  ['#btn-nest',      '#pop-nest'],
+  ['#btn-more',      '#more-menu'],
+];
 
-function closeMenu() { $('#more-menu').hidden = true; }
+function closePopovers(except) {
+  for (const [btn, pop] of POPOVERS) {
+    if (pop === except) continue;
+    $(pop).hidden = true;
+    $(btn).setAttribute('aria-expanded', 'false');
+  }
+}
+const closeMenu = () => closePopovers();
+const anyPopoverOpen = () => POPOVERS.some(([, pop]) => !$(pop).hidden);
+
+function wirePopovers() {
+  for (const [btn, pop] of POPOVERS) {
+    $(btn).addEventListener('click', e => {
+      e.stopPropagation();
+      const open = $(pop).hidden;
+      closePopovers(open ? pop : null);
+      $(pop).hidden = !open;
+      $(btn).setAttribute('aria-expanded', String(open));
+    });
+    // Clicks inside a popover belong to its controls, not to dismissal.
+    $(pop).addEventListener('click', e => e.stopPropagation());
+  }
+  // The menu is a list of actions, so it closes once one is chosen.
+  $('#more-menu').addEventListener('click', e => { if (e.target.closest('button')) closeMenu(); });
+  document.addEventListener('click', () => closePopovers());
+}
 
 function setTheme(theme) {
   if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
@@ -3106,24 +3171,14 @@ function wireApp() {
   $('#btn-present').onclick = () => {
     S.present = !S.present;
     $('#btn-present').setAttribute('aria-pressed', String(S.present));
-    // Presenting means the chart and nothing else, so the panel steps aside.
-    setPanel(!S.present);
+    closePopovers();
     if (S.selected) openDetail(S.selected);
     refresh(true);
     toast(S.present ? 'Presentation mode on — names and personal fields hidden'
                     : 'Presentation mode off');
   };
 
-  $('#btn-panel').onclick = () => setPanel(!panelOpen());
-
-  $('#btn-more').onclick = e => {
-    e.stopPropagation();
-    $('#more-menu').hidden = !$('#more-menu').hidden;
-  };
-  $('#more-menu').onclick = e => { if (e.target.closest('button')) closeMenu(); };
-  document.addEventListener('click', e => {
-    if (!e.target.closest('.menu-wrap')) closeMenu();
-  });
+  wirePopovers();
 
   $('#btn-unitlist').onclick = () => $('#unitlist-input').click();
   $('#unitlist-input').onchange = e => {
@@ -3200,7 +3255,7 @@ function wireApp() {
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      if (!$('#more-menu').hidden) closeMenu();
+      if (anyPopoverOpen()) closePopovers();
       else if (!$('#modal').hidden) closeModal();
       else if (!$('#detail').hidden) closeDetail();
     }
@@ -3217,9 +3272,6 @@ function wireApp() {
   let saved = 'light';
   try { saved = localStorage.getItem('orgchart.theme') || 'light'; } catch { /* ignore */ }
   setTheme(saved);
-  let panel = '1';
-  try { panel = localStorage.getItem('orgchart.panel') ?? '1'; } catch { /* ignore */ }
-  setPanel(panel !== '0');
   wireDropzone();
   wirePanZoom();
   wireApp();
