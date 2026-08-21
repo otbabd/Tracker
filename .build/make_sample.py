@@ -34,6 +34,47 @@ FUNCTIONS = {
     "Legal":             ["Corporate Legal", "Litigation"],
 }
 LOCS = ["Riyadh", "Riyadh", "Riyadh", "Jeddah", "Jeddah", "Dammam", "Khobar", "Remote"]
+
+# The full ladder: Group > Division > Department > Unit > Sub-unit > Section.
+# Legal entities within the group, so the top rung carries more than one value —
+# a column with a single value everywhere is a redundant level and the tool
+# skips it.
+GROUPS = {
+    "Technology": "Example Digital",
+    "Human Resources": "Example Shared Services",
+    "Operations": "Example Shared Services",
+}
+DEFAULT_GROUP = "Example Bank"
+
+# Front / middle / back office by function — the operating-model read.
+JOB_TYPE = {
+    "Retail Banking": "Front office", "Corporate Banking": "Front office",
+    "Risk": "Middle office", "Compliance": "Middle office", "Finance": "Middle office",
+    "Legal": "Middle office", "Internal Audit": "Middle office",
+    "Technology": "Back office", "Operations": "Back office",
+    "Human Resources": "Back office", "Executive": "Front office",
+}
+
+# Branch network, for the retail branches only.
+BRANCHES = [f"BR-{n:03d} {city}" for n, city in enumerate(
+    ["Riyadh Olaya", "Riyadh Malaz", "Riyadh Sahafa", "Jeddah Tahlia", "Jeddah Rawdah",
+     "Dammam Corniche", "Khobar Rakah", "Makkah Aziziyah", "Madinah Central",
+     "Abha Downtown", "Tabuk Central", "Buraidah Central"], start=1)]
+
+TALENT_POOLS = ["Emerging Leaders", "Future Executives", "Specialist Bench", "Saudi Graduates"]
+
+COURSES = [
+    ("AML & Sanctions Awareness", "Annual"),
+    ("Anti-Fraud Fundamentals", "Annual"),
+    ("Cyber Security Awareness", "Annual"),
+    ("SAMA Consumer Protection", "Annual"),
+    ("Code of Conduct", "Annual"),
+    ("Credit Risk Essentials", "Every 2 years"),
+    ("Operational Risk Management", "Every 2 years"),
+    ("IFRS 9 Update", "Annual"),
+    ("Leading Teams", "Once"),
+    ("Data Privacy", "Annual"),
+]
 READY = ["Ready now", "Ready 1-2 years", "Ready 3+ years"]
 FAMILY = {"G17": "Executive", "G16": "Executive", "G15": "Leadership",
           "G14": "Leadership", "G13": "Management", "G12": "Management"}
@@ -79,7 +120,8 @@ def person():
 names_pool = [person() for _ in range(400)]
 
 
-def add(pid, mgr, title, grade, fn, dept, vac_p=0.08, crit=None, sama=None):
+def add(pid, mgr, title, grade, fn, dept, vac_p=0.08, crit=None, sama=None,
+        unit="", sub_unit="", section="", branch=""):
     vacant = random.random() < vac_p
     if crit is None:
         crit = grade in ("G17", "G16", "G15") or (grade == "G14" and random.random() < 0.4)
@@ -96,14 +138,29 @@ def add(pid, mgr, title, grade, fn, dept, vac_p=0.08, crit=None, sama=None):
         "Job Code": f"JC{random.randint(1000, 9999)}",
         "Job Family": FAMILY.get(grade, "Professional"),
         "Function": fn,
+        "Group": GROUPS.get(fn, DEFAULT_GROUP),
+        # The division rung of the ladder is the function itself — Retail
+        # Banking, Risk, Compliance. Most HR exports carry both columns with
+        # the same value, and the org unit list is keyed on these names.
+        "Division": fn,
         "Department": dept,
-        "Division": "Banking" if fn in ("Retail Banking", "Corporate Banking") else "Support",
+        "Unit": unit,
+        "Sub-unit": sub_unit,
+        "Section": section,
+        "Branch": branch,
         "Location": random.choice(LOCS),
         "Employment Type": "Full-time" if random.random() < 0.93 else "Contractor",
         "Position Status": "Vacant" if vacant else "Filled",
         "FTE": "1" if random.random() < 0.94 else "0.5",
         "Cost Center": f"CC-{random.randint(1000, 1060)}",
         "Function Type": FUNCTION_TYPE.get(fn, ""),
+        "Job Type": JOB_TYPE.get(fn, ""),
+        "Pay Basis": ("Incentive" if JOB_TYPE.get(fn) == "Front office" and random.random() < 0.75
+                      else "Bonus" if grade in ("G17", "G16", "G15", "G14", "G13")
+                      else random.choice(["Bonus", "Fixed", "Fixed"])),
+        "Talent Pool": (random.choice(TALENT_POOLS)
+                        if random.random() < (0.30 if grade in ("G15", "G14", "G13") else 0.08)
+                        else ""),
         "Work Email": "" if vacant else f"user{seq}@examplebank.com.sa",
         "Hire Date": f"{random.randint(2008, 2025)}-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
         "Nationality": random.choice(["Saudi"] * 7 + ["Egyptian", "Indian", "Jordanian", "British"]),
@@ -124,16 +181,24 @@ for fn, depts in FUNCTIONS.items():
     head = add(nid(), ceo, top, "G16", fn, depts[0], vac_p=0.05)
     for dept in depts:
         d = add(nid(), head, f"Head of {dept}", "G15", fn, dept, vac_p=0.06)
-        for _ in range(random.randint(2, 3)):
-            sm = add(nid(), d, f"Senior Manager {dept}", "G14", fn, dept, vac_p=0.07)
-            for _ in range(random.randint(2, 4)):
-                m = add(nid(), sm, f"Manager {dept}", "G13", fn, dept, vac_p=0.08)
+        for u_i in range(random.randint(2, 3)):
+            unit = f"{dept} Unit {u_i + 1}"
+            sm = add(nid(), d, f"Senior Manager {dept}", "G14", fn, dept, vac_p=0.07,
+                     unit=unit)
+            for s_i in range(random.randint(2, 4)):
+                sub_unit = f"{unit} — Team {chr(65 + s_i)}"
+                m = add(nid(), sm, f"Manager {dept}", "G13", fn, dept, vac_p=0.08,
+                        unit=unit, sub_unit=sub_unit)
                 for _ in range(random.randint(6, 12)):
+                    section = f"{sub_unit} / Section {random.randint(1, 2)}"
+                    branch = (random.choice(BRANCHES)
+                              if dept == "Branch Network" else "")
                     add(nid(), m,
                         random.choice(["Officer", "Senior Officer", "Analyst", "Senior Analyst",
                                        "Specialist", "Associate"]) + f" {dept}",
                         random.choice(["G9", "G10", "G10", "G11", "G12"]), fn, dept,
-                        vac_p=0.11, crit=False, sama=False)
+                        vac_p=0.11, crit=False, sama=False,
+                        unit=unit, sub_unit=sub_unit, section=section, branch=branch)
 
 # Defects a real export contains, so the repair path is exercised.
 rows.append({**rows[50], "Position ID": nid(), "Manager ID": "POS99999",
@@ -172,6 +237,35 @@ unit_rows += [
      "Roles and Responsibilities": "Independent assurance over Shariah compliance of products and processes."},
 ]
 
+# Mandatory training, attached to job codes rather than to individual seats.
+course_rows = []
+seen_codes = {}
+for r in rows:
+    code = r.get("Job Code")
+    if not code or code in seen_codes:
+        continue
+    seen_codes[code] = True
+    required = [("Code of Conduct", "Annual"), ("Cyber Security Awareness", "Annual")]
+    fn = r.get("Function", "")
+    if fn in ("Retail Banking", "Corporate Banking", "Compliance", "Operations"):
+        required.append(("AML & Sanctions Awareness", "Annual"))
+    if fn in ("Risk", "Finance"):
+        required.append(("IFRS 9 Update", "Annual"))
+    if r.get("Grade") in ("G17", "G16", "G15", "G14", "G13"):
+        required.append(("Leading Teams", "Once"))
+    if random.random() < 0.3:
+        required.append(random.choice(COURSES))
+    for course, freq in required:
+        course_rows.append({
+            "Job Code": code, "Course": course,
+            "Mandatory": "Yes", "Frequency": freq,
+        })
+
+with open("sample-courses.csv", "w", newline="", encoding="utf-8-sig") as f:
+    w = csv.DictWriter(f, fieldnames=list(course_rows[0].keys()))
+    w.writeheader()
+    w.writerows(course_rows)
+
 with open("sample-units.csv", "w", newline="", encoding="utf-8-sig") as f:
     w = csv.DictWriter(f, fieldnames=list(unit_rows[0].keys()))
     w.writeheader()
@@ -183,5 +277,7 @@ if xlsx_path:
     with pd.ExcelWriter(xlsx_path) as writer:
         pd.DataFrame(rows)[cols].to_excel(writer, sheet_name="Positions", index=False)
         pd.DataFrame(unit_rows).to_excel(writer, sheet_name="Org Units", index=False)
+        pd.DataFrame(course_rows).to_excel(writer, sheet_name="Mandatory Courses", index=False)
 
-print(f"{len(rows)} position rows, {len(cols)} columns; {len(unit_rows)} org units")
+print(f"{len(rows)} position rows, {len(cols)} columns; {len(unit_rows)} org units; "
+      f"{len(course_rows)} course requirements")

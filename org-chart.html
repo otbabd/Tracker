@@ -350,7 +350,15 @@ svg text { unicode-bidi: plaintext; }
 #cmp-table thead th.sorted { color: var(--text); }
 #cmp-table thead th .arrow { font-size: .62rem; margin-left: 3px; }
 #cmp-table td.num, #cmp-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
-#cmp-table tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; }
+/* The table is wider than the sheet once the mix columns are on, so the unit
+   name stays put — a row of numbers with nothing naming it is unreadable. */
+#cmp-table th:first-child, #cmp-table td:first-child {
+  position: sticky; left: 0; background: inherit; z-index: 1;
+  box-shadow: 1px 0 0 var(--border);
+}
+#cmp-table thead th:first-child { z-index: 2; }
+#cmp-table tbody tr { border-bottom: 1px solid var(--border); cursor: pointer;
+  background: var(--surface); }
 #cmp-table tbody tr:hover { background: var(--surface-2); }
 #cmp-table tbody tr.sel { background: var(--accent-soft); }
 #cmp-table td.unit { font-weight: 550; color: var(--text); }
@@ -417,6 +425,25 @@ svg text { unicode-bidi: plaintext; }
 .redacted { color: var(--text-mute); font-style: italic; }
 .prose { font-size: .84rem; line-height: 1.6; color: var(--text-dim); white-space: pre-wrap; }
 .note { font-size: .82rem; color: var(--text-dim); line-height: 1.55; }
+
+/* ═══ Profile bars ═════════════════════════════════════════════════════════ */
+.prof + .prof { margin-top: 11px; }
+.prof-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: .81rem; margin-bottom: 4px;
+}
+.prof-bar {
+  display: flex; height: 7px; border-radius: 3px; overflow: hidden;
+  background: var(--surface-2);
+}
+.prof-bar span { display: block; height: 100%; }
+.prof-keys { display: flex; flex-wrap: wrap; gap: 4px 11px; margin-top: 5px; }
+.prof-key {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .76rem; color: var(--text-mute);
+}
+.prof-key i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.prof-key b { color: var(--text-dim); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* ═══ Modal ════════════════════════════════════════════════════════════════ */
 #modal {
@@ -591,10 +618,7 @@ svg text { unicode-bidi: plaintext; }
       </button>
       <div class="pop" id="pop-filters" hidden>
         <h3>Filter</h3>
-        <div class="field" id="f-functiontype-wrap"><label for="f-functiontype">Function type</label><select id="f-functiontype"></select></div>
-        <div class="field"><label for="f-function">Function</label><select id="f-function"></select></div>
-        <div class="field"><label for="f-department">Department</label><select id="f-department"></select></div>
-        <div class="field"><label for="f-grade">Grade</label><select id="f-grade"></select></div>
+        <div id="filter-fields"></div>
         <div class="pop-foot"><button class="btn btn-sm btn-quiet" id="btn-reset">Clear all</button></div>
       </div>
     </div>
@@ -630,6 +654,8 @@ svg text { unicode-bidi: plaintext; }
           <div class="field"><label for="u-l2">Level 2</label><select id="u-l2"></select></div>
           <div class="field"><label for="u-l3">Level 3</label><select id="u-l3"></select></div>
           <div class="field"><label for="u-l4">Level 4</label><select id="u-l4"></select></div>
+          <div class="field"><label for="u-l5">Level 5</label><select id="u-l5"></select></div>
+          <div class="field"><label for="u-l6">Level 6</label><select id="u-l6"></select></div>
         </div>
         <div class="field"><label for="u-order">Order units by</label>
           <select id="u-order">
@@ -1062,10 +1088,25 @@ const FIELDS = [
     'grade','jobgrade','gradelevel','band','payband','paygrade','joblevel','level',
     'seniority','rank','salarygrade','careerlevel'] },
 
+  { key: 'group', label: 'Group', aliases: [
+    'group','groupname','businessgroup','orggroup','sector','conglomerate','holdinggroup'] },
+
   { key: 'function',   label: 'Function',   aliases: ['function','businessfunction','orgfunction','discipline','practice','area'] },
   { key: 'department', label: 'Department', aliases: ['department','dept','orgunit','organizationalunit','team','section','unit','subdepartment'] },
   { key: 'division',   label: 'Division',   aliases: ['division','businessunit','bu','sector','group','segment','entity','company','branchgroup'] },
-  { key: 'location',   label: 'Location',   aliases: ['location','office','site','city','country','region','worklocation','basedin','branch'] },
+  { key: 'unit', label: 'Unit', aliases: [
+    'unit','unitname','orgunitname','organizationalunit','organisationalunit','businessunitname'] },
+
+  { key: 'subUnit', label: 'Sub-unit', aliases: [
+    'subunit','subunitname','sububit','subteam','subgroup','subdivisionunit','childunit'] },
+
+  { key: 'section', label: 'Section', aliases: [
+    'section','sectionname','subsection','sect','desk','cell','squad'] },
+
+  { key: 'branch', label: 'Branch', aliases: [
+    'branch','branchname','branchcode','branchid','branchno','outlet','servicepoint','store'] },
+
+  { key: 'location',   label: 'Location',   aliases: ['location','office','site','city','country','region','worklocation','basedin'] },
 
   { key: 'employmentType', label: 'Employment Type', aliases: ['employmenttype','workertype','contracttype','emptype','employeetype','staffcategory','category','type'] },
 
@@ -1077,6 +1118,18 @@ const FIELDS = [
   { key: 'email',      label: 'Email',       aliases: ['email','emailaddress','workemail','mail','upn'] },
   { key: 'hireDate',   label: 'Hire Date',   aliases: ['hiredate','startdate','joindate','dateofjoining','dateofhire','joiningdate','servicedate'] },
   { key: 'nationality',label: 'Nationality', aliases: ['nationality','citizenship','nationalitycode','saudization','saudi'] },
+
+  { key: 'jobType', label: 'Job Type', aliases: [
+    'jobtype','officetype','frontmiddleback','fmb','frontbackoffice','officecategory',
+    'valuechain','jobcategoryoffice','businessline','operatingtype'] },
+
+  { key: 'payType', label: 'Pay Basis', aliases: [
+    'paytype','paybasis','compensationtype','comptype','variablepay','variablepaytype',
+    'rewardtype','incentivetype','incentiveorbonus','bonustype','remunerationtype'] },
+
+  { key: 'talentPool', label: 'Talent Pool', aliases: [
+    'talentpool','talentpoolname','pool','talentsegment','talentcategory','hipo',
+    'highpotential','talentbench','successionpool'] },
 
   { key: 'functionType', label: 'Function Type', aliases: [
     'functiontype','unittype','orgunittype','organizationalunittype','unitcategory',
@@ -1118,11 +1171,22 @@ const FIELD_BY_KEY = Object.fromEntries(FIELDS.map(f => [f.key, f]));
 const FLAG_KEYS = ['critical', 'sama', 'successor'];
 
 /* Dimensions offered for colouring and filtering. */
+/* The organisational ladder, in the order it nests. */
+const LADDER = ['group', 'division', 'department', 'unit', 'subUnit', 'section'];
+
 const DIMENSIONS = [
+  { key: 'group',          label: 'Group' },
+  { key: 'division',       label: 'Division' },
+  { key: 'department',     label: 'Department' },
+  { key: 'unit',           label: 'Unit' },
+  { key: 'subUnit',        label: 'Sub-unit' },
+  { key: 'section',        label: 'Section' },
+  { key: 'branch',         label: 'Branch' },
   { key: 'function',       label: 'Function' },
   { key: 'functionType',   label: 'Function Type' },
-  { key: 'department',     label: 'Department' },
-  { key: 'division',       label: 'Division' },
+  { key: 'jobType',        label: 'Job Type' },
+  { key: 'payType',        label: 'Pay Basis' },
+  { key: 'talentPool',     label: 'Talent Pool' },
   { key: 'grade',          label: 'Grade / Band' },
   { key: 'jobFamily',      label: 'Job Family' },
   { key: 'location',       label: 'Location' },
@@ -1263,10 +1327,19 @@ function buildModel(headers, records, map) {
       status: status || (vacant ? 'Vacant' : 'Filled'),
       grade: get('grade'), jobCode: get('jobCode'), jobFamily: get('jobFamily'),
       function: get('function'), department: get('department'), division: get('division'),
+      group: get('group'), unit: get('unit'), subUnit: get('subUnit'),
+      section: get('section'), branch: get('branch'),
+      jobType: get('jobType'), payType: get('payType'),
+      talentPool: get('talentPool'),
       location: get('location'), employmentType: get('employmentType'),
       costCenter: get('costCenter'), email: get('email'), hireDate: get('hireDate'),
       nationality: get('nationality'),
       functionType: get('functionType'), responsibilities: get('responsibilities'),
+      inTalentPool: (() => {
+        const v = get('talentPool');
+        return v ? parseFlag(v) || !FALSE_WORDS.has(v.toLowerCase().replace(/\s+/g, '')) : false;
+      })(),
+      courses: [],
       fte: parseFte(get('fte')),
       critical, sama, successor,
       successorName, successorReadiness: get('successorReadiness'),
@@ -1373,7 +1446,8 @@ function rollUp(roots, byId) {
    structure — normally Division → Function → Department. Units are derived
    from the positions currently in view, so filters flow through unchanged.
    ───────────────────────────────────────────────────────────────────────── */
-const UNIT_DIMS = ['division', 'functionType', 'function', 'department',
+const UNIT_DIMS = [...LADDER, 'branch', 'functionType', 'function',
+                   'jobType', 'payType', 'talentPool',
                    'location', 'costCenter', 'jobFamily'];
 
 /* ── An explicit org-unit list ───────────────────────────────────────────────
@@ -1467,6 +1541,95 @@ const UNIT_ORDERS = {
   vacant: (a, b) => b.vacant - a.vacant || b.all.length - a.all.length,
 };
 
+/* ── Mandatory courses ──────────────────────────────────────────────────────
+   A list pairing a job with a course it obliges. Matched on position ID first
+   and job code second, because training is normally attached to the job rather
+   than to the individual seat.
+   ─────────────────────────────────────────────────────────────────────────── */
+const COURSE_FIELDS = [
+  { key: 'ref', label: 'Position ID or Job Code', required: true, aliases: [
+    'positionid','positionno','employeeid','empid','jobcode','jobid','code','id',
+    'positioncode','roleid','staffid'] },
+  { key: 'course', label: 'Course', required: true, aliases: [
+    'course','coursename','training','trainingname','programme','program','module',
+    'mandatorycourse','requiredcourse','certification','coursetitle'] },
+  { key: 'mandatory', label: 'Mandatory', aliases: [
+    'mandatory','required','ismandatory','compulsory','obligatory'] },
+  { key: 'frequency', label: 'Frequency', aliases: [
+    'frequency','renewal','cadence','recurrence','validity','every'] },
+];
+
+function detectCourseColumns(headers) {
+  const norm = new Map(headers.map(h => [h, normHeader(h)]));
+  const map = {}, taken = new Set();
+  for (const f of COURSE_FIELDS) {
+    for (const alias of f.aliases) {
+      const hit = headers.find(h => norm.get(h) === alias && !taken.has(h));
+      if (hit) { map[f.key] = hit; taken.add(hit); break; }
+    }
+  }
+  for (const f of COURSE_FIELDS) {
+    if (map[f.key]) continue;
+    for (const alias of f.aliases) {
+      if (alias.length < 5) continue;
+      const hit = headers.find(h => !taken.has(h) && norm.get(h).includes(alias));
+      if (hit) { map[f.key] = hit; taken.add(hit); break; }
+    }
+  }
+  return map;
+}
+
+/* A course list names a course and something to hang it on, and carries none of
+   the position columns that would make it a roster. */
+function looksLikeCourseList(sheetName, headers, records) {
+  const map = detectCourseColumns(headers);
+  if (!map.course || !map.ref) return null;
+  const asPositions = detectColumns(headers, records, { noFallback: true });
+  if (asPositions.managerId && asPositions.title) return null;
+  return map;
+}
+
+function parseCourseList(headers, records, map) {
+  const out = [];
+  for (const r of records) {
+    const ref = (r[map.ref] || '').trim();
+    const course = (r[map.course] || '').trim();
+    if (!ref || !course) continue;
+    out.push({
+      ref, course,
+      mandatory: map.mandatory ? parseFlag(r[map.mandatory]) : true,
+      frequency: map.frequency ? (r[map.frequency] || '').trim() : '',
+    });
+  }
+  return out;
+}
+
+/* Attach the list to the positions it names, reporting what found no home. */
+function applyCourses(model, courseList) {
+  for (const n of model.nodes) n.courses = [];
+  if (!courseList.length) return { attached: 0, unmatched: 0 };
+
+  const byId = new Map(model.nodes.map(n => [String(n.id).trim().toLowerCase(), [n]]));
+  const byCode = new Map();
+  for (const n of model.nodes) {
+    if (!n.jobCode) continue;
+    const k = String(n.jobCode).trim().toLowerCase();
+    if (!byCode.has(k)) byCode.set(k, []);
+    byCode.get(k).push(n);
+  }
+
+  let attached = 0, unmatched = 0;
+  for (const c of courseList) {
+    const k = c.ref.trim().toLowerCase();
+    const targets = byId.get(k) || byCode.get(k);
+    if (!targets) { unmatched++; continue; }
+    for (const n of targets) n.courses.push(c);
+    attached++;
+  }
+  for (const n of model.nodes) n.courseCount = n.courses.length;
+  return { attached, unmatched };
+}
+
 function unitNode(id, label, dim, level) {
   return {
     kind: 'unit', id, label, dim, unitLevel: level,
@@ -1532,13 +1695,19 @@ function buildUnits(positions, levels, declaredUnits = [], unitList = []) {
 
   const descend = (rec, stopAtBlank) => {
     let parent = root, path = 'u:';
-    for (const dim of levels) {
-      const raw = rec[dim];
-      if (stopAtBlank && !raw) break;   // a declared unit only goes as deep as it names
+    for (let i = 0; i < levels.length; i++) {
+      const raw = rec[levels[i]];
+      if (!raw) {
+        // A blank rung with nothing filled below it means the ladder simply ends
+        // here — a department head belongs at the department, not in a phantom
+        // "Unspecified" unit beneath it. A blank with something filled below is
+        // a real gap, so it is kept and shows as Unspecified.
+        if (stopAtBlank || !levels.slice(i + 1).some(d => rec[d])) break;
+      }
       path += '/' + (raw || UNSET);
       let node = byId.get(path);
       if (!node) {
-        node = unitNode(path, raw || UNSET, dim, parent.unitLevel + 1);
+        node = unitNode(path, raw || UNSET, levels[i], parent.unitLevel + 1);
         node.parent = parent;
         parent.children.push(node);
         byId.set(path, node);
@@ -1560,9 +1729,17 @@ function buildUnits(positions, levels, declaredUnits = [], unitList = []) {
   }
 
   // An explicit unit list: annotate what already exists, create what does not.
+  const notDrawn = [];
   if (unitList.length) {
     const byLabel = new Map();
     for (const n of byId.values()) if (n.dim) byLabel.set(n.label.trim().toLowerCase(), n);
+
+    // Names that appear on a position in some column the chart is not nesting
+    // by right now: real units, just not visible as boxes in this arrangement.
+    const namedInData = new Set();
+    for (const p of positions) {
+      for (const d of UNIT_DIMS) if (p[d]) namedInData.add(String(p[d]).trim().toLowerCase());
+    }
 
     // Two passes, so a child listed before its parent still lands correctly.
     for (const pass of [0, 1]) {
@@ -1571,6 +1748,14 @@ function buildUnits(positions, levels, declaredUnits = [], unitList = []) {
         let node = byLabel.get(key);
         if (!node) {
           if (pass === 0) continue;   // give the parent a chance to be created first
+          if (namedInData.has(key)) {
+            // A real unit, sitting in a column the chart is not nesting by, so
+            // it has no box to be annotated. Silently dropping its mandate is
+            // how function type and responsibilities go missing, so it is
+            // counted and reported instead.
+            if (pass === 1) notDrawn.push(u.name);
+            continue;
+          }
           const parent = (u.parent && byLabel.get(u.parent.trim().toLowerCase())) || root;
           const dim = levels[Math.min(parent.unitLevel, levels.length - 1)];
           node = unitNode(parent.id + '/' + u.name, u.name, dim, parent.unitLevel + 1);
@@ -1590,7 +1775,9 @@ function buildUnits(positions, levels, declaredUnits = [], unitList = []) {
     }
   }
 
-  return finishUnits(root, byId, levels);
+  const built = finishUnits(root, byId, levels);
+  built.notDrawn = notDrawn;
+  return built;
 }
 
 function finishUnits(root, byId, levels) {
@@ -1619,6 +1806,31 @@ function finishUnits(root, byId, levels) {
     u.ics = u.headcount - u.managers;
     u.avgSpan = mgrs.length
       ? Math.round(mgrs.reduce((t, p) => t + p.directs, 0) / mgrs.length * 10) / 10 : 0;
+    // The profile: what kind of work sits in this unit, not just how much.
+    u.mix = {};
+    for (const key of ['jobType', 'payType']) {
+      const counts = {};
+      for (const p of u.all) if (p[key]) counts[p[key]] = (counts[p[key]] || 0) + 1;
+      if (Object.keys(counts).length) u.mix[key] = counts;
+    }
+    u.talentPoolCount = u.all.filter(p => p.inTalentPool).length;
+    u.withCourses = u.all.filter(p => p.courseCount > 0).length;
+
+    // Compare ranks on numbers, so the mix is also flattened into countable
+    // columns, matched on the same front / middle / back vocabulary the strip
+    // colours by rather than on one file's exact spelling.
+    const mixed = (key, word) => {
+      let t = 0;
+      for (const [v, c] of Object.entries(u.mix[key] || {})) {
+        if (v.toLowerCase().includes(word)) t += c;
+      }
+      return t;
+    };
+    u.front = mixed('jobType', 'front');
+    u.middle = mixed('jobType', 'middle');
+    u.back = mixed('jobType', 'back');
+    u.incentive = mixed('payType', 'incentive');
+
     let lo = Infinity, hi = -Infinity;
     for (const p of u.all) { if (p.layer < lo) lo = p.layer; if (p.layer > hi) hi = p.layer; }
     u.layersIn = u.headcount ? hi - lo + 1 : 0;
@@ -1638,10 +1850,14 @@ function finishUnits(root, byId, levels) {
     u.unstaffed = u.headcount > 0 && u.filled === 0;
     u.unmapped = u.label === UNSET;
 
-    // A unit with no type of its own takes the one its positions agree on.
+    // A unit with no type of its own takes the one its positions agree on —
+    // and only then. A legal entity that is 40% control work is not a control
+    // function, so a mixed unit is left blank rather than labelled by whichever
+    // type happens to be largest.
     if (!u.functionType) {
-      const types = topValues(u.all.filter(p => p.functionType), 'functionType', 1);
-      if (types.length) u.functionType = types[0][0];
+      const typed = u.all.filter(p => p.functionType);
+      const [top] = topValues(typed, 'functionType', 1);
+      if (top && top[1] / typed.length >= 0.75) u.functionType = top[0];
     }
   }
 
@@ -1659,10 +1875,14 @@ function finishUnits(root, byId, levels) {
 }
 
 /* Which columns actually describe this organisation's structure. */
+/* Nest down the ladder, skipping levels the file does not carry. Branch is
+   deliberately excluded: it runs across the organisation, not inside it. */
 function defaultUnitLevels(model) {
-  const usable = ['division', 'function', 'department']
-    .filter(d => new Set(model.nodes.map(n => n[d]).filter(Boolean)).size > 1);
-  return usable.length ? usable : ['department'];
+  const has = d => new Set(model.nodes.map(n => n[d]).filter(Boolean)).size > 1;
+  const rungs = LADDER.filter(has);
+  if (rungs.length) return rungs.slice(0, 6);
+  const fallback = ['function', 'department'].filter(has);
+  return fallback.length ? fallback : ['department'];
 }
 
 /* ─── State ─────────────────────────────────────────────────────────────── */
@@ -1671,6 +1891,8 @@ const S = {
   unitModel: null,
   unitList: [],
   unitListSource: '',
+  courseList: [],
+  courseSource: '',
   mode: 'positions',        // 'positions' | 'units'
   unitLevels: [],
   unitOrder: 'size',
@@ -1680,7 +1902,7 @@ const S = {
   fileName: '',
   collapsed: new Set(),
   unitCollapsed: new Set(),
-  filters: { functionType: 'All', function: 'All', department: 'All', grade: 'All' },
+  filters: {},
   rootId: '',
   highlight: new Set(),
   colorBy: 'function',
@@ -1797,7 +2019,7 @@ function applyDefaultCollapse() {
     // There are only ever a few dozen units, so show the structure whole
     // unless the file is unusually granular.
     S.unitCollapsed = new Set();
-    if (S.unitModel.nodes.length > 140) {
+    if (S.unitModel.nodes.length > 80) {
       for (const u of S.unitModel.nodes) {
         if (u.children.length && u.layer >= DEFAULT_LAYERS) S.unitCollapsed.add(u.id);
       }
@@ -1901,6 +2123,36 @@ function buildPalette() {
   return counts;
 }
 
+/* Front to back reads as a gradient, so the mix strip is scannable without a
+   legend: the further back the work, the cooler the colour. */
+const MIX_COLOURS = {
+  jobType: {
+    front: '#2b5580', middle: '#4a7c59', back: '#8a6a2f', other: '#94a3b8',
+  },
+  payType: {
+    incentive: '#a86a2c', bonus: '#4b3f8f', fixed: '#4a7c59', other: '#94a3b8',
+  },
+};
+
+function mixColour(key, value) {
+  const table = MIX_COLOURS[key] || {};
+  const v = String(value).toLowerCase();
+  for (const [word, colour] of Object.entries(table)) {
+    if (word !== 'other' && v.includes(word)) return colour;
+  }
+  return table.other || GREY;
+}
+
+/* Which mix a unit card shows on its strip: job type where the file has it,
+   pay basis otherwise. */
+function cardMix(u) {
+  for (const key of ['jobType', 'payType']) {
+    const m = u.mix && u.mix[key];
+    if (m && Object.keys(m).length) return { key, counts: m };
+  }
+  return null;
+}
+
 const STAFFING_COLOURS = {
   'Fully staffed': '#1a6b45', 'Partly vacant': '#a86a2c',
   'All vacant': '#8a5300', 'No positions': '#94a3b8',
@@ -1937,6 +2189,27 @@ function badges(n) {
     x -= size + gap;
     return g;
   }).join('');
+}
+
+/* A stacked strip along the bottom edge. It costs no text line, so a unit that
+   is mostly back office simply looks different from one that is mostly front. */
+function mixStrip(n) {
+  const mix = cardMix(n);
+  if (!mix || !n.headcount) return '';
+  const entries = Object.entries(mix.counts).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((t, [, c]) => t + c, 0);
+  if (!total) return '';
+
+  const w = NODE_W - 2, h = 3.5, y = NODE_H_UNIT - h - 1;
+  let x = 1, out = '';
+  entries.forEach(([label, count], i) => {
+    const seg = Math.max(1, (count / total) * w);
+    out += `<rect x="${x.toFixed(1)}" y="${y}" width="${seg.toFixed(1)}" height="${h}" ` +
+      `fill="${mixColour(mix.key, label)}"` +
+      (i === 0 ? ' rx="1.5"' : '') + `><title>${svgesc(label)}: ${count} of ${total}</title></rect>`;
+    x += seg;
+  });
+  return out;
 }
 
 function unitCardSvg(n) {
@@ -1994,7 +2267,7 @@ function unitCardSvg(n) {
       `${svgesc(fit(people, NODE_W - 28, FONTS.meta))}</text>` +
     (shape ? `<text class="t-count" x="14" y="80">${svgesc(fit(shape, NODE_W - 28, FONTS.count))}</text>` : '') +
     `<text class="t-meta" x="14" y="101">${svgesc(fit(foot, footMax, FONTS.meta))}</text>` +
-    gapChip +
+    gapChip + mixStrip(n) +
     `</g>`;
 }
 
@@ -2170,6 +2443,10 @@ function zoomAt(factor, cx, cy) {
 }
 
 function centreOn(node, zoom) {
+  // A node outside the draw cap has no position to centre on. Leave the view
+  // where it is rather than transforming by NaN — the detail panel is still
+  // the answer to the click.
+  if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
   const r = $('#chart').getBoundingClientRect();
   if (zoom) S.view.k = Math.max(S.view.k, 0.75);
   S.view.x = r.width / 2 - (node.x + NODE_W / 2) * S.view.k;
@@ -2294,21 +2571,20 @@ function renderControls() {
   $('#btn-compare').hidden = !isUnits();
   if (!isUnits()) setCompare(false);
   $('#btn-unitlist').textContent = S.unitList.length ? 'Replace unit list' : 'Attach a unit list';
+  // A listed unit that names a column the chart is not nesting by has no box to
+  // carry its type and mandate. Say so, and name the lever that fixes it.
+  const missed = (S.unitModel && S.unitModel.notDrawn) || [];
   $('#unitlist-hint').textContent = S.unitList.length
-    ? S.unitList.length + ' units read from "' + S.unitListSource + '".'
+    ? S.unitList.length + ' units read from "' + S.unitListSource + '".' +
+      (missed.length ? ' ' + missed.length + ' of them (' + missed.slice(0, 3).join(', ') +
+        (missed.length > 3 ? '…' : '') + ') sit in a column the chart is not nesting by, ' +
+        'so their type and mandate are not shown — add that column above.' : '')
     : 'Where function type, roles & responsibilities and units with no positions come from.';
 
   renderBadges();
   renderUnitLevels();
 
-  fillSelect($('#f-functiontype'), 'Function type', distinct('functionType'), S.filters.functionType);
-  $('#f-functiontype-wrap').hidden = distinct('functionType').length < 2;
-  fillSelect($('#f-function'), 'Function', distinct('function'), S.filters.function);
-  fillSelect($('#f-department'), 'Department', distinct('department'), S.filters.department);
-  fillSelect($('#f-grade'), 'Grade', distinct('grade'), S.filters.grade);
-  $('#f-function').hidden = distinct('function').length < 2;
-  $('#f-department').hidden = distinct('department').length < 2;
-  $('#f-grade').hidden = distinct('grade').length < 2;
+  renderFilterFields();
 
   const sel = $('#color-by');
   sel.hidden = false;
@@ -2334,7 +2610,7 @@ function renderControls() {
 
 /* The nesting columns are the whole definition of the unit hierarchy, so they
    are picked in the open rather than assumed. */
-const NEST_SELECTS = ['#u-l1', '#u-l2', '#u-l3', '#u-l4'];
+const NEST_SELECTS = ['#u-l1', '#u-l2', '#u-l3', '#u-l4', '#u-l5', '#u-l6'];
 
 function renderUnitLevels() {
   if (!isUnits()) return;
@@ -2381,6 +2657,27 @@ function fitMetrics() {
   for (let i = opt.length - 1; i >= 0 && el.scrollWidth > el.clientWidth + 1; i--) {
     opt[i].hidden = true;
   }
+}
+
+/* A file carries a handful of the dimensions the tool knows about, so the
+   popover offers exactly those rather than a column of empty selects. */
+function renderFilterFields() {
+  const present = DIMENSIONS.filter(d => distinct(d.key).length > 1);
+  for (const key of Object.keys(S.filters)) {
+    if (!present.some(d => d.key === key)) delete S.filters[key];
+  }
+  $('#filter-fields').innerHTML = present.length
+    ? present.map(d => {
+        const cur = S.filters[d.key] || 'All';
+        S.filters[d.key] = cur;
+        return `<div class="field"><label for="flt-${d.key}">${esc(d.label)}</label>` +
+          `<select id="flt-${d.key}" data-filter="${d.key}">` +
+          `<option value="All">All</option>` +
+          distinct(d.key).map(v =>
+            `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('') +
+          `</select></div>`;
+      }).join('')
+    : '<p class="hint">This file has no columns to filter by.</p>';
 }
 
 /* Counts on the Filters and Highlight buttons, so an active setting is visible
@@ -2454,6 +2751,12 @@ const CMP_COLUMNS = [
   { key: 'critical',     label: 'Critical' },
   { key: 'sama',         label: 'SAMA' },
   { key: 'gaps',         label: 'Gaps',        tone: v => v ? 'alert' : 'muted' },
+  { key: 'front',           label: 'Front',       optional: u => !!u.mix.jobType },
+  { key: 'middle',          label: 'Middle',      optional: u => !!u.mix.jobType },
+  { key: 'back',            label: 'Back',        optional: u => !!u.mix.jobType },
+  { key: 'incentive',       label: 'Incentive',   optional: u => !!u.mix.payType },
+  { key: 'talentPoolCount', label: 'Talent pool', optional: u => u.talentPoolCount > 0 },
+  { key: 'withCourses',     label: 'Training',    optional: () => S.courseList.length > 0 },
 ];
 
 const staffingOf = u => u.empty ? 'No positions'
@@ -2489,13 +2792,14 @@ function renderCompare() {
     return dir === 'asc' ? c : -c;
   });
 
-  const head = CMP_COLUMNS.map(c =>
+  const cols = CMP_COLUMNS.filter(c => !c.optional || rows.some(r => c.optional(r.u)));
+  const head = cols.map(c =>
     `<th class="${c.text ? '' : 'num'}${c.key === key ? ' sorted' : ''}" data-sort="${c.key}">` +
     `${esc(c.label)}${c.key === key ? `<span class="arrow">${dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`).join('');
 
   const body = rows.map(({ u, staffing }) => '<tr data-unit="' + esc(u.id) + '"' +
     (S.selected === u.id ? ' class="sel"' : '') + '>' +
-    CMP_COLUMNS.map(c => {
+    cols.map(c => {
       if (c.key === 'label') {
         // Indent by depth so the hierarchy stays legible in a flat list.
         return `<td class="unit" style="padding-left:${11 + Math.max(0, u.unitLevel - 1) * 13}px">${esc(u.label)}</td>`;
@@ -2535,6 +2839,46 @@ function topValues(positions, key, limit) {
     counts.set(v, (counts.get(v) || 0) + 1);
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+/* Proportion bars for every mix the file supports, so the attributes read as an
+   operating model rather than as a list of columns. */
+function profileSection(u) {
+  if (!u.headcount) return '';
+  const rows = [];
+
+  for (const [key, label] of [['jobType', 'Job type'], ['payType', 'Pay basis']]) {
+    const counts = u.mix && u.mix[key];
+    if (!counts || !Object.keys(counts).length) continue;
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((t, [, c]) => t + c, 0);
+    rows.push(`<div class="prof">
+        <div class="prof-head"><span>${label}</span><span class="text-mute">${int(total)}</span></div>
+        <div class="prof-bar">${entries.map(([v, c]) =>
+          `<span style="width:${(c / total * 100).toFixed(1)}%;background:${mixColour(key, v)}" ` +
+          `title="${esc(v)}: ${c}"></span>`).join('')}</div>
+        <div class="prof-keys">${entries.map(([v, c]) =>
+          `<span class="prof-key"><i style="background:${mixColour(key, v)}"></i>${esc(v)} ` +
+          `<b>${int(c)}</b></span>`).join('')}</div>
+      </div>`);
+  }
+
+  const share = (n, of) => of ? Math.round(n / of * 100) : 0;
+  const simple = [];
+  if (S.model.map.talentPool || u.talentPoolCount) {
+    simple.push(['In a talent pool', u.talentPoolCount, share(u.talentPoolCount, u.headcount)]);
+  }
+  if (S.courseList.length) {
+    simple.push(['With mandatory training', u.withCourses, share(u.withCourses, u.headcount)]);
+  }
+  for (const [label, n, pct] of simple) {
+    rows.push(`<div class="prof">
+        <div class="prof-head"><span>${label}</span><span class="text-mute">${int(n)} · ${pct}%</span></div>
+        <div class="prof-bar"><span style="width:${pct}%;background:var(--accent)"></span></div>
+      </div>`);
+  }
+
+  return rows.length ? `<div class="dt-sec"><h4>Profile</h4>${rows.join('')}</div>` : '';
 }
 
 function openUnitDetail(u) {
@@ -2598,6 +2942,7 @@ function openUnitDetail(u) {
       </div>
       ${crumbs}
       ${lead}
+      ${profileSection(u)}
       ${u.headcount ? `
         <div class="dt-sec"><h4>Grades</h4><div class="tagrow">${chips(topValues(u.all, 'grade', 8))}</div></div>
         <div class="dt-sec"><h4>Most common titles</h4><div class="tagrow">${chips(topValues(u.all, 'title', 6))}</div></div>
@@ -2698,6 +3043,12 @@ function openDetail(id) {
         ${kv('Hire date', 'hireDate')} ${kv('Nationality', 'nationality')}
       </div></div>
       ${succ}
+      ${n.courses && n.courses.length ? `<div class="dt-sec">
+        <h4>Mandatory training (${n.courses.length})</h4>
+        <div class="tagrow">${n.courses.map(c =>
+          `<span class="tag${c.mandatory ? ' tag-sama' : ''}">${esc(c.course)}` +
+          `${c.frequency ? ' · ' + esc(c.frequency) : ''}</span>`).join('')}</div>
+      </div>` : ''}
       ${reports}
       ${extras}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2765,6 +3116,10 @@ function exportUnitCsv() {
     ['FTE', u => u.fte], ['Sub-units', u => u.children.length], ['Units below', u => u.unitCount],
     ['Critical Roles', u => u.critical], ['SAMA Roles', u => u.sama],
     ['Succession Gaps', u => u.gaps],
+    ['Front Office', u => u.front], ['Middle Office', u => u.middle],
+    ['Back Office', u => u.back], ['Incentive Paid', u => u.incentive],
+    ['In Talent Pool', u => u.talentPoolCount],
+    ['With Mandatory Courses', u => u.withCourses],
     ['Most Senior Position', u => u.leader ? u.leader.title : ''],
     ['Leader', u => S.present || !u.leader ? '' : (u.leader.vacant ? 'Vacant' : u.leader.name)],
     ['Declared Head', u => S.present ? '' : u.declaredHead],
@@ -3045,7 +3400,8 @@ function loadMapping(headers) {
 }
 
 /* ─── Loading a file ────────────────────────────────────────────────────── */
-function startModel(headers, records, map, fileName, remember, unitList, unitSource) {
+function startModel(headers, records, map, fileName, remember, unitList, unitSource,
+                    courseList, courseSource) {
   const model = buildModel(headers, records, map);
   model.records = records;
   S.model = model;
@@ -3054,10 +3410,12 @@ function startModel(headers, records, map, fileName, remember, unitList, unitSou
   S.selected = null;
   S.hits = new Set();
   S.search = '';
-  S.filters = { functionType: 'All', function: 'All', department: 'All', grade: 'All' };
+  S.filters = {};
   S.highlight = new Set();
   S.hintShown = false;
   if (unitList !== undefined) { S.unitList = unitList || []; S.unitListSource = unitSource || ''; }
+  if (courseList !== undefined) { S.courseList = courseList || []; S.courseSource = courseSource || ''; }
+  applyCourses(model, S.courseList);
   S.unitCollapsed = new Set();
   S.unitLevels = defaultUnitLevels(model);
   S.unitModel = null;
@@ -3086,6 +3444,7 @@ function startModel(headers, records, map, fileName, remember, unitList, unitSou
   const extras = [];
   if (model.issues.length) extras.push(model.issues.length + ' rows needed repair');
   if (S.unitList.length) extras.push(S.unitList.length + ' units from "' + S.unitListSource + '"');
+  if (S.courseList.length) extras.push(S.courseList.length + ' course requirements');
   toast(int(model.nodes.length) + ' positions loaded' + (extras.length ? ' · ' + extras.join(' · ') : ''));
 }
 
@@ -3100,10 +3459,16 @@ async function loadFile(file) {
   try {
     const sheets = await readSheets(file);
 
-    // A file that is only a unit list, dropped once positions are loaded,
-    // enriches the org-unit view rather than replacing everything.
+    // A file that is only a list, dropped once positions are loaded, enriches
+    // what is there rather than replacing everything.
     if (S.model && sheets.length === 1) {
       const t = toRecords(sheets[0].rows);
+      const cm = looksLikeCourseList(file.name, t.headers, t.records);
+      if (cm) {
+        applyCourseList(parseCourseList(t.headers, t.records, cm), file.name);
+        err.innerHTML = '';
+        return;
+      }
       const um = looksLikeUnitList(file.name, t.headers, t.records);
       if (um) {
         applyUnitList(parseUnitList(t.headers, t.records, um), file.name);
@@ -3116,21 +3481,32 @@ async function loadFile(file) {
     const map = loadMapping(headers) || detectColumns(headers, records);
     window._pending = { headers, records, map };
 
-    // Any remaining tab that describes the structure is picked up with it.
-    let unitList = [], source = '';
+    // Any remaining tab that describes the structure or the training is picked
+    // up with it.
+    let unitList = [], source = '', courseList = [], courseSource = '';
     for (const sh of sheets.slice(1)) {
       try {
         const t = toRecords(sh.rows);
-        const um = looksLikeUnitList(sh.name, t.headers, t.records);
-        if (um) {
-          unitList = parseUnitList(t.headers, t.records, um);
-          source = sh.name;
-          break;
+        if (!courseList.length) {
+          const cm = looksLikeCourseList(sh.name, t.headers, t.records);
+          if (cm) {
+            courseList = parseCourseList(t.headers, t.records, cm);
+            courseSource = sh.name;
+            continue;
+          }
+        }
+        if (!unitList.length) {
+          const um = looksLikeUnitList(sh.name, t.headers, t.records);
+          if (um) {
+            unitList = parseUnitList(t.headers, t.records, um);
+            source = sh.name;
+          }
         }
       } catch { /* an unreadable extra tab is not a reason to fail the import */ }
     }
 
-    startModel(headers, records, map, file.name, false, unitList, source);
+    startModel(headers, records, map, file.name, false, unitList, source,
+               courseList, courseSource);
     err.innerHTML = '';
   } catch (e) {
     err.innerHTML = `<div class="err" style="margin-top:14px">${esc(e.message)}</div>`;
@@ -3155,6 +3531,18 @@ async function loadUnitListFile(file) {
   } catch (e) {
     toast(e.message);
   }
+}
+
+function applyCourseList(list, source) {
+  S.courseList = list;
+  S.courseSource = source;
+  const res = applyCourses(S.model, list);
+  if (isUnits()) rebuildUnits();
+  renderControls();
+  refresh(true);
+  toast(list.length + ' course requirements read from ' + source +
+        ' · ' + res.attached + ' matched' +
+        (res.unmatched ? ' · ' + res.unmatched + ' matched no position or job code' : ''));
 }
 
 function applyUnitList(list, source) {
@@ -3278,7 +3666,7 @@ function loadSample() {
   const map = detectColumns(headers, records);
   window._pending = { headers, records, map };
   startModel(headers, records, map, 'Sample bank org (generated)',
-             false, sampleUnitList(), 'built-in unit list');
+             false, sampleUnitList(), 'built-in unit list', [], '');
 }
 
 /* ─── Wiring ────────────────────────────────────────────────────────────── */
@@ -3460,10 +3848,12 @@ function wireApp() {
     refresh();
   };
 
-  for (const [key, id] of [['functionType', 'f-functiontype'], ['function', 'f-function'],
-                           ['department', 'f-department'], ['grade', 'f-grade']]) {
-    $('#' + id).onchange = e => { S.filters[key] = e.target.value; refresh(); };
-  }
+  $('#filter-fields').onchange = e => {
+    const sel = e.target.closest('select[data-filter]');
+    if (!sel) return;
+    S.filters[sel.dataset.filter] = sel.value;
+    refresh();
+  };
 
   $('#chips').onclick = e => {
     const b = e.target.closest('[data-hl]');
@@ -3482,7 +3872,7 @@ function wireApp() {
   };
 
   $('#btn-reset').onclick = () => {
-    S.filters = { functionType: 'All', function: 'All', department: 'All', grade: 'All' };
+    S.filters = {};
     S.highlight = new Set();
     S.rootId = '';
     S.search = '';

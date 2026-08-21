@@ -13,10 +13,11 @@ connection involved. Your file is read inside your own browser and never leaves
 your machine.
 
 `sample-org.csv` is synthetic data (2,600 positions) if you want to try it before
-pointing it at anything real, and `sample-units.csv` is the matching org unit
-list — load the positions, then add the unit list with the **＋ Add unit list**
-button in the org-unit view. The **Try it with sample data** button needs no
-files at all and includes both.
+pointing it at anything real; `sample-units.csv` is the matching org unit list
+and `sample-courses.csv` the mandatory-training list. Load the positions, then
+add the unit list with the **＋ Add unit list** button in the org-unit view — or
+put all three on separate tabs of one workbook and they are picked up together.
+The **Try it with sample data** button needs no files at all.
 
 ---
 
@@ -27,30 +28,74 @@ the filters carry across.
 
 **Org units** — the view it opens on. One box per organisational unit, showing
 its headcount, FTE and vacancies, the shape of it — layers, average span,
-managers against individual contributors — its function type, sub-unit count and
-the most senior position inside it. Roughly fifty boxes instead of a few
-thousand: the shape of the organisation rather than the seats in it.
+managers against individual contributors — its function type, sub-unit count, the
+most senior position inside it and the mix of work it does. The shape of the
+organisation rather than the seats in it: you open on the top few levels and go
+down only where you want to.
 
 **Positions** — one box per seat, reached from a unit through *Show these
 positions* or the switch. The job title leads, the person in it sits underneath,
 and a vacancy is a normal state of a position rather than a gap in the data.
 Boxes are joined by reporting lines, taken from Manager ID.
 
-A file with no division / function / department columns has no structure to
-draw, so it opens on positions instead.
+A file with no structural columns has nothing to draw, so it opens on positions
+instead.
+
+### The ladder
+
+The org view nests down the levels a bank actually uses, in this order:
+
+```
+Group → Division → Department → Unit → Sub-unit → Section
+```
+
+Whichever of the six your file carries become the nesting, in that order. A
+column with the same value on every row is skipped — a single-value level is a
+redundant box — and a position stops at the rung where its own ladder ends, so a
+department head sits at the department rather than in a phantom unit beneath it.
+
+**Branches run across the ladder, not inside it.** A `Branch` column is a full
+dimension — colour, filter, nest — but is never picked as a default level, so
+the branch network can be looked at on its own (nest by Branch alone) without
+disturbing the head-office hierarchy.
+
+Six levels of a large file makes hundreds of units, so the view opens with the
+top layers expanded and the rest a click away.
 
 ### Working with units
 
 - **Compare** ranks the units side by side — positions, FTE, vacancies, layers,
-  span, managers, ICs, critical roles, SAMA roles and succession gaps — sortable
-  on any column, with a level picker so you compare like with like rather than a
-  division against a department. Clicking a row selects that unit in the chart.
-- **Units…** controls the structure: nest by up to four columns, order siblings
+  span, managers, ICs, critical roles, SAMA roles, succession gaps, the front /
+  middle / back split, incentive-paid positions, talent pool and training —
+  sortable on any column, with a level picker so you compare like with like
+  rather than a division against a department. The unit name stays put as you
+  scroll across. Clicking a row selects that unit in the chart.
+- **Units…** controls the structure: nest by up to six columns, order siblings
   by size, name or vacancies, and — when your unit list carries parent
   relationships — build the hierarchy from the list itself rather than from
   column nesting.
 - **Function type** is a full lens: colour by it, filter by it, or nest by it, so
   the chart can be arranged by line of defence.
+
+### Job attributes and the unit profile
+
+Three columns describe what kind of work a position is, rather than where it
+sits: **job type** (front / middle / back office), **pay basis** (incentive /
+bonus / fixed) and **talent pool**. Each is a full dimension — colour, filter,
+nest — and each rolls up into a read on the unit:
+
+- a thin stacked strip along the bottom of every unit box, showing the job-type
+  mix, or the pay mix where job type is absent — a mostly back-office unit looks
+  different from a mostly front-office one at a glance;
+- a **Profile** section in the unit detail, with proportion bars and counts for
+  each mix the file supports, plus talent-pool coverage and training obligation;
+- the matching columns in **Compare**, so the mixes can be ranked across units.
+
+**Mandatory courses** come from a third list — another tab in the workbook, or a
+file added by hand. It is matched on position ID first and job code second, since
+training is usually attached to a job rather than to a seat. The courses appear
+on the position's detail card, and the share of a unit's positions carrying an
+obligation appears in its profile.
 
 ## What it does
 
@@ -75,7 +120,7 @@ with more than one setting opens a popover rather than taking a row of its own.
 | | |
 |---|---|
 | **Search** | Name, job title or ID. Matches are highlighted and their branches opened. Press `/` to jump to the box. |
-| **Filters** | Narrow by function, department or grade. Matches keep their reporting line, so the tree never breaks into fragments. |
+| **Filters** | One narrowing control for each dimension your file actually carries — ladder level, branch, function, job type, pay basis, talent pool, grade, location. Matches keep their reporting line, so the tree never breaks into fragments. |
 | **Branch** | Pick one leader — or one unit — to work inside alone. |
 | **Units…** | Structure of the org view: nesting columns, sibling order, and whether the hierarchy comes from columns or from the unit list. |
 | **Compare** | A sortable table of units under the chart, filtered to one level so the ranking means something. |
@@ -85,7 +130,7 @@ with more than one setting opens a popover rather than taking a row of its own.
 | **Presentation** | One switch hides successor names, emails, hire dates and nationality, so the chart is safe to project or screen-share. |
 | **PNG** | Saves exactly what is on screen, at slide proportions. |
 | **Print** | Lays the current branch out to fit a page, in light theme — use it to save a branch as PDF. |
-| **CSV** | Follows the view: positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts and flag totals. |
+| **CSV** | Follows the view: positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts, flag totals and the full profile. |
 
 ## Units with nobody in them
 
@@ -120,6 +165,12 @@ ways, and you can use both:
    headcount, FTE and vacancies, and a function type carried on the position rows
    is inherited, but a mandate has nowhere else to come from.
 
+   A listed unit is matched to a box by name, so it has to be named after a
+   column the chart is nesting by. If you list your divisions and then nest by
+   Group alone, those divisions have no box to be annotated — the **Units…**
+   panel says how many are in that position and names them, so the fix (add the
+   column back to the nesting) is obvious rather than a silent gap.
+
 ## The file it expects
 
 One row per position. Only an **ID** column is genuinely required — everything
@@ -129,14 +180,25 @@ To draw a hierarchy you also need a **Manager ID** column pointing at another
 row's ID.
 
 Recognised beyond that: job title, incumbent name, grade or band, job code, job
-family, function, department, division, location, employment type, status, FTE,
-cost centre, email, hire date, nationality, **function type**, **roles &
-responsibilities**, **critical role**, **SAMA non-objection role**, **successor
-identified**, **successor name** and **successor readiness**.
+family, **group**, **division**, **department**, **unit**, **sub-unit**,
+**section**, **branch**, function, location, employment type, status, FTE, cost
+centre, email, hire date, nationality, **function type**, **job type**, **pay
+basis**, **talent pool**, **roles & responsibilities**, **critical role**, **SAMA
+non-objection role**, **successor identified**, **successor name** and
+**successor readiness**.
 
 Function type is whatever classification you use — Business / Support / Control,
 or first / second / third line of defence. It appears on unit boxes and in the
-unit export.
+unit export. A unit with no type of its own takes the one its positions agree on,
+and a genuinely mixed unit is left blank rather than labelled by whichever type
+happens to be largest.
+
+Job type and pay basis keep whatever wording your file uses; the strip, the
+profile bars and the Front / Middle / Back and Incentive columns recognise the
+words *front*, *middle*, *back*, *incentive*, *bonus* and *fixed* inside them, so
+`Front office` and `Front-line` both read as front. A value using none of those
+words still counts in the mix and gets its own bar — it just is not folded into
+those named columns. Talent pool takes a pool name or a plain Yes/No.
 
 Column names are matched loosely, so `Manager ID`, `manager_id` and `Reports To`
 all land in the same place. Anything the tool does not recognise is kept and
@@ -191,6 +253,7 @@ along with the other personal fields; the mandate text stays visible.
 
 ## Development
 
-`.build/make_sample.py` regenerates `sample-org.csv` and `sample-units.csv`; pass
-a path to also write a two-sheet `.xlsx`. Everything else lives in
+`.build/make_sample.py` regenerates `sample-org.csv`, `sample-units.csv` and
+`sample-courses.csv`; pass a path to also write a three-sheet `.xlsx`. Everything
+else lives in
 `org-chart.html`.
