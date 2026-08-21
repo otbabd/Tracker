@@ -2975,6 +2975,9 @@ function openDetail(id) {
 
   const kv = (k, key) => `<div><div class="k">${k}</div><div class="v">${fieldValue(n, key)}</div></div>`;
   const raw = (k, v) => `<div><div class="k">${esc(k)}</div><div class="v">${v ? esc(v) : '—'}</div></div>`;
+  // A field your file does not carry is left out entirely rather than shown as
+  // a dash: an empty row reads as missing data when it is simply not a column.
+  const col = (k, key) => S.model.map[key] ? raw(k, n[key]) : '';
 
   const crumbs = (n.chain || []).length
     ? '<div class="dt-sec"><h4>Reports up through</h4><div class="crumbs">' +
@@ -2999,6 +3002,19 @@ function openDetail(id) {
         ${raw('Readiness', n.successorReadiness)}
        </div>${n.successorName && !S.present && S.model.byId.has(n.successorName)
          ? `<p class="note" style="margin-top:8px"><a class="crumbs" data-goto="${esc(n.successorName)}">Show the successor in the chart →</a></p>` : ''}</div>`
+    : '';
+
+  // Where the job sits, kept apart from what kind of job it is. Only the
+  // columns the file actually carries are listed — six blank ladder rungs are
+  // noise, not information.
+  const placement = ['group', 'division', 'department', 'unit', 'subUnit', 'section',
+                     'branch', 'function', 'location', 'costCenter'].some(k => S.model.map[k])
+    ? `<div class="dt-sec"><h4>Where it sits</h4><div class="kv">
+        ${col('Group', 'group')} ${col('Division', 'division')} ${col('Department', 'department')}
+        ${col('Unit', 'unit')} ${col('Sub-unit', 'subUnit')} ${col('Section', 'section')}
+        ${col('Branch', 'branch')} ${col('Function', 'function')}
+        ${col('Location', 'location')} ${col('Cost center', 'costCenter')}
+      </div></div>`
     : '';
 
   const extras = Object.keys(n.extra).length
@@ -3029,15 +3045,16 @@ function openDetail(id) {
         <div><div class="v">${int(n.vacantBelow)}</div><div class="k">Vacant in branch</div></div>
       </div>
       ${crumbs}
-      <div class="dt-sec"><h4>Position</h4><div class="kv">
-        ${raw('ID', n.id)} ${raw('Job code', n.jobCode)} ${raw('Grade / band', n.grade)}
-        ${raw('Job family', n.jobFamily)} ${raw('Function', n.function)} ${raw('Department', n.department)}
-        ${raw('Division', n.division)} ${raw('Location', n.location)} ${raw('Employment type', n.employmentType)}
-        ${raw('FTE', n.fte)} ${raw('Cost center', n.costCenter)} ${raw('Status', n.status)}
-        ${raw('Function type', n.functionType)}
+      <div class="dt-sec"><h4>The job</h4><div class="kv">
+        ${raw('ID', n.id)} ${col('Job code', 'jobCode')} ${col('Grade / band', 'grade')}
+        ${col('Job family', 'jobFamily')} ${col('Function type', 'functionType')}
+        ${col('Job type', 'jobType')} ${col('Pay basis', 'payType')}
+        ${col('Talent pool', 'talentPool')} ${col('Employment type', 'employmentType')}
+        ${col('FTE', 'fte')} ${col('Status', 'status')}
       </div>
       ${n.responsibilities ? `<div style="margin-top:10px"><div class="k">Roles &amp; responsibilities</div>
         <p class="prose">${esc(n.responsibilities)}</p></div>` : ''}</div>
+      ${placement}
       <div class="dt-sec"><h4>Incumbent</h4><div class="kv">
         ${raw('Name', n.vacant ? 'Vacant' : n.name)} ${kv('Email', 'email')}
         ${kv('Hire date', 'hireDate')} ${kv('Nationality', 'nationality')}
