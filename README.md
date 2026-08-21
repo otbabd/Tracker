@@ -51,6 +51,12 @@ starts at the top three layers with everything below collapsed behind a click.
 
 ## Using it
 
+The window is a 52-pixel bar and a panel. The bar carries identity, the view
+switch, search and the presentation toggle, with everything occasional behind
+**⋯**. The panel holds the summary, view options, filters, highlights and the
+legend — collapse it with **☰** and the chart has the screen to itself.
+Presentation mode collapses it for you.
+
 | | |
 |---|---|
 | **Search** | Name, job title or ID. Matches are highlighted and their branches opened. Press `/` to jump to the box. |
