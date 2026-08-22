@@ -189,7 +189,7 @@ with more than one setting opens a popover rather than taking a row of its own.
 | **Click a box** | Everything held about that position, in two parts: **The job** — code, grade, family, function type, job type, pay basis, talent pool, employment type, FTE, status — and **Where it sits**, the full ladder from group down to section plus branch, function, location and cost centre. Below them the incumbent, succession, mandatory training, direct reports and any column the tool did not recognise. A field your file does not carry is left out rather than shown as a dash. |
 | **Presentation** | One switch hides successor names, emails, hire dates and nationality, so the chart is safe to project or screen-share. |
 | **PNG** | Saves exactly what is on screen, at slide proportions. |
-| **Print** | Lays the current branch out to fit a page, in light theme — use it to save a branch as PDF. |
+| **Print** | A page that stands on its own: a heading naming the scope, the figures for it, the file, the structure it was built on, any filter or search in force and the date, plus the colour key. The chart fills the rest of the page, in light theme, turned landscape or portrait to suit its shape. With **Compare** or **Reconcile** open, the sheet follows on its own pages — a printed reconciliation to hand to whoever owns the HRIS. Use it to save a PDF. |
 | **CSV** | Follows the view — and the open sheet, so with **Reconcile** open it exports the findings. Otherwise positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts, flag totals and the full profile. |
 
 ## Units with nobody in them

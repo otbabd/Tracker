@@ -504,24 +504,57 @@ svg text { unicode-bidi: plaintext; }
 
 /* ═══ Print ════════════════════════════════════════════════════════════════ */
 @media print {
+  /* Orientation is set at print time from the shape of what is being printed;
+     this is the fallback for a browser that ignores that. */
   @page { size: landscape; margin: 12mm; }
   body, #stage, #chart { background: #fff; }
   body { overflow: visible; }
   #topbar, #toolbar, #zoombar, #detail, #overlay-msg, #legend, #modal, #toast, #drop-screen { display: none !important; }
-  #app, #stage { height: auto; overflow: visible; display: block; }
-  #stage { page-break-inside: avoid; }
-  #chart { width: 100%; height: auto; max-height: 150mm; }
-  .print-head { display: block !important; margin-bottom: 6mm; }
+  #app { height: auto; overflow: visible; display: block; }
+  /* The header takes what it needs and the chart takes the rest of the page,
+     however long the context line runs. Filling the page box rather than a
+     fixed slice of it also stops a wide shallow tree hugging the top edge:
+     the viewBox scales to fit and centres inside whatever it is given. */
+  #stage { height: 100vh; overflow: visible; display: flex; flex-direction: column; }
+  #print-head { flex: none; }
+  #chart {
+    flex: 1 1 auto; min-height: 0; width: 100%; height: auto; max-height: none;
+    page-break-inside: avoid;
+  }
   .link { stroke: #9aa4b0; }
   .card-box { fill: #fff; stroke: #9aa4b0; }
   .t-title { fill: #000; } .t-name { fill: #333; }
   .t-meta, .t-count { fill: #555; }
   .card.dim { opacity: 1; }
   .exp { display: none; }
+
+  /* An open sheet is as often the thing worth printing as the chart is, so it
+     follows on its own pages instead of being thrown away. */
+  #compare, #reconcile {
+    position: static; flex: none; height: auto; min-height: 0; max-height: none;
+    box-shadow: none; border-top: none; page-break-before: always;
+  }
+  .cmp-body { overflow: visible; }
+  .cmp-head { border-bottom: 1px solid #d9dde3; padding-left: 0; padding-right: 0; }
+  .cmp-head .icon-btn, .cmp-head select { display: none !important; }
+  #cmp-table thead th, #cmp-table th:first-child, #cmp-table td:first-child { position: static; }
+  #cmp-table tbody tr, .rec-row, .rec-band { break-inside: avoid; }
+  #cmp-table { font-size: 7.5pt; }
+  .rec-row, .rec-band .why { font-size: 8pt; }
 }
+
 .print-head { display: none; padding: 0 0 4px; }
-.print-head h2 { font-size: 14pt; font-weight: 600; }
-.print-head p { font-size: 9pt; color: #555; }
+@media print { .print-head { display: block !important; margin-bottom: 4mm; } }
+.print-head .row { display: flex; align-items: baseline; gap: 12px; }
+.print-head h2 { font-size: 14pt; font-weight: 600; flex: 1; min-width: 0; }
+.print-head .figs { font-size: 9.5pt; color: #111; white-space: nowrap; }
+.print-head .figs b { font-weight: 650; }
+.print-head p { font-size: 8.5pt; color: #555; margin-top: 2px; }
+.print-head .keys { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 8pt; color: #333; }
+.print-head .keys span { display: inline-flex; align-items: center; gap: 5px; }
+.print-head .keys i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.cmp-context { display: none; }
+@media print { .cmp-context { display: inline; font-size: 8.5pt; color: #555; } }
 
 /* ═══ Narrow screens ═══════════════════════════════════════════════════════ */
 
@@ -725,6 +758,7 @@ svg text { unicode-bidi: plaintext; }
         <h3>Compare units</h3>
         <select id="cmp-level" title="Compare like with like"></select>
         <span class="cmp-count" id="cmp-count"></span>
+        <span class="cmp-context"></span>
         <div class="spacer"></div>
         <button class="icon-btn" id="cmp-close" title="Close" aria-label="Close">✕</button>
       </div>
@@ -735,6 +769,7 @@ svg text { unicode-bidi: plaintext; }
       <div class="cmp-head">
         <h3>Reconcile</h3>
         <span class="cmp-count" id="rec-count"></span>
+        <span class="cmp-context"></span>
         <div class="spacer"></div>
         <button class="icon-btn" id="rec-close" title="Close" aria-label="Close">✕</button>
       </div>
@@ -3645,19 +3680,67 @@ function preparePrint() {
     transform: vp.getAttribute('transform'),
   };
 
+  // A printed chart leaves the screen behind, so the page has to carry its own
+  // context: what it is, what is in it, and what was narrowed to get it.
   const scope = S.rootId ? M().byId.get(S.rootId) : null;
   const scopeName = scope ? (scope.kind === 'unit' ? scope.label : (scope.title || scope.name || scope.id))
     : (isUnits() ? 'Organisation structure' : 'Organisation chart');
+
+  const ns = positionsInScope();
+  const units = isUnits() ? scopedNodes().filter(u => u.dim).length : 0;
+  const vacant = ns.filter(n => n.vacant).length;
+  const gaps = S.model.map.critical ? ns.filter(n => n.critical && !n.successor).length : 0;
+  const figs = [
+    units ? `<b>${int(units)}</b> units` : '',
+    `<b>${int(ns.length)}</b> positions`,
+    `<b>${dec(ns.reduce((t, n) => t + n.fte, 0), 1)}</b> FTE`,
+    vacant ? `<b>${int(vacant)}</b> vacant` : '',
+    gaps ? `<b>${int(gaps)}</b> succession gaps` : '',
+  ].filter(Boolean).join(' · ');
+
+  const narrowed = [
+    ...Object.entries(S.filters).filter(([, v]) => v && v !== 'All')
+      .map(([k, v]) => ((DIMENSIONS.find(d => d.key === k) || {}).label || k) + ': ' + v),
+    S.search ? 'search: ' + S.search : '',
+    [...S.highlight].length ? 'highlighting ' + [...S.highlight].join(', ') : '',
+  ].filter(Boolean);
+
+  const context = [
+    S.fileName,
+    S.unitList.length ? 'structure from "' + S.unitListSource + '"' : '',
+    ...narrowed,
+    new Date().toLocaleDateString(),
+    S.present ? 'names hidden' : '',
+  ].filter(Boolean).join(' · ');
+
+  // Colour means nothing on paper without its key.
+  const key = S.colorBy !== 'none' && S.palette && S.palette.size > 1
+    ? '<div class="keys">' + [...S.palette].slice(0, 14).map(([k, c]) =>
+        `<span><i style="background:${esc(c)}"></i>${esc(k === UNSET ? 'Unspecified' : k)}</span>`).join('') +
+      '</div>'
+    : '';
+
   $('#print-head').innerHTML =
-    `<h2>${esc(scopeName)}</h2>` +
-    `<p>${esc(S.fileName)} · ${int(scopedNodes().length)} positions · ` +
-    `${new Date().toLocaleDateString()}${S.present ? ' · names hidden' : ''}</p>`;
+    `<div class="row"><h2>${esc(scopeName)}</h2><div class="figs">${figs}</div></div>` +
+    `<p>${esc(context)}</p>${key}`;
+  // A sheet prints on its own pages, so it repeats what it belongs to.
+  for (const el of $$('.cmp-context')) el.textContent = scopeName + ' · ' + context;
 
   svg.setAttribute('viewBox',
     `${b.x - pad} ${b.y - pad} ${b.w + pad * 2} ${b.h + pad * 2}`);
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  // No inline height: the print rule sizes the box to the page and the viewBox
+  // scales into it. A wide organisation still cannot be bigger than the page,
+  // but it sits in the middle of one rather than in a band across the top.
   svg.style.width = '100%';
-  svg.style.height = 'auto';
+  svg.style.height = '';
+
+  // Turn the page to suit the shape. A branch of a reporting line is usually
+  // tall and narrow, and landscape wastes most of the paper on it.
+  const page = $('#print-page') || document.head.appendChild(
+    Object.assign(document.createElement('style'), { id: 'print-page' }));
+  page.textContent = `@page { size: ${b.w >= b.h * 1.1 ? 'landscape' : 'portrait'}; margin: 12mm; }`;
+
   vp.removeAttribute('transform');
 
   return function restore() {
