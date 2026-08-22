@@ -34,13 +34,15 @@ and a course list.
 A switch in the toolbar changes what a box means. The file is loaded once and
 the filters carry across.
 
-**Org units** — the view it opens on. One box per organisational unit, showing
-its headcount, FTE and vacancies, the shape of it — layers, average span,
-managers against individual contributors — its function type, sub-unit count, the
-most senior position inside it and the mix of work it does. The shape of the
-organisation rather than the seats in it. It opens as many levels as fit across
-the screen legibly — for a twelve-group bank that is the groups themselves — and
-the rest is a click away.
+**Org units** — the view it opens on. One box per organisational unit: its name,
+the most senior position inside it and who holds it, its headcount, vacancies and
+FTE, its function type and how many sub-units it holds, with the mix of work it
+does as a colour strip along the bottom. Four lines, deliberately — the shape of
+it (job layers, average span, managers against individual contributors) is a
+click away in the detail panel and a sortable column in **Compare**, rather than
+three numbers competing for a row on every box on screen. It opens as many levels
+as fit across the screen legibly — for a twelve-group bank that is the groups
+themselves — and the rest is a click away.
 
 **Positions** — one box per seat, reached from a unit through *Show these
 positions* or the switch. The job title leads, the person in it sits underneath,

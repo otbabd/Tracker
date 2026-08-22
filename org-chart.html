@@ -2077,7 +2077,7 @@ const S = {
   palette: new Map(),
 };
 
-const NODE_W = 252, NODE_H = 96, NODE_H_UNIT = 120;
+const NODE_W = 252, NODE_H = 96, NODE_H_UNIT = 101;
 /* Unit boxes are taller because they carry a line the position boxes do not. */
 const nodeH = () => (S.mode === 'units' ? NODE_H_UNIT : NODE_H);
 const SIB_GAP = 28, LEVEL_GAP = 56;
@@ -2494,16 +2494,9 @@ function unitCardSvg(n) {
       (n.unstaffed ? ' · nobody in post' : '') +
       ' · ' + dec(n.fte, 1) + ' FTE';
 
-  // The shape of the unit: how deep the reporting line runs inside it and how
-  // wide its managers are. "Job layers" rather than "layers" because the number
-  // counts the people in this box, not units below it — the strip calls the
-  // structure "levels", and one word for two things reads as a promise of
-  // something to expand.
-  const shape = n.empty ? '' : [
-    n.layersIn ? int(n.layersIn) + ' job layer' + (n.layersIn === 1 ? '' : 's') : '',
-    n.avgSpan ? 'span ' + dec(n.avgSpan, 1) : '',
-    n.managers ? int(n.managers) + ' mgr / ' + int(n.ics) + ' IC' : 'no managers',
-  ].filter(Boolean).join(' · ');
+  // Job layers, span and the manager/IC split are not on the box: three numbers
+  // competing for one row, none of them the question the chart is usually being
+  // asked. They are a click away in the detail panel and sortable in Compare.
 
   // A unit at the end of the structure says so, in the place its siblings say
   // how many sub-units they hold: an empty slot looks like a control that
@@ -2520,7 +2513,7 @@ function unitCardSvg(n) {
   const gapChip = n.gaps ? (() => {
     const label = String(n.gaps);
     const w = Math.max(17, label.length * 7 + 12);
-    return `<g transform="translate(${NODE_W - 11 - w},91)">` +
+    return `<g transform="translate(${NODE_W - 11 - w},72)">` +
       `<title>${n.gaps} critical role${n.gaps > 1 ? 's' : ''} with no successor identified</title>` +
       `<rect width="${w}" height="15" rx="4" fill="var(--critical)"/>` +
       `<text x="${w / 2}" y="11" text-anchor="middle" font-size="10" font-weight="700" ` +
@@ -2537,8 +2530,7 @@ function unitCardSvg(n) {
     `<text class="t-name" x="14" y="42">${svgesc(fit(lead, NODE_W - 28, FONTS.name))}</text>` +
     `<text class="${n.empty || n.unstaffed ? 't-vacant' : 't-meta'}" x="14" y="61">` +
       `${svgesc(fit(people, NODE_W - 28, FONTS.meta))}</text>` +
-    (shape ? `<text class="t-count" x="14" y="80">${svgesc(fit(shape, NODE_W - 28, FONTS.count))}</text>` : '') +
-    `<text class="t-meta foot" x="14" y="101">${svgesc(fit(foot, footMax, FONTS.meta))}</text>` +
+    `<text class="t-meta foot" x="14" y="82">${svgesc(fit(foot, footMax, FONTS.meta))}</text>` +
     gapChip + mixStrip(n) +
     `</g>`;
 }
