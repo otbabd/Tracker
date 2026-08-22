@@ -269,7 +269,16 @@ is remembered for the next export with the same columns.
 
 Formats: `.xlsx`, `.csv`, `.tsv`. Comma, semicolon, tab and pipe delimiters are
 detected automatically, as is a header row sitting below title rows. Arabic text
-renders correctly throughout. Yes/No columns are read generously — `Yes`, `Y`,
+renders correctly throughout.
+
+**In a workbook, the positions are whichever tab most looks like positions** —
+not whichever comes first. A cover sheet, a parameters tab or a pivot summary in
+front of the export is skipped: a tab is only a candidate if it has an ID column,
+and it is ranked on whether it also carries a manager ID, a job title and an
+incumbent name, with the row count breaking ties so a short summary never
+outranks the real export. The remaining tabs are read for the unit list and the
+course list. When the tab chosen is not the first one, the load message names
+it. Yes/No columns are read generously — `Yes`, `Y`,
 `TRUE`, `1`, `X`, `✓` and `نعم` all mean yes; `Not required` and `N/A` mean no.
 
 ### Messy exports

@@ -1627,6 +1627,27 @@ function looksLikeCourseList(sheetName, headers, records) {
   return map;
 }
 
+/* Which tab holds the positions. A cover sheet or a parameters tab fails to
+   parse at all and is already out; what is left is judged on the columns that
+   make a sheet a position export rather than a summary of one. The row count
+   only breaks ties, so a twelve-row pivot never outranks the real thing. */
+function choosePositionSheet(parsed) {
+  let best = -1, bestScore = 0;
+  parsed.forEach((t, i) => {
+    if (!t) return;
+    if (looksLikeCourseList(t.name, t.headers, t.records)) return;
+    if (looksLikeUnitList(t.name, t.headers, t.records)) return;
+    const m = detectColumns(t.headers, t.records, { noFallback: true });
+    if (!m.id) return;   // without an ID column there is nothing to chart
+    const score = 3 + (m.managerId ? 3 : 0) + (m.title ? 2 : 0) + (m.name ? 1 : 0)
+      + Math.min(t.records.length / 100000, 0.9);
+    if (score > bestScore) { bestScore = score; best = i; }
+  });
+  // Nothing recognisable: fall back to the first tab and let the usual failure
+  // path put the Columns mapper in front of the user.
+  return best >= 0 ? best : 0;
+}
+
 function parseCourseList(headers, records, map) {
   const out = [];
   for (const r of records) {
@@ -3760,7 +3781,7 @@ function loadMapping(headers) {
 
 /* ─── Loading a file ────────────────────────────────────────────────────── */
 function startModel(headers, records, map, fileName, remember, unitList, unitSource,
-                    courseList, courseSource) {
+                    courseList, courseSource, sheetName) {
   const model = buildModel(headers, records, map);
   model.records = records;
   S.model = model;
@@ -3801,6 +3822,8 @@ function startModel(headers, records, map, fileName, remember, unitList, unitSou
   refresh();
 
   const extras = [];
+  // Worth saying which tab it read when it was not the obvious one.
+  if (sheetName) extras.push('read from "' + sheetName + '"');
   if (model.issues.length) extras.push(model.issues.length + ' rows needed repair');
   if (S.unitList.length) extras.push(S.unitList.length + ' units from "' + S.unitListSource + '"');
   if (S.courseList.length) extras.push(S.courseList.length + ' course requirements');
@@ -3836,36 +3859,42 @@ async function loadFile(file) {
       }
     }
 
-    const { headers, records } = toRecords(sheets[0].rows);
+    // Real workbooks rarely put the export first — a cover sheet, a parameters
+    // tab or a pivot summary usually gets there before it — so the positions
+    // are the tab that most looks like positions, not the tab that is first.
+    const parsed = sheets.map(sh => {
+      try { return { name: sh.name, ...toRecords(sh.rows) }; } catch { return null; }
+    });
+    const pick = choosePositionSheet(parsed);
+    const chosen = parsed[pick] || { name: sheets[0].name, ...toRecords(sheets[0].rows) };
+    const { headers, records } = chosen;
     const map = loadMapping(headers) || detectColumns(headers, records);
     window._pending = { headers, records, map };
 
     // Any remaining tab that describes the structure or the training is picked
     // up with it.
     let unitList = [], source = '', courseList = [], courseSource = '';
-    for (const sh of sheets.slice(1)) {
-      try {
-        const t = toRecords(sh.rows);
-        if (!courseList.length) {
-          const cm = looksLikeCourseList(sh.name, t.headers, t.records);
-          if (cm) {
-            courseList = parseCourseList(t.headers, t.records, cm);
-            courseSource = sh.name;
-            continue;
-          }
+    for (const [i, t] of parsed.entries()) {
+      if (i === pick || !t) continue;
+      if (!courseList.length) {
+        const cm = looksLikeCourseList(t.name, t.headers, t.records);
+        if (cm) {
+          courseList = parseCourseList(t.headers, t.records, cm);
+          courseSource = t.name;
+          continue;
         }
-        if (!unitList.length) {
-          const um = looksLikeUnitList(sh.name, t.headers, t.records);
-          if (um) {
-            unitList = parseUnitList(t.headers, t.records, um);
-            source = sh.name;
-          }
+      }
+      if (!unitList.length) {
+        const um = looksLikeUnitList(t.name, t.headers, t.records);
+        if (um) {
+          unitList = parseUnitList(t.headers, t.records, um);
+          source = t.name;
         }
-      } catch { /* an unreadable extra tab is not a reason to fail the import */ }
+      }
     }
 
     startModel(headers, records, map, file.name, false, unitList, source,
-               courseList, courseSource);
+               courseList, courseSource, pick > 0 ? chosen.name : '');
     err.innerHTML = '';
   } catch (e) {
     err.innerHTML = `<div class="err" style="margin-top:14px">${esc(e.message)}</div>`;
