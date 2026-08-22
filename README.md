@@ -182,7 +182,7 @@ with more than one setting opens a popover rather than taking a row of its own.
 | | |
 |---|---|
 | **Search** | Name, job title or ID. Matches are highlighted and their branches opened. Press `/` to jump to the box. |
-| **Filters** | One narrowing control for each dimension your file actually carries — ladder level, branch, function, job type, pay basis, talent pool, grade, location. Matches keep their reporting line, so the tree never breaks into fragments. |
+| **Filters** | One narrowing control for each dimension your file actually carries — ladder level, branch, function, job type, pay basis, talent pool, grade, location — and they cascade: each list offers only what exists under the choices above it, so picking a group leaves that group's divisions and departments and nothing else. A dimension the choices have emptied drops out of the panel until it has something to offer again, and a choice another one has made impossible is cleared before the chart is drawn, with the panel saying which. Matches keep their reporting line, so the tree never breaks into fragments. |
 | **Branch** | Pick one leader — or one unit — to work inside alone. |
 | **Units…** | Structure of the org view: nesting columns, sibling order, and whether the hierarchy comes from columns or from the unit list. |
 | **Compare** | A sortable table of units under the chart, filtered to one level so the ranking means something. |

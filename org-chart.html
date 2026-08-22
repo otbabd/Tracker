@@ -2078,6 +2078,7 @@ const S = {
   cmpLevel: 'all',
   unitSource: 'structure',
   findings: [],
+  filtersDropped: [],
   fileName: '',
   collapsed: new Set(),
   unitCollapsed: new Set(),
@@ -2839,9 +2840,9 @@ function fillSelect(el, label, values, current) {
     values.map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(v)}</option>`).join('');
 }
 
-function distinct(key) {
+function distinct(key, rows = S.model.nodes) {
   const set = new Set();
-  for (const n of S.model.nodes) if (n[key]) set.add(n[key]);
+  for (const n of rows) if (n[key]) set.add(n[key]);
   return [...set].sort((a, b) => String(a).localeCompare(String(b)));
 }
 
@@ -2967,23 +2968,102 @@ function fitMetrics() {
 
 /* A file carries a handful of the dimensions the tool knows about, so the
    popover offers exactly those rather than a column of empty selects. */
-function renderFilterFields() {
-  const present = DIMENSIONS.filter(d => distinct(d.key).length > 1);
-  for (const key of Object.keys(S.filters)) {
-    if (!present.some(d => d.key === key)) delete S.filters[key];
+/* Every list offers what is actually reachable from the other choices in force.
+   Picking a group should leave the divisions below it, not the ones belonging
+   to some other group — and a dimension the choices have emptied is dropped
+   rather than sitting there offering nothing. */
+/* Each list is narrowed by the choices above it and nothing below, which is what
+   the panel already looks like it promises: pick a group and the divisions
+   inside it follow, while the group list keeps all of them so you can still
+   change your mind. One pass down the panel, carrying the population as it
+   narrows.
+
+   A choice the ones above it have made impossible would leave an empty chart
+   with no explanation, so it is dropped here — before anything is drawn — and
+   the drop is reported in the panel. */
+function scopeFilters() {
+  const walk = () => {
+    const scope = {};
+    let rows = S.model.nodes;
+    for (const d of DIMENSIONS) {
+      scope[d.key] = distinct(d.key, rows);
+      const want = S.filters[d.key];
+      if (want && want !== 'All') rows = rows.filter(n => (n[d.key] || UNSET) === want);
+    }
+    return scope;
+  };
+
+  let scope = walk();
+  const dropped = [];
+  for (const d of DIMENSIONS) {
+    const want = S.filters[d.key];
+    if (want && want !== 'All' && !scope[d.key].includes(want)) {
+      S.filters[d.key] = 'All';
+      dropped.push(d.label);
+      scope = walk();
+    }
   }
-  $('#filter-fields').innerHTML = present.length
-    ? present.map(d => {
-        const cur = S.filters[d.key] || 'All';
-        S.filters[d.key] = cur;
-        return `<div class="field"><label for="flt-${d.key}">${esc(d.label)}</label>` +
-          `<select id="flt-${d.key}" data-filter="${d.key}">` +
-          `<option value="All">All</option>` +
-          distinct(d.key).map(v =>
-            `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('') +
-          `</select></div>`;
-      }).join('')
-    : '<p class="hint">This file has no columns to filter by.</p>';
+  // Remembered rather than returned, because the pruning happens before the
+  // draw and the panel is rendered after it — the note has to survive the trip.
+  if (dropped.length) S.filtersDropped = dropped;
+  return scope;
+}
+
+function renderFilterFields() {
+  const box = $('#filter-fields');
+  const scope = scopeFilters();
+  const dropped = S.filtersDropped || [];
+  S.filtersDropped = [];
+
+  // Worth filtering by at all is a question about the file; worth showing right
+  // now is a question about what is in scope.
+  const present = DIMENSIONS.filter(d => distinct(d.key).length > 1 && scope[d.key].length);
+  for (const key of Object.keys(S.filters)) {
+    if (!DIMENSIONS.some(d => d.key === key && distinct(d.key).length > 1)) delete S.filters[key];
+  }
+
+  if (!present.length) {
+    box.innerHTML = '<p class="hint">This file has no columns to filter by.</p>';
+    return;
+  }
+
+  // Rebuilt in place rather than rewritten: replacing the markup on every
+  // refresh would take the focus off the select being used.
+  present.forEach((d, i) => {
+    let field = box.querySelector(`.field[data-dim="${d.key}"]`);
+    if (!field) {
+      field = document.createElement('div');
+      field.className = 'field';
+      field.dataset.dim = d.key;
+      field.innerHTML = `<label for="flt-${d.key}">${esc(d.label)}</label>` +
+        `<select id="flt-${d.key}" data-filter="${d.key}"></select>`;
+    }
+    const sel = field.querySelector('select');
+    const sig = scope[d.key].join('\u0001');
+    if (sel.dataset.sig !== sig) {
+      sel.dataset.sig = sig;
+      sel.innerHTML = '<option value="All">All</option>' +
+        scope[d.key].map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    }
+    const cur = S.filters[d.key] || 'All';
+    S.filters[d.key] = cur;
+    if (sel.value !== cur) sel.value = cur;
+    if (box.children[i] !== field) box.insertBefore(field, box.children[i] || null);
+  });
+
+  const keep = new Set(present.map(d => 'flt-' + d.key));
+  for (const el of [...box.children]) {
+    const sel = el.querySelector && el.querySelector('select');
+    if (!sel || !keep.has(sel.id)) el.remove();
+  }
+
+  const note = dropped.length
+    ? esc(dropped.join(' and ')) + ' ' + (dropped.length > 1 ? 'were' : 'was') +
+      ' cleared — not available under the filters now in force.'
+    : '';
+  let hint = box.querySelector('.hint');
+  if (note && !hint) { hint = document.createElement('p'); hint.className = 'hint'; box.appendChild(hint); }
+  if (hint) { hint.innerHTML = note; hint.hidden = !note; }
 }
 
 /* Counts on the Filters and Highlight buttons, so an active setting is visible
@@ -3030,12 +3110,16 @@ function renderLegend(counts) {
 
 /* ─── Full refresh ──────────────────────────────────────────────────────── */
 function refresh(keepView) {
+  // Reconcile the filters first: a choice left impossible by another would
+  // otherwise draw an empty chart and only be cleared afterwards.
+  if (S.model) scopeFilters();
   if (isUnits()) rebuildUnits();
   const counts = buildPalette();
   const before = { ...S.view };
   draw();
   renderStats();
   renderChips();
+  renderFilterFields();
   renderBadges();
   renderLegend(counts);
   renderCompare();
@@ -4503,6 +4587,7 @@ function wireApp() {
 
   $('#btn-reset').onclick = () => {
     S.filters = {};
+    S.filtersDropped = [];
     S.highlight = new Set();
     S.rootId = '';
     S.search = '';
