@@ -188,7 +188,7 @@ with more than one setting opens a popover rather than taking a row of its own.
 | **Compare** | A sortable table of units under the chart, filtered to one level so the ranking means something. |
 | **Reconcile** | Where the approved structure and the reporting line disagree, banded by finding and clickable through to each one. |
 | **Flag chips** | Highlight critical roles, SAMA roles, succession gaps or vacancies in place. |
-| **Colour by** | Recolour the boxes by function, department, grade, location and so on. |
+| **Colour by** | Recolour the boxes by function, department, grade, location and so on — or by **Filled / vacant** in the positions view and **Staffing** in the org view, which use the theme's own green and amber rather than the categorical palette, so a vacant box reads as vacant wherever you meet it. The legend and the boxes take the same colour from the same place, in either theme. |
 | **Click a box** | Everything held about that position, in two parts: **The job** — code, grade, family, function type, job type, pay basis, talent pool, employment type, FTE, status — and **Where it sits**, the full ladder from group down to section plus branch, function, location and cost centre. Below them the incumbent, succession, mandatory training, direct reports and any column the tool did not recognise. A field your file does not carry is left out rather than shown as a dash. |
 | **Presentation** | One switch hides successor names, emails, hire dates and nationality, so the chart is safe to project or screen-share. |
 | **PNG** | Saves exactly what is on screen, at slide proportions. |

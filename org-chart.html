@@ -26,6 +26,7 @@
   --sama:        #4b3f8f;
   --ok:          #1a6b45;
   --vacant:      #8a5300;
+  --vacant-soft: #a86a2c;
   --radius:      6px;
   --radius-sm:   4px;
   --topbar-h:    52px;
@@ -48,6 +49,7 @@
   --sama:        #a99ae4;
   --ok:          #56b98d;
   --vacant:      #d69a45;
+  --vacant-soft: #c99a63;
   --ring:        0 0 0 3px rgba(133,171,214,.2);
   --pop-shadow:  0 12px 34px rgba(0,0,0,.5);
 }
@@ -2389,6 +2391,17 @@ function colourKey(n) {
 
 /* Built from the whole model, not just what is on screen, so colours stay put
    as branches are opened and closed. */
+/* Staffing and vacancy are not arbitrary categories — green means filled and
+   amber means vacant everywhere else in the tool, so those keys take the
+   theme's own tokens rather than the next colour off the categorical wheel. */
+const MEANING_COLOURS = {
+  Filled: 'var(--ok)',           Vacant: 'var(--vacant)',
+  'Fully staffed': 'var(--ok)',  'Partly vacant': 'var(--vacant-soft)',
+  'All vacant': 'var(--vacant)', 'No positions': GREY,
+};
+const semanticColouring = () =>
+  isUnits() ? S.unitColorBy === 'staffing' : S.colorBy === 'vacancy';
+
 function buildPalette() {
   const counts = new Map();
   for (const n of (isUnits() ? S.unitModel.nodes : S.model.nodes)) {
@@ -2397,9 +2410,11 @@ function buildPalette() {
   }
   const ordered = [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+  const meant = semanticColouring();
   S.palette = new Map();
   ordered.forEach(([k], i) => {
-    S.palette.set(k, k === UNSET ? GREY : PALETTE[i % PALETTE.length]);
+    S.palette.set(k, meant ? (MEANING_COLOURS[k] || GREY)
+      : k === UNSET ? GREY : PALETTE[i % PALETTE.length]);
   });
   return counts;
 }
@@ -2434,19 +2449,13 @@ function cardMix(u) {
   return null;
 }
 
-const STAFFING_COLOURS = {
-  'Fully staffed': '#1a6b45', 'Partly vacant': '#a86a2c',
-  'All vacant': '#8a5300', 'No positions': '#94a3b8',
-};
-
+/* One lookup for every colouring, so the legend and the boxes cannot disagree:
+   both read S.palette. */
 function colourOf(n) {
-  if (n.kind === 'unit') {
-    if (S.unitColorBy === 'staffing') return STAFFING_COLOURS[colourKey(n)] || GREY;
-    return S.palette.get(colourKey(n)) || 'var(--accent)';
-  }
-  if (S.colorBy === 'none') return 'var(--accent)';
-  if (S.colorBy === 'vacancy') return n.vacant ? '#d97706' : '#059669';
-  return S.palette.get(colourKey(n)) || GREY;
+  const c = S.palette.get(colourKey(n));
+  if (c) return c;
+  return n.kind === 'unit' ? 'var(--accent)'
+    : S.colorBy === 'none' ? 'var(--accent)' : GREY;
 }
 
 /* ─── Drawing ───────────────────────────────────────────────────────────── */
