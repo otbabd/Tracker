@@ -550,9 +550,6 @@ svg text { unicode-bidi: plaintext; }
 .print-head .figs { font-size: 9.5pt; color: #111; white-space: nowrap; }
 .print-head .figs b { font-weight: 650; }
 .print-head p { font-size: 8.5pt; color: #555; margin-top: 2px; }
-.print-head .keys { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 8pt; color: #333; }
-.print-head .keys span { display: inline-flex; align-items: center; gap: 5px; }
-.print-head .keys i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
 .cmp-context { display: none; }
 @media print { .cmp-context { display: inline; font-size: 8.5pt; color: #555; } }
 
@@ -3680,8 +3677,9 @@ function preparePrint() {
     transform: vp.getAttribute('transform'),
   };
 
-  // A printed chart leaves the screen behind, so the page has to carry its own
-  // context: what it is, what is in it, and what was narrowed to get it.
+  // A printed chart leaves the screen behind, so the page names what it is and
+  // what is in it — and nothing else, since the browser already prints the file
+  // and the date around the edges.
   const scope = S.rootId ? M().byId.get(S.rootId) : null;
   const scopeName = scope ? (scope.kind === 'unit' ? scope.label : (scope.title || scope.name || scope.id))
     : (isUnits() ? 'Organisation structure' : 'Organisation chart');
@@ -3695,36 +3693,25 @@ function preparePrint() {
     `<b>${int(ns.length)}</b> positions`,
     `<b>${dec(ns.reduce((t, n) => t + n.fte, 0), 1)}</b> FTE`,
     vacant ? `<b>${int(vacant)}</b> vacant` : '',
-    gaps ? `<b>${int(gaps)}</b> succession gaps` : '',
+    gaps ? `<b>${int(gaps)}</b> succession gap${gaps === 1 ? '' : 's'}` : '',
   ].filter(Boolean).join(' · ');
 
+  // Only what changes the meaning of the page. The file name, the date and the
+  // browser's own header already say where it came from; a filter is the one
+  // thing a reader cannot see and must not miss.
   const narrowed = [
     ...Object.entries(S.filters).filter(([, v]) => v && v !== 'All')
       .map(([k, v]) => ((DIMENSIONS.find(d => d.key === k) || {}).label || k) + ': ' + v),
     S.search ? 'search: ' + S.search : '',
-    [...S.highlight].length ? 'highlighting ' + [...S.highlight].join(', ') : '',
-  ].filter(Boolean);
-
-  const context = [
-    S.fileName,
-    S.unitList.length ? 'structure from "' + S.unitListSource + '"' : '',
-    ...narrowed,
-    new Date().toLocaleDateString(),
     S.present ? 'names hidden' : '',
   ].filter(Boolean).join(' · ');
 
-  // Colour means nothing on paper without its key.
-  const key = S.colorBy !== 'none' && S.palette && S.palette.size > 1
-    ? '<div class="keys">' + [...S.palette].slice(0, 14).map(([k, c]) =>
-        `<span><i style="background:${esc(c)}"></i>${esc(k === UNSET ? 'Unspecified' : k)}</span>`).join('') +
-      '</div>'
-    : '';
-
   $('#print-head').innerHTML =
     `<div class="row"><h2>${esc(scopeName)}</h2><div class="figs">${figs}</div></div>` +
-    `<p>${esc(context)}</p>${key}`;
-  // A sheet prints on its own pages, so it repeats what it belongs to.
-  for (const el of $$('.cmp-context')) el.textContent = scopeName + ' · ' + context;
+    (narrowed ? `<p>Showing only — ${esc(narrowed)}</p>` : '');
+  for (const el of $$('.cmp-context')) {
+    el.textContent = scopeName + (narrowed ? ' · ' + narrowed : '');
+  }
 
   svg.setAttribute('viewBox',
     `${b.x - pad} ${b.y - pad} ${b.w + pad * 2} ${b.h + pad * 2}`);
