@@ -2494,20 +2494,28 @@ function unitCardSvg(n) {
       (n.unstaffed ? ' · nobody in post' : '') +
       ' · ' + dec(n.fte, 1) + ' FTE';
 
-  // The shape of the unit: how deep it runs and how wide its managers are.
+  // The shape of the unit: how deep the reporting line runs inside it and how
+  // wide its managers are. "Job layers" rather than "layers" because the number
+  // counts the people in this box, not units below it — the strip calls the
+  // structure "levels", and one word for two things reads as a promise of
+  // something to expand.
   const shape = n.empty ? '' : [
-    n.layersIn ? int(n.layersIn) + ' layer' + (n.layersIn === 1 ? '' : 's') : '',
+    n.layersIn ? int(n.layersIn) + ' job layer' + (n.layersIn === 1 ? '' : 's') : '',
     n.avgSpan ? 'span ' + dec(n.avgSpan, 1) : '',
     n.managers ? int(n.managers) + ' mgr / ' + int(n.ics) + ' IC' : 'no managers',
   ].filter(Boolean).join(' · ');
 
+  // A unit at the end of the structure says so, in the place its siblings say
+  // how many sub-units they hold: an empty slot looks like a control that
+  // failed to draw rather than the bottom of the ladder.
+  const kind = n.children.length && n.children[0].dim === 'department' ? 'department'
+    : n.children.length && n.children[0].dim === 'function' ? 'function' : 'sub-unit';
   const sub = n.children.length
-    ? int(n.children.length) + ' ' + (n.children[0].dim === 'department' ? 'departments'
-        : n.children[0].dim === 'function' ? 'functions' : 'sub-units')
-    : '';
+    ? int(n.children.length) + ' ' + kind + (n.children.length === 1 ? '' : 's')
+    : (n.dim && !n.empty ? 'no sub-units' : '');
   const foot = n.offStructure
     ? ['Not in the approved structure', sub].filter(Boolean).join(' · ')
-    : [n.functionType, sub].filter(Boolean).join(' · ') || (n.dim ? 'lowest level' : '');
+    : [n.functionType, sub].filter(Boolean).join(' · ');
 
   const gapChip = n.gaps ? (() => {
     const label = String(n.gaps);
@@ -3029,7 +3037,7 @@ const CMP_COLUMNS = [
   { key: 'headcount',    label: 'Positions' },
   { key: 'fte',          label: 'FTE',         dp: 1 },
   { key: 'vacant',       label: 'Vacant',      tone: v => v ? 'warn' : 'muted' },
-  { key: 'layersIn',     label: 'Layers' },
+  { key: 'layersIn',     label: 'Job layers' },
   { key: 'avgSpan',      label: 'Avg span',    dp: 1 },
   { key: 'managers',     label: 'Mgrs' },
   { key: 'ics',          label: 'ICs' },
@@ -3296,7 +3304,7 @@ function openUnitDetail(u) {
         <div><div class="v">${int(u.unitCount)}</div><div class="k">Units below</div></div>
         <div><div class="v">${int(u.critical)}</div><div class="k">Critical roles</div></div>
         <div><div class="v">${int(u.sama)}</div><div class="k">SAMA roles</div></div>
-        <div><div class="v">${int(u.layersIn)}</div><div class="k">Layers inside</div></div>
+        <div><div class="v">${int(u.layersIn)}</div><div class="k">Job layers</div></div>
         <div><div class="v">${u.avgSpan ? dec(u.avgSpan, 1) : '—'}</div><div class="k">Average span</div></div>
         <div><div class="v">${int(u.managers)}</div><div class="k">Managers</div></div>
         <div><div class="v">${int(u.ics)}</div><div class="k">Individual contributors</div></div>
