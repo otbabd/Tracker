@@ -145,6 +145,19 @@ box in the chart.
 | **Succession & control** | Critical roles with no successor named; critical roles standing empty, where the exposure is present rather than future; SAMA non-objection roles with their vacancies and gaps; how ready the named successors are; the depth of the talent-pool bench against the critical seats. |
 | **Composition** | Front, middle and back office; the three lines of defence, and what share of the workforce sits in control and assurance rather than in the business; where the grades sit; Saudization across the filled seats, lowest group first. |
 
+**A chart where the question is "how much", a list where the question is
+"which ones".** A distribution gets drawn: managers by span with the flagged end
+picked out and the rest receding, headcount by layer with the band below the line
+lit, filled against vacant as one proportion bar, the worst units and the grade
+spread as ranked bars. But a card naming thirty-one exposed critical roles keeps
+those thirty-one names, because a bar labelled 31 is not something you can act
+on. Cards that do both put the shape first and the names under it.
+
+Point at any mark for the figure and what it is; the keyboard reaches the same
+readout. Click one and it does what the row beside it does — a grade bar filters
+the chart to that grade, a unit bar opens that unit. Nothing is only reachable by
+hovering: every value is on the mark, at the row end, or in the CSV.
+
 Three numbers decide what counts as wide, narrow and deep. They are house rules
 rather than facts, so they sit on the panel — change one and every card that uses
 it re-reads, its sentence included, so a printed page still says what was tested.
@@ -230,6 +243,7 @@ down; filters stay, because they are how the panel is scoped.
 | **Reconcile** | Where the approved structure and the reporting line disagree, banded by finding and clickable through to each one. |
 | **Insights** | A third view rather than a sheet: cards that read the file and say what is worth looking at — shape, staffing, succession and control, composition. The thresholds it tests against sit on the panel. |
 | **Flag chips** | Highlight critical roles, SAMA roles, succession gaps or vacancies in place. |
+| **Colour** | Chart colours are checked rather than chosen by eye. Front / middle / back is an ordered scale, so it is a single hue running light to dark, stepped separately for each theme; pay basis is identity, so it takes distinct hues; staffing and readiness share one status vocabulary — filled, partly, all — so the same state is the same colour wherever you meet it. Every set clears the colourblind-separation and contrast thresholds in both themes, and every segment is labelled, so nothing depends on telling two colours apart. |
 | **Colour by** | Recolour the boxes by function, department, grade, location and so on — or by **Filled / vacant** in the positions view and **Staffing** in the org view, which use the theme's own green and amber rather than the categorical palette, so a vacant box reads as vacant wherever you meet it. The legend and the boxes take the same colour from the same place, in either theme. |
 | **Click a box** | Everything held about that position, in two parts: **The job** — code, grade, family, function type, job type, pay basis, talent pool, employment type, FTE, status — and **Where it sits**, the full ladder from group down to section plus branch, function, location and cost centre. Below them the incumbent, succession, mandatory training, direct reports and any column the tool did not recognise. A field your file does not carry is left out rather than shown as a dash. |
 | **Presentation** | One switch hides successor names, emails, hire dates and nationality, so the chart is safe to project or screen-share. |

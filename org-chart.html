@@ -26,7 +26,7 @@
   --sama:        #4b3f8f;
   --ok:          #1a6b45;
   --vacant:      #8a5300;
-  --vacant-soft: #a86a2c;
+  --vacant-soft: #bf8410;
   --radius:      6px;
   --radius-sm:   4px;
   --topbar-h:    52px;
@@ -49,7 +49,7 @@
   --sama:        #a99ae4;
   --ok:          #56b98d;
   --vacant:      #d69a45;
-  --vacant-soft: #c99a63;
+  --vacant-soft: #9c6a44;
   --ring:        0 0 0 3px rgba(133,171,214,.2);
   --pop-shadow:  0 12px 34px rgba(0,0,0,.5);
 }
@@ -471,6 +471,49 @@ svg text { unicode-bidi: plaintext; }
 }
 .ins-more { padding: 6px 0 8px; font-size: .76rem; color: var(--text-mute); }
 .ins-card .prof { margin-top: 9px; padding-bottom: 6px; }
+
+/* ── Chart marks ───────────────────────────────────────────────────────────
+   Thin marks, a 2px gap in the surface colour doing the separating rather than
+   a stroke, hairline axes one step off the surface, and text in text tokens —
+   the data is the only thing allowed to be loud.
+   ────────────────────────────────────────────────────────────────────────── */
+.ins-chart { display: block; width: 100%; height: auto; margin: 10px 0 2px; }
+.ins-chart .mark { transition: opacity .1s; }
+.ins-chart .hit { fill: transparent; cursor: default; outline: none; }
+.ins-chart .hit:hover + .mark, .ins-chart .hit:focus-visible + .mark { opacity: .78; }
+.ins-chart .hit:focus-visible { fill: var(--accent-soft); }
+.ins-chart .axis { stroke: var(--border-2); stroke-width: 1; }
+.ins-chart .tick { fill: var(--text-mute); font-size: 9.5px; }
+.ins-chart .val  { fill: var(--text-dim); font-size: 10px; font-weight: 600; }
+
+/* Proportion bar: the gap is the separator, so the segments carry no stroke. */
+.ins-card .prof-bar { gap: 2px; background: none; height: 9px; border-radius: 0; }
+.ins-card .prof-bar span { border-radius: 1px; }
+.ins-card .prof-bar span:first-child { border-radius: 4px 1px 1px 4px; }
+.ins-card .prof-bar span:last-child  { border-radius: 1px 4px 4px 1px; }
+.ins-card .prof-bar span:only-child  { border-radius: 4px; }
+
+/* A ranked row is a bar chart that kept its labels: name, mark, value. */
+.ins-row.ranked {
+  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(46px, 1fr) auto; gap: 9px;
+}
+.ins-row.ranked .who { max-width: none; }
+.ins-track {
+  position: relative; align-self: center; height: 8px;
+  background: var(--surface-2); border-radius: 4px;
+}
+.ins-track i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+.ins-track .ref { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text-mute); }
+.ins-refnote { font-size: .72rem; color: var(--text-mute); padding: 6px 0 0; }
+
+#ins-tip {
+  position: fixed; z-index: 60; pointer-events: none;
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm); box-shadow: var(--pop-shadow);
+  padding: 5px 9px; font-size: .78rem; max-width: 260px;
+}
+#ins-tip b { display: block; color: var(--text); font-weight: 600; font-size: .84rem; }
+#ins-tip span { color: var(--text-mute); }
 .ins-empty { padding: 34px 2px; font-size: .84rem; color: var(--text-mute); max-width: 60ch; }
 
 /* ═══ Detail panel ═════════════════════════════════════════════════════════ */
@@ -639,6 +682,8 @@ svg text { unicode-bidi: plaintext; }
   .ins-sec { break-inside: auto; }
   .ins-sec > h4 { padding: 5mm 0 2mm; }
   .ins-card > h5, .ins-row { font-size: 8.5pt; }
+  #ins-tip { display: none !important; }
+  .ins-chart .hit { display: none; }
   .ins-note, .ins-more { font-size: 8pt; color: #555; }
   .ins-fig b { font-size: 15pt; }
 }
@@ -893,6 +938,7 @@ svg text { unicode-bidi: plaintext; }
         </div>
       </div>
       <div class="ins-body" id="ins-body"></div>
+      <div id="ins-tip" role="status" hidden></div>
     </section>
 
     <aside id="detail" hidden></aside>
@@ -2544,33 +2590,51 @@ function buildPalette() {
   return counts;
 }
 
-/* Front to back reads as a gradient, so the mix strip is scannable without a
-   legend: the further back the work, the cooler the colour. */
-const MIX_COLOURS = {
-  jobType: {
-    front: '#2b5580', middle: '#4a7c59', back: '#8a6a2f', other: '#94a3b8',
+/* Front to back is an ordered scale, so it takes a one-hue ramp, light to dark —
+   the previous gradient ran across three hues and two of them (#4a7c59 and
+   #8a6a2f) were ΔE 9.7 apart in normal vision, below the 15 floor: hard to tell
+   apart with full colour vision, worse without. Pay basis is identity rather
+   than order, so it takes distinct hues. Readiness is a status scale — ready,
+   soon, not soon — and keeps the theme's own good / warning / serious.
+
+   Each set is stepped for its own surface rather than flipped: a light-to-dark
+   ramp loses its dark end on a dark ground. Every set below has been through
+   the palette validator against this tool's own surfaces (#ffffff / #191d24).
+
+   The tables are ordered lists, not objects: the first substring that matches
+   wins, so "Ready now" is settled before "1" can catch "Ready 1-2 years". */
+/* Soonest first, so the bar runs in the order the reader counts in — and the
+   first match wins, so "Ready now" is settled before "1" can catch
+   "Ready 1-2 years". */
+const READINESS = [
+  ['ready now', 'var(--ok)'], ['immediate', 'var(--ok)'],
+  ['1', 'var(--vacant-soft)'], ['2', 'var(--vacant-soft)'],
+  ['3', 'var(--vacant)'], ['4', 'var(--vacant)'], ['5', 'var(--vacant)'],
+  ['longer', 'var(--vacant)'],
+];
+
+const MIX_SCALES = {
+  light: {
+    jobType:   [['front', '#7ba7d9'], ['middle', '#4a7fbf'], ['back', '#1f4f82']],
+    payType:   [['incentive', '#d97706'], ['bonus', '#7c3aed'], ['fixed', '#059669']],
+    readiness: READINESS,
   },
-  payType: {
-    incentive: '#a86a2c', bonus: '#4b3f8f', fixed: '#4a7c59', other: '#94a3b8',
-  },
-  /* Readiness reads as a countdown, so it takes the tool's own green-to-amber
-     rather than the categorical wheel. Longest horizon first: "ready 1-2
-     years" contains "ready" too, so the specific tests have to run before it. */
-  readiness: {
-    '3': '#8a5300', '4': '#8a5300', '5': '#8a5300', 'longer': '#8a5300',
-    '1': '#a86a2c', '2': '#a86a2c',
-    'ready now': '#1a6b45', 'immediate': '#1a6b45', 'now': '#1a6b45',
-    other: '#94a3b8',
+  dark: {
+    jobType:   [['front', '#9cc2e8'], ['middle', '#5f95d1'], ['back', '#2f6aa8']],
+    payType:   [['incentive', '#c98420'], ['bonus', '#8f79e8'], ['fixed', '#13a370']],
+    readiness: READINESS,
   },
 };
 
+const isDark = () => document.documentElement.dataset.theme === 'dark';
+const mixScale = key => MIX_SCALES[isDark() ? 'dark' : 'light'][key];
+
 function mixColour(key, value) {
-  const table = MIX_COLOURS[key] || {};
   const v = String(value).toLowerCase();
-  for (const [word, colour] of Object.entries(table)) {
-    if (word !== 'other' && v.includes(word)) return colour;
+  for (const [word, colour] of (mixScale(key) || [])) {
+    if (v.includes(word)) return colour;
   }
-  return table.other || GREY;
+  return GREY;
 }
 
 /* Which mix a unit card shows on its strip: job type where the file has it,
@@ -3503,15 +3567,120 @@ function insBar(entries, key, total) {
   if (!entries.length) return '';
   // A key with its own vocabulary keeps it; anything else — pool names, function
   // types — takes the categorical wheel in the order the bar already runs in.
-  const known = !!MIX_COLOURS[key];
-  const colour = (v, i) => (known ? mixColour(key, v) : PALETTE[i % PALETTE.length]);
+  const scale = mixScale(key);
+  // An ordered scale has to run in its own order, not in order of size: a ramp
+  // laid out middle, back, front is no longer a ramp.
+  if (scale) {
+    const rank = v => {
+      const i = scale.findIndex(([word]) => String(v).toLowerCase().includes(word));
+      return i < 0 ? scale.length : i;
+    };
+    entries = [...entries].sort((a, b) => rank(a[0]) - rank(b[0]));
+  }
+  const colour = (v, i) => (scale ? mixColour(key, v) : PALETTE[i % PALETTE.length]);
+  return insSplit(entries.map(([v, c], i) => ({ label: v, n: c, colour: colour(v, i) })), total);
+}
+
+/* Part-to-whole: one bar, a 2px gap between segments, and a legend key for every
+   segment — identity is never left to colour alone. */
+function insSplit(segments, total) {
+  const live = segments.filter(x => x.n > 0);
+  if (!live.length) return '';
+  const whole = total || live.reduce((t, x) => t + x.n, 0);
   return `<div class="prof">
-    <div class="prof-bar">${entries.map(([v, c], i) =>
-      `<span style="width:${(c / total * 100).toFixed(1)}%;background:${colour(v, i)}" ` +
-      `title="${esc(v)}: ${c}"></span>`).join('')}</div>
-    <div class="prof-keys">${entries.map(([v, c], i) =>
-      `<span class="prof-key"><i style="background:${colour(v, i)}"></i>${esc(v)} ` +
-      `<b>${int(c)}</b></span>`).join('')}</div></div>`;
+    <div class="prof-bar">${live.map(x =>
+      `<span style="width:${(x.n / whole * 100).toFixed(1)}%;background:${x.colour}" ` +
+      `data-tip="${esc(int(x.n) + ' · ' + pcts(x.n, whole) + '|' + x.label)}" ` +
+      `title="${esc(x.label)}: ${int(x.n)}"></span>`).join('')}</div>
+    <div class="prof-keys">${live.map(x =>
+      `<span class="prof-key"><i style="background:${x.colour}"></i>${esc(x.label)} ` +
+      `<b>${int(x.n)}</b></span>`).join('')}</div></div>`;
+}
+
+/* Bins whose edges land on the thresholds, so a column is never half flagged.
+   With the defaults that reads 1 · 2 · 3–5 · 6–8 · 9–11 · 12+. */
+function spanBins(mgrs, T) {
+  const bins = [];
+  const push = (lo, hi, side) => bins.push({
+    side, lo, hi,
+    label: hi === Infinity ? lo + '+' : lo === hi ? String(lo) : lo + '–' + hi,
+    n: mgrs.filter(m => m.directs >= lo && m.directs <= hi).length,
+  });
+  const nar = Math.min(T.narrowSpan, T.wideSpan - 1);
+  if (nar <= 3) { for (let v = 1; v <= nar; v++) push(v, v, 'low'); }
+  else push(1, nar, 'low');
+  const midLo = nar + 1, midHi = T.wideSpan - 1;
+  if (midHi >= midLo) {
+    const size = Math.ceil((midHi - midLo + 1) / Math.min(3, midHi - midLo + 1));
+    for (let a = midLo; a <= midHi; a += size) push(a, Math.min(midHi, a + size - 1), '');
+  }
+  push(T.wideSpan, Infinity, 'high');
+  return bins;
+}
+
+/* ── Chart marks ────────────────────────────────────────────────────────────
+   Three forms, and each one is chosen by the job the data has to do. A
+   distribution gets columns with the flagged band picked out and the rest
+   receding — emphasis, not eight colours competing. A magnitude comparison gets
+   ranked bars that keep their names. A part-to-whole gets one proportion bar.
+   None of them gets a pie: a two-slice pie is a stat tile that took the long
+   way round, and those cards keep their figure instead.
+   ─────────────────────────────────────────────────────────────────────────── */
+const CH = { w: 320, h: 74, top: 12, pad: 3, gap: 2, cap: 24, r: 4, axis: 15 };
+
+/* Values ride the marks the card is actually about; the rest is on the axis and
+   in the tooltip, because a number on every column is chaos and goes unread. */
+function insCols(bins, opts = {}) {
+  if (!bins.length) return '';
+  const max = Math.max(1, ...bins.map(b => b.n));
+  const band = (CH.w - CH.pad * 2) / bins.length;
+  const bw = Math.min(CH.cap, band - CH.gap);
+  const base = CH.top + CH.h;
+  const total = CH.top + CH.h + CH.axis;
+  // The story is one band; the rest is context, so it recedes to the
+  // de-emphasis gray rather than competing for a second hue.
+  const on = c => (c ? (opts.tone || 'var(--vacant)') : GREY);
+
+  const marks = bins.map((b, i) => {
+    const x = CH.pad + band * i + (band - bw) / 2;
+    const hgt = Math.max(b.n ? 2 : 0, Math.round(b.n / max * CH.h));
+    const y = base - hgt;
+    // The axis tick is shorthand; the tooltip says it in words.
+    const said = opts.term ? opts.term(b.label) : b.label;
+    const tip = `${int(b.n)} ${opts.noun || 'positions'}|${said}`;
+    // The hit target is the whole band, not the painted pixels, and it takes
+    // keyboard focus so nothing is reachable by pointer alone.
+    return `<rect class="hit" x="${(CH.pad + band * i).toFixed(1)}" y="${CH.top}" ` +
+      `width="${band.toFixed(1)}" height="${CH.h}" tabindex="0" ` +
+      `data-tip="${esc(tip)}"><title>${esc(said)}: ${int(b.n)}</title></rect>` +
+      (hgt ? `<rect class="mark" x="${x.toFixed(1)}" y="${y.toFixed(1)}" ` +
+        `width="${bw.toFixed(1)}" height="${hgt}" rx="${Math.min(CH.r, hgt / 2).toFixed(1)}" ` +
+        `fill="${on(b.on)}"/>` +
+        // Square the foot: the radius belongs to the data end, not the baseline.
+        (hgt > CH.r ? `<rect class="mark" x="${x.toFixed(1)}" y="${(base - CH.r).toFixed(1)}" ` +
+          `width="${bw.toFixed(1)}" height="${CH.r}" fill="${on(b.on)}"/>` : '') : '') +
+      (b.on && b.n ? `<text class="val" x="${(x + bw / 2).toFixed(1)}" ` +
+        `y="${(y - 3).toFixed(1)}" text-anchor="middle">${int(b.n)}</text>` : '') +
+      `<text class="tick" x="${(CH.pad + band * i + band / 2).toFixed(1)}" ` +
+      `y="${(base + 11).toFixed(1)}" text-anchor="middle">${esc(b.label)}</text>`;
+  }).join('');
+
+  return `<svg class="ins-chart" viewBox="0 0 ${CH.w} ${total}" role="img" ` +
+    `aria-label="${esc(opts.alt || 'Distribution')}">${marks}` +
+    `<line class="axis" x1="0" y1="${base + .5}" x2="${CH.w}" y2="${base + .5}"/></svg>`;
+}
+
+/* One hue for every bar. Darkening the bar where it is bigger would spend the
+   only free channel restating the length the bar already shows. */
+function insRank(rows, opts = {}) {
+  const max = Math.max(1, ...rows.map(r => r.value));
+  const ref = opts.ref != null && opts.ref > 0
+    ? `<span class="ref" style="left:${Math.min(100, opts.ref / max * 100).toFixed(1)}%"></span>` : '';
+  return rows.map(r =>
+    `<div class="ins-row ranked"${r.attr || ''}><span class="who">${esc(r.who)}</span>` +
+    `<span class="ins-track" data-tip="${esc((r.num || '') + '|' + r.who + (r.said ? ' · ' + r.said : ''))}">` +
+    `<i style="width:${Math.max(1.5, r.value / max * 100).toFixed(1)}%"></i>${ref}</span>` +
+    `<span class="num">${esc(r.num || '')}</span></div>`).join('');
 }
 
 function countBy(rows, key) {
@@ -3549,6 +3718,12 @@ function insightCards() {
         ? `${int(tooDeep.length)} positions sit more than ${T.deepLayer} layers below the top, `
           + 'in the teams below.'
         : `Nothing sits more than ${T.deepLayer} layers below the top.`),
+    chart: insCols(
+      Array.from({ length: layers }, (_, i) => ({
+        label: String(i + 1), n: ns.filter(n => n.layer - top === i).length,
+        on: i + 1 > T.deepLayer,
+      })), { noun: 'positions', tone: 'var(--vacant)', term: l => 'Layer ' + l,
+             alt: 'Positions at each layer, deepest layers picked out' }),
     rows: deepRows.slice(0, INS_ROWS).map(([k, e]) => ({
       who: k, said: '',
       num: int(e.n) + ' at ' + (e.deepest.layer - top + 1) + ' deep',
@@ -3558,6 +3733,11 @@ function insightCards() {
   });
 
   const managers = ns.filter(n => n.isManager);
+  const bins = spanBins(managers, T);
+  const spanChart = (side, tone, alt) => insCols(
+    bins.map(b => ({ label: b.label, n: b.n, on: b.side === side })),
+    { noun: 'managers', tone, alt,
+      term: l => l + (l.endsWith('+') ? ' or more direct reports' : ' direct reports') });
   const wide = managers.filter(n => n.directs >= T.wideSpan).sort((a, b) => b.directs - a.directs);
   add({
     id: 'wideSpan', section: 'Shape', title: 'Spans too wide to lead',
@@ -3565,6 +3745,7 @@ function insightCards() {
     tone: wide.length ? 'warn' : 'ok', flagged: wide.length,
     note: `Managers with ${T.wideSpan} or more direct reports. At this width a team is `
       + 'usually several teams, or the manager is coordinating rather than leading.',
+    chart: spanChart('high', 'var(--vacant)', 'Managers by span, the widest picked out'),
     rows: wide.slice(0, INS_ROWS).map(n => posRow(n, unitPathOf(n), int(n.directs) + ' reports')),
     more: Math.max(0, wide.length - INS_ROWS),
   });
@@ -3577,6 +3758,7 @@ function insightCards() {
     note: `${int(narrow.length)} of ${int(managers.length)} managers have ${T.narrowSpan} or `
       + 'fewer direct reports. A team lead with two specialists is normal; the ones worth '
       + 'reading are those carrying a whole organisation below them, listed first.',
+    chart: spanChart('low', 'var(--accent)', 'Managers by span, the narrowest picked out'),
     rows: narrow.slice(0, INS_ROWS).map(n => posRow(n,
       int(n.directs) + (n.directs === 1 ? ' report' : ' reports'),
       int(n.total - 1) + ' below')),
@@ -3603,6 +3785,10 @@ function insightCards() {
     note: `${int(managers.length)} managers to ${int(ns.length - managers.length)} individual `
       + `contributors. Average span is ${dec(managers.length ? spanTotal / managers.length : 0, 1)}.`,
     rows: [], more: 0,
+    bar: insSplit([
+      { label: 'Managers', n: managers.length, colour: 'var(--accent)' },
+      { label: 'Individual contributors', n: ns.length - managers.length, colour: GREY },
+    ], ns.length),
   });
 
   /* ── Staffing ── */
@@ -3617,8 +3803,18 @@ function insightCards() {
     note: `${int(vacant.length)} of ${int(ns.length)} positions in view are unfilled. `
       + `The units below carry the worst of it, counting only those with `
       + `${MIN_UNIT_FOR_RATE} positions or more.`,
-    rows: rated.slice(0, INS_ROWS).map(u =>
-      unitRow(u, int(u.vacant) + ' of ' + int(u.headcount) + ' vacant', pcts(u.vacant, u.headcount))),
+    bar: insSplit([
+      { label: 'Filled', n: ns.length - vacant.length, colour: 'var(--ok)' },
+      { label: 'Vacant', n: vacant.length, colour: 'var(--vacant)' },
+    ], ns.length),
+    rank: { ref: pct(vacant.length, ns.length),
+            refNote: 'The line marks the ' + pcts(vacant.length, ns.length)
+              + ' rate across the whole view.' },
+    rows: rated.slice(0, INS_ROWS).map(u => ({
+      ...unitRow(u, int(u.vacant) + ' of ' + int(u.headcount) + ' vacant',
+                pcts(u.vacant, u.headcount)),
+      value: pct(u.vacant, u.headcount),
+    })),
     more: Math.max(0, rated.length - INS_ROWS),
   });
 
@@ -3660,6 +3856,10 @@ function insightCards() {
       tone: gaps.length ? 'alert' : 'ok', flagged: gaps.length,
       note: 'A critical role with nobody named behind it is a single point of failure with '
         + 'a notice period attached.',
+      bar: insSplit([
+        { label: 'Successor named', n: critical.length - gaps.length, colour: 'var(--ok)' },
+        { label: 'Nobody named', n: gaps.length, colour: 'var(--critical)' },
+      ], critical.length),
       rows: gaps.sort((a, b) => b.total - a.total).slice(0, INS_ROWS)
         .map(n => posRow(n, unitPathOf(n), n.vacant ? 'and vacant' : '')),
       more: Math.max(0, gaps.length - INS_ROWS),
@@ -3687,6 +3887,13 @@ function insightCards() {
       note: `${int(sama.filter(n => n.vacant).length)} vacant`
         + (has('successor') ? `, ${int(sama.filter(n => !n.successor).length)} with no successor named` : '')
         + '. A regulator-facing appointment cannot be made at short notice.',
+      bar: insSplit([
+        { label: 'Covered', n: sama.length - samaRisk.length, colour: 'var(--ok)' },
+        { label: 'No successor',
+          n: sama.filter(n => !n.vacant && has('successor') && !n.successor).length,
+          colour: 'var(--vacant-soft)' },
+        { label: 'Vacant', n: sama.filter(n => n.vacant).length, colour: 'var(--vacant)' },
+      ], sama.length),
       rows: samaRisk.slice(0, INS_ROWS).map(n => posRow(n, unitPathOf(n),
         n.vacant ? 'vacant' : 'no successor')),
       more: Math.max(0, samaRisk.length - INS_ROWS),
@@ -3757,8 +3964,9 @@ function insightCards() {
         note: 'Listed by headcount: the tool reads grades as labels and does not know which '
           + `outranks which. The largest, ${esc(mix[0][0])}, holds ${pcts(mix[0][1], ns.length)} `
           + 'of the population.',
+        rank: {},
         rows: mix.slice(0, INS_ROWS).map(([g, c]) => ({
-          who: g, said: '', num: int(c) + '  ·  ' + pcts(c, ns.length),
+          who: g, said: '', num: int(c) + '  ·  ' + pcts(c, ns.length), value: c,
           attr: ` data-drill='${esc(JSON.stringify({ k: 'grade', v: g }))}'`,
         })),
         more: Math.max(0, mix.length - INS_ROWS),
@@ -3786,8 +3994,12 @@ function insightCards() {
         tone: '', flagged: 0,
         note: `${int(saudi.length)} of ${int(filled.length)} filled positions are held by Saudi `
           + 'nationals. Vacant seats carry no nationality, so they are left out. Lowest first.',
+        rank: { ref: pct(saudi.length, filled.length),
+                refNote: 'The line marks the ' + pcts(saudi.length, filled.length)
+                  + ' rate across the whole view.' },
         rows: worst.slice(0, INS_ROWS).map(([g, e]) => ({
           who: g, said: int(e.saudi) + ' of ' + int(e.total), num: pcts(e.saudi, e.total),
+          value: pct(e.saudi, e.total),
           attr: ` data-drill='${esc(JSON.stringify({ k: 'group', v: g }))}'`,
         })),
         more: Math.max(0, worst.length - INS_ROWS),
@@ -3812,6 +4024,8 @@ function renderInsights() {
     ? int(flagged) + (flagged === 1 ? ' thing to look at' : ' things to look at')
     : 'nothing flagged in this view';
 
+  const tipEl = $('#ins-tip');
+  if (tipEl) tipEl.hidden = true;
   $('#th-wide').value = S.thresholds.wideSpan;
   $('#th-narrow').value = S.thresholds.narrowSpan;
   $('#th-deep').value = S.thresholds.deepLayer;
@@ -3831,17 +4045,21 @@ function renderInsights() {
 }
 
 function insCard(c) {
-  const rows = c.rows.map(r =>
-    `<div class="ins-row"${r.attr || ''}><span class="who">${esc(r.who)}</span>` +
-    (r.said ? `<span class="said">${esc(r.said)}</span>` : '') +
-    `<span class="num">${esc(r.num || '')}</span></div>`).join('');
+  const rows = c.rank
+    ? insRank(c.rows, c.rank)
+    : c.rows.map(r =>
+      `<div class="ins-row"${r.attr || ''}><span class="who">${esc(r.who)}</span>` +
+      (r.said ? `<span class="said">${esc(r.said)}</span>` : '') +
+      `<span class="num">${esc(r.num || '')}</span></div>`).join('');
   return `<article class="ins-card ${c.tone || ''}" data-card="${esc(c.id)}">
     <h5>${esc(c.title)}</h5>
     <div class="ins-fig"><b>${esc(c.figure)}</b><span>${esc(c.unit)}</span></div>
     <p class="ins-note">${esc(c.note)}</p>
+    ${c.chart || ''}
     ${c.bar || ''}
     ${rows ? `<div class="ins-rows">${rows}</div>` : ''}
     ${c.more ? `<div class="ins-more">…and ${int(c.more)} more</div>` : ''}
+    ${c.rank && c.rank.refNote ? `<div class="ins-refnote">${esc(c.rank.refNote)}</div>` : ''}
   </article>`;
 }
 
@@ -5206,6 +5424,40 @@ function wireApp() {
   };
 
   wirePopovers();
+
+  // The hover layer. Every value it shows is already on the mark, at the row
+  // end or in the CSV, so the tooltip enhances and never gates — and the labels
+  // come out of the user's file, so they go in as text, never as markup.
+  const tip = $('#ins-tip');
+  const showTip = (el, x, y) => {
+    const [value, label] = String(el.dataset.tip || '').split('|');
+    tip.textContent = '';
+    const b = document.createElement('b');
+    b.textContent = value || '';
+    const sp = document.createElement('span');
+    sp.textContent = label || '';
+    tip.append(b, sp);
+    tip.hidden = false;
+    const box = tip.getBoundingClientRect();
+    tip.style.left = Math.max(6, Math.min(innerWidth - box.width - 6, x + 13)) + 'px';
+    tip.style.top = Math.max(6, Math.min(innerHeight - box.height - 6, y + 15)) + 'px';
+  };
+  const hideTip = () => { tip.hidden = true; };
+
+  $('#ins-body').addEventListener('pointermove', e => {
+    const el = e.target.closest('[data-tip]');
+    if (el) showTip(el, e.clientX, e.clientY); else hideTip();
+  });
+  $('#ins-body').addEventListener('pointerleave', hideTip);
+  $('#ins-body').addEventListener('scroll', hideTip);
+  // Whatever the pointer can reach, the keyboard can too.
+  $('#ins-body').addEventListener('focusin', e => {
+    const el = e.target.closest('[data-tip]');
+    if (!el) return hideTip();
+    const r = el.getBoundingClientRect();
+    showTip(el, r.left + r.width / 2, r.bottom - 6);
+  });
+  $('#ins-body').addEventListener('focusout', hideTip);
 
   // A house rule, not a fact: change the number and every card that tests
   // against it re-reads, sentence included.
