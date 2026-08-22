@@ -36,8 +36,9 @@ the filters carry across.
 
 **Org units** — the view it opens on. One box per organisational unit: its name,
 the most senior position inside it and who holds it, its headcount, vacancies and
-FTE, its function type and how many sub-units it holds, with the mix of work it
-does as a colour strip along the bottom. Four lines, deliberately — the shape of
+FTE, its function type and what it holds — named by the level those children are
+on, so a group holds divisions and a department holds units — with the mix of
+work it does as a colour strip along the bottom. Four lines, deliberately — the shape of
 it (job layers, average span, managers against individual contributors) is a
 click away in the detail panel and a sortable column in **Compare**, rather than
 three numbers competing for a row on every box on screen. It opens as many levels

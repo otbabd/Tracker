@@ -798,6 +798,15 @@ const int = v => v == null || v === '' ? '—' : Number(v).toLocaleString('en-US
 const dec = (v, d = 1) => v == null ? '—' :
   Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 
+/* Enough English for the dimension labels, which are a fixed and known set:
+   branch → branches, job family → job families, pay basis → pay bases. */
+function plural(word) {
+  if (/is$/.test(word)) return word.replace(/is$/, 'es');
+  if (/[^aeiou]y$/.test(word)) return word.replace(/y$/, 'ies');
+  if (/(s|x|z|ch|sh)$/.test(word)) return word + 'es';
+  return word + 's';
+}
+
 function debounce(fn, ms) {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
@@ -1785,9 +1794,18 @@ function buildUnitsDeclared(positions, levels, declaredUnits, unitList) {
   }
   for (const node of byLabel.values()) {
     const i = seen.findIndex(set => set.has(key(node.label)));
-    node.dim = i >= 0 ? levels[i]
-      : levels[Math.min(node.unitLevel, levels.length - 1)] || 'unit';
+    node.dim = i >= 0 ? levels[i] : null;
     node.inData = i >= 0;
+  }
+  // A declared unit that appears nowhere in the position data — approved but
+  // unstaffed — takes the rung its siblings are on. Shariah Audit sits among
+  // divisions, so it is a division, whatever its depth in the list happens to
+  // be. Only when its siblings say nothing does depth decide.
+  for (const node of byLabel.values()) {
+    if (node.dim) continue;
+    const sibling = (node.parent ? node.parent.children : []).find(c => c !== node && c.dim);
+    node.dim = (sibling && sibling.dim)
+      || levels[Math.min(node.unitLevel, levels.length - 1)] || 'unit';
   }
   const described = new Set([...byLabel.values()].filter(n => n.inData).map(n => n.dim));
 
@@ -2498,13 +2516,17 @@ function unitCardSvg(n) {
   // competing for one row, none of them the question the chart is usually being
   // asked. They are a click away in the detail panel and sortable in Compare.
 
-  // A unit at the end of the structure says so, in the place its siblings say
-  // how many sub-units they hold: an empty slot looks like a control that
-  // failed to draw rather than the bottom of the ladder.
-  const kind = n.children.length && n.children[0].dim === 'department' ? 'department'
-    : n.children.length && n.children[0].dim === 'function' ? 'function' : 'sub-unit';
+  // What a unit holds is named by the level those children are on — a group
+  // holds divisions, a department holds units — rather than calling everything
+  // a sub-unit. Where the children are of mixed levels there is no one right
+  // noun, so the generic one is the honest answer.
+  const childDim = n.children.length
+    && n.children.every(c => c.dim === n.children[0].dim) && n.children[0].dim;
+  const kind = childDim
+    ? ((DIMENSIONS.find(d => d.key === childDim) || {}).label || 'sub-unit').toLowerCase()
+    : 'sub-unit';
   const sub = n.children.length
-    ? int(n.children.length) + ' ' + kind + (n.children.length === 1 ? '' : 's')
+    ? int(n.children.length) + ' ' + (n.children.length === 1 ? kind : plural(kind))
     : (n.dim && !n.empty ? 'no sub-units' : '');
   const foot = n.offStructure
     ? ['Not in the approved structure', sub].filter(Boolean).join(' · ')
