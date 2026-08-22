@@ -2540,7 +2540,8 @@ function cardSvg(n) {
 function expanderSvg(n) {
   const kids = _allowed ? n.children.filter(c => _allowed.has(c.id)) : n.children;
   if (!kids.length) return '';
-  const collapsed = S.collapsed.has(n.id);
+  // Each view keeps its own collapse state, so ask for the one in force.
+  const collapsed = CS().has(n.id);
   const onTrunk = !collapsed && kids.some(k => k.hang);
   const cx = onTrunk ? n.x + HANG_TRUNK : n.x + NODE_W / 2;
   const cy = n.y + nodeH();
@@ -4268,7 +4269,8 @@ function wirePanZoom() {
     const toggle = e.target.closest('[data-toggle]');
     if (toggle) {
       const id = toggle.dataset.toggle;
-      S.collapsed.has(id) ? S.collapsed.delete(id) : S.collapsed.add(id);
+      const set = CS();
+      set.has(id) ? set.delete(id) : set.add(id);
       refresh(true);
       return;
     }
@@ -4378,8 +4380,8 @@ function wireApp() {
     S.rootId = e.target.value;
     applyDefaultCollapse();
     if (S.rootId) {
-      const n = S.model.byId.get(S.rootId);
-      if (n) { revealNode(n); S.collapsed.delete(n.id); }
+      const n = isUnits() ? S.unitModel.byId.get(S.rootId) : S.model.byId.get(S.rootId);
+      if (n) { revealNode(n); CS().delete(n.id); }
     }
     refresh();
   };
