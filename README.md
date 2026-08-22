@@ -29,10 +29,26 @@ and a course list.
 
 ---
 
+## Start here
+
+The **How to use** tab is the first one in the switcher, and the opening screen's
+**How to use** button shows the same page before any file is loaded. It carries a
+**Download the template (.xlsx)** button: one workbook with the three tabs the
+tool reads — Positions, Org Units, Mandatory Courses — headers already correct
+and a small bank filled in, including the cases that are hard to guess at: a
+vacant seat, a critical role with nobody named behind it, a SAMA-controlled role,
+and a unit the structure declares that no position sits in. It charts as it is,
+so you can see the shape before replacing the rows with yours.
+
+The template is generated in the browser like everything else here — no server,
+no library — and it round-trips: every column it writes is detected on the way
+back in, with nothing to repair.
+
 ## Three views of the same file
 
-A switch in the toolbar changes what you are looking at. The file is loaded once
-and the filters carry across all three.
+A switch in the toolbar changes what you are looking at — **How to use** sits
+first, then the three views below. The file is loaded once and the filters carry
+across all three.
 
 **Org units** — the view it opens on. One box per organisational unit: its name,
 the most senior position inside it and who holds it, its headcount, vacancies and
@@ -241,6 +257,7 @@ down; filters stay, because they are how the panel is scoped.
 | **Units…** | Structure of the org view: nesting columns, sibling order, and whether the hierarchy comes from columns or from the unit list. |
 | **Compare** | A sortable table of units under the chart, filtered to one level so the ranking means something. |
 | **Reconcile** | Where the approved structure and the reporting line disagree, banded by finding and clickable through to each one. |
+| **How to use** | The first tab, and the opening screen's button: what the tool needs, the three ways to give it, every column it recognises, and the template to download. |
 | **Insights** | A third view rather than a sheet: cards that read the file and say what is worth looking at — shape, staffing, succession and control, composition. The thresholds it tests against sit on the panel. |
 | **Flag chips** | Highlight critical roles, SAMA roles, succession gaps or vacancies in place. |
 | **Colour** | Chart colours are checked rather than chosen by eye. Front / middle / back is an ordered scale, so it is a single hue running light to dark, stepped separately for each theme; pay basis is identity, so it takes distinct hues; staffing and readiness share one status vocabulary — filled, partly, all — so the same state is the same colour wherever you meet it. Every set clears the colourblind-separation and contrast thresholds in both themes, and every segment is labelled, so nothing depends on telling two colours apart. |
@@ -291,6 +308,9 @@ ways, and you can use both:
    column back to the nesting) is obvious rather than a silent gap.
 
 ## The file it expects
+
+Or skip this section and take the template from the **How to use** tab, which is
+this list already filled in.
 
 One row per position. Only an **ID** column is genuinely required — everything
 else is used when it is present and ignored when it is not.
