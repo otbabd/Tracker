@@ -29,10 +29,10 @@ and a course list.
 
 ---
 
-## Two views of the same file
+## Three views of the same file
 
-A switch in the toolbar changes what a box means. The file is loaded once and
-the filters carry across.
+A switch in the toolbar changes what you are looking at. The file is loaded once
+and the filters carry across all three.
 
 **Org units** — the view it opens on. One box per organisational unit: its name,
 the most senior position inside it and who holds it, its headcount, vacancies and
@@ -49,6 +49,12 @@ themselves — and the rest is a click away.
 positions* or the switch. The job title leads, the person in it sits underneath,
 and a vacancy is a normal state of a position rather than a gap in the data.
 Boxes are joined by reporting lines, taken from Manager ID.
+
+**Insights** — no boxes at all. A panel of cards that reads the same file and
+says what is worth looking at: how deep it runs, where the spans are too wide or
+too narrow, which teams have nobody at the top, which critical roles have nobody
+named behind them, and how the workforce is composed. Every row clicks through
+to that seat or unit in the chart. See [Insights](#insights).
 
 A file with no structural columns has nothing to draw, so it opens on positions
 instead.
@@ -124,6 +130,34 @@ The first two checks need a unit list; the last four work from the position file
 alone. The sheet says which levels the list describes, so the first finding is
 never mistaken for a claim about levels the list was never trying to cover.
 
+### Insights
+
+Compare ranks what you asked about and Reconcile lists where two records
+disagree. Neither answers the first question, which is where to look. Insights
+does: each card is one test, the number it produced, the sentence saying what was
+tested, and the seats or units that failed it — every row a click through to that
+box in the chart.
+
+| Section | What the cards test |
+|---|---|
+| **Shape** | How deep the longest chain runs and what sits below the line; managers whose span is too wide to lead; the share of managers with few reports, listed by how much organisation hangs beneath them; pass-through managers — one direct report who is a manager too, a whole layer between a leader and their leader; managers against individual contributors. |
+| **Staffing** | The vacancy rate and the units carrying the worst of it; teams whose top seat is empty, and how many people report through them to nobody; units the structure declares that hold no filled position. |
+| **Succession & control** | Critical roles with no successor named; critical roles standing empty, where the exposure is present rather than future; SAMA non-objection roles with their vacancies and gaps; how ready the named successors are; the depth of the talent-pool bench against the critical seats. |
+| **Composition** | Front, middle and back office; the three lines of defence, and what share of the workforce sits in control and assurance rather than in the business; where the grades sit; Saudization across the filled seats, lowest group first. |
+
+Three numbers decide what counts as wide, narrow and deep. They are house rules
+rather than facts, so they sit on the panel — change one and every card that uses
+it re-reads, its sentence included, so a printed page still says what was tested.
+
+A card whose column your file does not carry is left out rather than shown empty,
+and a section left with no cards does not appear at all. Saudization reads
+nationality, so it hides with the names in **Presentation** mode.
+
+Filters scope the whole panel: filter to one group and every card is about that
+group. **Print** gives you the panel portrait, cards unbroken across pages, with
+the thresholds spelled out in the sentences rather than shown as controls;
+**CSV** exports one row per named subject, with the card and the test beside it.
+
 ### Working with units
 
 - **Compare** ranks the units side by side — positions, FTE, vacancies, layers,
@@ -166,6 +200,11 @@ every box — including the one that matters most, a critical role with nobody
 lined up behind it. The filter chips above the chart light those up wherever they
 are in the hierarchy.
 
+**It says where to look.** The **Insights** view reads the same file and names
+the exceptions — chains that run too deep, spans too wide to lead, teams whose
+top seat is empty, critical roles with nobody behind them — with the number, the
+test that produced it and a click through to each one.
+
 **Sized for a real organisation.** Only the branches you have open are drawn, so a
 2,600-position file across seven hundred units opens in about a third of a second
 and stays responsive. It opens as many layers as stay readable across the screen
@@ -178,6 +217,8 @@ switch, search and the presentation toggle, with everything occasional behind
 **⋯**. The toolbar under it holds what you are looking at — branch, filters,
 highlights, colour — on the left, and what it adds up to on the right. Anything
 with more than one setting opens a popover rather than taking a row of its own.
+In the **Insights** view the controls that only mean something over a chart stand
+down; filters stay, because they are how the panel is scoped.
 
 | | |
 |---|---|
@@ -187,13 +228,14 @@ with more than one setting opens a popover rather than taking a row of its own.
 | **Units…** | Structure of the org view: nesting columns, sibling order, and whether the hierarchy comes from columns or from the unit list. |
 | **Compare** | A sortable table of units under the chart, filtered to one level so the ranking means something. |
 | **Reconcile** | Where the approved structure and the reporting line disagree, banded by finding and clickable through to each one. |
+| **Insights** | A third view rather than a sheet: cards that read the file and say what is worth looking at — shape, staffing, succession and control, composition. The thresholds it tests against sit on the panel. |
 | **Flag chips** | Highlight critical roles, SAMA roles, succession gaps or vacancies in place. |
 | **Colour by** | Recolour the boxes by function, department, grade, location and so on — or by **Filled / vacant** in the positions view and **Staffing** in the org view, which use the theme's own green and amber rather than the categorical palette, so a vacant box reads as vacant wherever you meet it. The legend and the boxes take the same colour from the same place, in either theme. |
 | **Click a box** | Everything held about that position, in two parts: **The job** — code, grade, family, function type, job type, pay basis, talent pool, employment type, FTE, status — and **Where it sits**, the full ladder from group down to section plus branch, function, location and cost centre. Below them the incumbent, succession, mandatory training, direct reports and any column the tool did not recognise. A field your file does not carry is left out rather than shown as a dash. |
 | **Presentation** | One switch hides successor names, emails, hire dates and nationality, so the chart is safe to project or screen-share. |
 | **PNG** | Saves exactly what is on screen, at slide proportions. |
-| **Print** | A heading naming the scope and the figures for it, and then the chart, which fills the rest of the page in light theme, turned landscape or portrait to suit its shape. Nothing else — the browser already prints the file and the date around the edges. The one exception is a filter, a search or presentation mode, which a reader cannot see and must not miss, so those are named under the heading. With **Compare** or **Reconcile** open, the sheet follows on its own pages — a printed reconciliation to hand to whoever owns the HRIS. Use it to save a PDF. |
-| **CSV** | Follows the view — and the open sheet, so with **Reconcile** open it exports the findings. Otherwise positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts, flag totals and the full profile. |
+| **Print** | A heading naming the scope and the figures for it, and then the chart, which fills the rest of the page in light theme, turned landscape or portrait to suit its shape. Nothing else — the browser already prints the file and the date around the edges. The one exception is a filter, a search or presentation mode, which a reader cannot see and must not miss, so those are named under the heading. With **Compare** or **Reconcile** open, the sheet follows on its own pages — a printed reconciliation to hand to whoever owns the HRIS. In **Insights** there is no chart, so the cards are the page: portrait, unbroken across pages. Use it to save a PDF. |
+| **CSV** | Follows the view — and the open sheet, so with **Reconcile** open it exports the findings and in **Insights** the cards, one row per named subject. Otherwise positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts, flag totals and the full profile. |
 
 ## Units with nobody in them
 
@@ -301,7 +343,8 @@ Every row is a position, so somebody holding two roles occupies two boxes and
 counts twice. That is what you want for position-based headcount, but it is not
 the same as a headcount of people — worth knowing before quoting a number.
 
-The two views count the same population, but they filter differently on purpose.
+The org and position views count the same population, but they filter
+differently on purpose.
 Filtering to a function in the **org view** is strict, so the unit's headcount is
 exactly the positions carrying it. The **position view** keeps each match's
 reporting line so the tree stays connected, which pulls in managers above the

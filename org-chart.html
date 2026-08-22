@@ -393,6 +393,86 @@ svg text { unicode-bidi: plaintext; }
 .rec-row .num { margin-left: auto; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 .rec-none { padding: 22px 12px; font-size: .84rem; color: var(--text-mute); }
 
+/* ═══ Insights panel ═══════════════════════════════════════════════════════
+   Compare and Reconcile sit under the chart because the shape is still worth
+   seeing while you read them. Insights replaces the chart instead: it is a
+   third way of looking at the same organisation, not a footnote to the first
+   two, and the cards want the whole stage.
+   ════════════════════════════════════════════════════════════════════════ */
+#insights {
+  position: absolute; inset: 0; z-index: 16; background: var(--bg);
+  display: flex; flex-direction: column;
+}
+.ins-head {
+  display: flex; align-items: center; gap: 12px; padding: 9px 16px; flex: none;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.ins-head h3 { font-size: .88rem; font-weight: 600; }
+.ins-thresholds { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ins-thresholds label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .75rem; color: var(--text-mute); white-space: nowrap;
+}
+.ins-thresholds input {
+  width: 52px; padding: 3px 5px; font: inherit; font-size: .78rem;
+  text-align: right; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+}
+.ins-thresholds input:focus-visible { outline: none; box-shadow: var(--ring); }
+.ins-body { flex: 1; overflow: auto; padding: 4px 16px 28px; }
+
+.ins-sec > h4 {
+  font-size: .69rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-mute); padding: 18px 2px 9px;
+}
+.ins-grid {
+  display: grid; gap: 12px; align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(316px, 1fr));
+}
+.ins-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 13px 14px 5px;
+  display: flex; flex-direction: column;
+}
+.ins-card > h5 {
+  font-size: .82rem; font-weight: 600; color: var(--text-dim);
+  display: flex; align-items: baseline; gap: 8px;
+}
+.ins-fig { display: flex; align-items: baseline; gap: 7px; margin: 7px 0 2px; }
+.ins-fig b { font-size: 1.62rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; }
+.ins-fig span { font-size: .79rem; color: var(--text-mute); }
+.ins-card.warn  .ins-fig b { color: var(--vacant); }
+.ins-card.alert .ins-fig b { color: var(--critical); }
+.ins-card.ok    .ins-fig b { color: var(--ok); }
+.ins-note { font-size: .78rem; color: var(--text-mute); line-height: 1.45; padding-bottom: 4px; }
+.ins-rows { margin-top: 8px; border-top: 1px solid var(--border); }
+.ins-row {
+  display: flex; align-items: baseline; gap: 9px; padding: 5px 0;
+  font-size: .8rem; cursor: pointer; border-bottom: 1px solid var(--border);
+}
+.ins-row:last-child { border-bottom: none; }
+.ins-row:hover .who { color: var(--accent); }
+/* The name takes the slack and the qualifier gives it up: "Chief Audit
+   Executive" cut in half to keep "2 reports" whole is the wrong trade. */
+.ins-row .who {
+  font-weight: 550; color: var(--text); flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The qualifier gives up its width first, but never past the point of being a
+   letter and a full stop — below that the row is better off without it. */
+.ins-row .said {
+  color: var(--text-mute); flex: 0 20 auto; min-width: 5.4em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ins-row .num {
+  margin-left: auto; flex: none; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ins-more { padding: 6px 0 8px; font-size: .76rem; color: var(--text-mute); }
+.ins-card .prof { margin-top: 9px; padding-bottom: 6px; }
+.ins-empty { padding: 34px 2px; font-size: .84rem; color: var(--text-mute); max-width: 60ch; }
+
 /* ═══ Detail panel ═════════════════════════════════════════════════════════ */
 /* With the compare sheet open the panel stops above it, so both stay usable. */
 #stage.comparing #detail { height: 54%; }
@@ -543,6 +623,24 @@ svg text { unicode-bidi: plaintext; }
   #cmp-table tbody tr, .rec-row, .rec-band { break-inside: avoid; }
   #cmp-table { font-size: 7.5pt; }
   .rec-row, .rec-band .why { font-size: 8pt; }
+
+  /* The insights view has no chart behind it, so the panel is the page: it
+     flows with the document instead of covering it, and the thresholds print
+     as the sentence each card already states rather than as form controls. */
+  #insights {
+    position: static; inset: auto; flex: 1 1 auto; background: #fff;
+    display: block; overflow: visible;
+  }
+  .ins-head { border-bottom: 1px solid #d9dde3; padding-left: 0; padding-right: 0; }
+  .ins-head .icon-btn, .ins-thresholds { display: none !important; }
+  .ins-body { overflow: visible; padding: 0; }
+  .ins-grid { grid-template-columns: repeat(2, 1fr); gap: 5mm; }
+  .ins-card { break-inside: avoid; border: 1px solid #d9dde3; }
+  .ins-sec { break-inside: auto; }
+  .ins-sec > h4 { padding: 5mm 0 2mm; }
+  .ins-card > h5, .ins-row { font-size: 8.5pt; }
+  .ins-note, .ins-more { font-size: 8pt; color: #555; }
+  .ins-fig b { font-size: 15pt; }
 }
 
 .print-head { display: none; padding: 0 0 4px; }
@@ -625,9 +723,11 @@ svg text { unicode-bidi: plaintext; }
     <div class="seg" id="mode-toggle">
       <button data-mode="units" aria-pressed="true" title="One box per organisational unit">Org units</button>
       <button data-mode="positions" aria-pressed="false" title="One box per position">Positions</button>
+      <button data-mode="insights" aria-pressed="false"
+              title="What the structure is telling you">Insights</button>
     </div>
 
-    <div class="search-wrap">
+    <div class="search-wrap" id="search-wrap">
       <span class="ic">⌕</span>
       <input type="search" id="search" placeholder="Search" autocomplete="off" aria-label="Search">
       <span class="cnt" id="search-count"></span>
@@ -642,10 +742,12 @@ svg text { unicode-bidi: plaintext; }
       <button class="icon-btn" id="btn-more" title="More actions" aria-label="More actions"
               aria-expanded="false">⋯</button>
       <div class="menu" id="more-menu" hidden>
-        <h3>Chart</h3>
-        <button id="btn-expand">Expand all branches</button>
-        <button id="btn-collapse">Collapse to top levels</button>
-        <hr>
+        <div id="menu-chart">
+          <h3>Chart</h3>
+          <button id="btn-expand">Expand all branches</button>
+          <button id="btn-collapse">Collapse to top levels</button>
+          <hr>
+        </div>
         <h3>Export</h3>
         <button id="btn-png">Save view as PNG</button>
         <button id="btn-print">Print / save as PDF</button>
@@ -661,7 +763,7 @@ svg text { unicode-bidi: plaintext; }
   </header>
 
   <div id="toolbar">
-    <label class="tb-field">
+    <label class="tb-field" id="show-field">
       <span>Show</span>
       <select id="f-root" title="Focus on one branch"></select>
     </label>
@@ -679,7 +781,7 @@ svg text { unicode-bidi: plaintext; }
       </div>
     </div>
 
-    <div class="pop-wrap">
+    <div class="pop-wrap" id="highlight-wrap">
       <button class="btn btn-sm" id="btn-highlight" aria-expanded="false">
         Highlight<span class="count-badge" id="hl-count" hidden></span>
       </button>
@@ -689,7 +791,7 @@ svg text { unicode-bidi: plaintext; }
       </div>
     </div>
 
-    <label class="tb-field">
+    <label class="tb-field" id="colour-field">
       <span>Colour</span>
       <select id="color-by" title="Colour the boxes by"></select>
     </label>
@@ -773,6 +875,24 @@ svg text { unicode-bidi: plaintext; }
         <button class="icon-btn" id="rec-close" title="Close" aria-label="Close">✕</button>
       </div>
       <div class="cmp-body" id="rec-body"></div>
+    </section>
+
+    <section id="insights" hidden>
+      <div class="ins-head">
+        <h3>Insights</h3>
+        <span class="cmp-count" id="ins-count"></span>
+        <span class="cmp-context"></span>
+        <div class="spacer"></div>
+        <div class="ins-thresholds" id="ins-thresholds">
+          <label>Wide span from
+            <input type="number" id="th-wide" min="3" max="60" step="1"></label>
+          <label>Narrow span up to
+            <input type="number" id="th-narrow" min="1" max="10" step="1"></label>
+          <label>Deeper than
+            <input type="number" id="th-deep" min="2" max="20" step="1"> layers</label>
+        </div>
+      </div>
+      <div class="ins-body" id="ins-body"></div>
     </section>
 
     <aside id="detail" hidden></aside>
@@ -2073,7 +2193,10 @@ const S = {
   unitListSource: '',
   courseList: [],
   courseSource: '',
-  mode: 'positions',        // 'positions' | 'units'
+  mode: 'positions',        // 'positions' | 'units' | 'insights'
+  // What counts as wide, narrow and deep is a house rule, not a fact, so the
+  // insights view puts the three numbers it tests against on the panel.
+  thresholds: { wideSpan: 12, narrowSpan: 2, deepLayer: 7 },
   unitLevels: [],
   unitOrder: 'size',
   cmpSort: { key: 'headcount', dir: 'desc' },
@@ -2095,6 +2218,7 @@ const S = {
   hits: new Set(),
   view: { x: 0, y: 0, k: 1 },
   drawn: [],
+  insightCards: [],
   palette: new Map(),
 };
 
@@ -2137,6 +2261,7 @@ const UNIT_HIGHLIGHTS = [
 const M  = () => (S.mode === 'units' ? S.unitModel : S.model);
 const CS = () => (S.mode === 'units' ? S.unitCollapsed : S.collapsed);
 const isUnits = () => S.mode === 'units';
+const isInsights = () => S.mode === 'insights';
 
 const scopeRoots = () => {
   const m = M();
@@ -2427,6 +2552,15 @@ const MIX_COLOURS = {
   },
   payType: {
     incentive: '#a86a2c', bonus: '#4b3f8f', fixed: '#4a7c59', other: '#94a3b8',
+  },
+  /* Readiness reads as a countdown, so it takes the tool's own green-to-amber
+     rather than the categorical wheel. Longest horizon first: "ready 1-2
+     years" contains "ready" too, so the specific tests have to run before it. */
+  readiness: {
+    '3': '#8a5300', '4': '#8a5300', '5': '#8a5300', 'longer': '#8a5300',
+    '1': '#a86a2c', '2': '#a86a2c',
+    'ready now': '#1a6b45', 'immediate': '#1a6b45', 'now': '#1a6b45',
+    other: '#94a3b8',
   },
 };
 
@@ -2876,6 +3010,21 @@ function renderControls() {
   $('#btn-compare').hidden = !isUnits();
   $('#btn-reconcile').hidden = !isUnits();
   if (!isUnits()) { setCompare(false); setReconcile(false); }
+
+  // Nothing that only makes sense over a chart survives into the insights
+  // view. Filters do: they are how the panel is scoped.
+  const ins = isInsights();
+  $('#insights').hidden = !ins;
+  $('#chart').style.visibility = ins ? 'hidden' : '';
+  $('#zoombar').hidden = ins;
+  if (ins) $('#legend').hidden = true;
+  $('#show-field').hidden = ins;
+  $('#colour-field').hidden = ins;
+  $('#highlight-wrap').hidden = ins;
+  $('#search-wrap').hidden = ins;
+  $('#menu-chart').hidden = ins;
+  $('#btn-png').hidden = ins;
+  if (ins) closeDetail();
   $('#btn-unitlist').textContent = S.unitList.length ? 'Replace unit list' : 'Attach a unit list';
   // A listed unit that names a column the chart is not nesting by has no box to
   // carry its type and mandate. Say so, and name the lever that fixes it.
@@ -3122,6 +3271,22 @@ function refresh(keepView) {
   // Reconcile the filters first: a choice left impossible by another would
   // otherwise draw an empty chart and only be cleared afterwards.
   if (S.model) scopeFilters();
+
+  // The insights view has no chart, so it stops short of everything that
+  // exists to draw one. It still needs the unit tree — half the cards are
+  // about units — and the allowed set that draw() would otherwise compute.
+  if (isInsights()) {
+    _allowed = computeAllowed();
+    if (!S.unitLevels.length) S.unitLevels = defaultUnitLevels(S.model);
+    rebuildUnits();
+    S.drawn = [];
+    renderInsights();
+    renderStats();
+    renderFilterFields();
+    renderBadges();
+    return;
+  }
+
   if (isUnits()) rebuildUnits();
   const counts = buildPalette();
   const before = { ...S.view };
@@ -3295,6 +3460,390 @@ function recRow(band, f) {
 }
 
 const unitTitleOf = u => u && u.leader ? (u.leader.title || u.label) : (u ? u.label : '');
+
+/* ─── Insights ──────────────────────────────────────────────────────────────
+   Compare ranks what you asked about and Reconcile lists where two records
+   disagree. Neither answers the first question a practitioner actually has,
+   which is where to look. Each card here is one test, the number it produced,
+   the sentence saying what was tested, and the seats or units that failed —
+   every row a click through to that box in the chart.
+   ─────────────────────────────────────────────────────────────────────────── */
+const INS_ROWS = 8;          // per card, before the tail is summarised
+const MIN_UNIT_FOR_RATE = 5; // a team of two tops every percentage table
+
+const pct = (n, of) => (of ? Math.round(n / of * 1000) / 10 : 0);
+const pcts = (n, of) => (of ? dec(pct(n, of), 1) + '%' : '—');
+const has = key => !!(S.model && S.model.map && S.model.map[key]);
+
+/* Where a position sits, in the words of the ladder, so a row says something
+   about the organisation and not only about the person. */
+const unitPathOf = n => DIMENSIONS.slice(0, 6).map(d => n[d.key]).filter(Boolean).slice(-2).join(' › ')
+  || n.function || n.location || '';
+
+/* Units in view. The unit model is already built from the filtered positions,
+   so the only narrowing left is a chosen branch of the reporting line. */
+function unitsInScope() {
+  const all = (S.unitModel && S.unitModel.nodes || []).filter(u => u.dim);
+  if (!S.rootId) return all;
+  const inScope = new Set(positionsInScope().map(p => p.id));
+  return all.filter(u => u.all.some(p => inScope.has(p.id)));
+}
+
+const posRow = (n, said, num) => ({
+  who: n.title || n.name || n.id, said, num,
+  attr: ` data-goto-position="${esc(n.id)}"`,
+});
+const unitRow = (u, said, num) => ({
+  who: u.label, said, num, attr: ` data-goto-unit="${esc(u.id)}"`,
+});
+
+/* A proportion bar in the same vocabulary the box detail uses, so front /
+   middle / back means the same thing wherever it is drawn. */
+function insBar(entries, key, total) {
+  if (!entries.length) return '';
+  // A key with its own vocabulary keeps it; anything else — pool names, function
+  // types — takes the categorical wheel in the order the bar already runs in.
+  const known = !!MIX_COLOURS[key];
+  const colour = (v, i) => (known ? mixColour(key, v) : PALETTE[i % PALETTE.length]);
+  return `<div class="prof">
+    <div class="prof-bar">${entries.map(([v, c], i) =>
+      `<span style="width:${(c / total * 100).toFixed(1)}%;background:${colour(v, i)}" ` +
+      `title="${esc(v)}: ${c}"></span>`).join('')}</div>
+    <div class="prof-keys">${entries.map(([v, c], i) =>
+      `<span class="prof-key"><i style="background:${colour(v, i)}"></i>${esc(v)} ` +
+      `<b>${int(c)}</b></span>`).join('')}</div></div>`;
+}
+
+function countBy(rows, key) {
+  const m = new Map();
+  for (const r of rows) { const v = r[key]; if (v) m.set(v, (m.get(v) || 0) + 1); }
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function insightCards() {
+  const T = S.thresholds;
+  const ns = positionsInScope();
+  const units = unitsInScope();
+  const cards = [];
+  const add = c => { if (c) cards.push(c); };
+
+  /* ── Shape ── */
+  const layers = ns.length ? Math.max(...ns.map(n => n.layer)) - Math.min(...ns.map(n => n.layer)) + 1 : 0;
+  const top = ns.length ? Math.min(...ns.map(n => n.layer)) : 0;
+  const tooDeep = ns.filter(n => n.layer - top + 1 > T.deepLayer);
+  const deepBy = new Map();
+  for (const n of tooDeep) {
+    const k = unitPathOf(n) || UNSET;
+    const e = deepBy.get(k) || { n: 0, deepest: n };
+    e.n++;
+    if (n.layer > e.deepest.layer) e.deepest = n;
+    deepBy.set(k, e);
+  }
+  const deepRows = [...deepBy.entries()].sort((a, b) => b[1].n - a[1].n);
+  add({
+    id: 'layers', section: 'Shape', title: 'How deep it runs',
+    figure: int(layers), unit: layers === 1 ? 'layer' : 'layers',
+    tone: tooDeep.length ? 'warn' : 'ok', flagged: tooDeep.length,
+    note: `The longest reporting chain in view runs ${int(layers)} deep. `
+      + (tooDeep.length
+        ? `${int(tooDeep.length)} positions sit more than ${T.deepLayer} layers below the top, `
+          + 'in the teams below.'
+        : `Nothing sits more than ${T.deepLayer} layers below the top.`),
+    rows: deepRows.slice(0, INS_ROWS).map(([k, e]) => ({
+      who: k, said: '',
+      num: int(e.n) + ' at ' + (e.deepest.layer - top + 1) + ' deep',
+      attr: ` data-goto-position="${esc(e.deepest.id)}"`,
+    })),
+    more: Math.max(0, deepRows.length - INS_ROWS),
+  });
+
+  const managers = ns.filter(n => n.isManager);
+  const wide = managers.filter(n => n.directs >= T.wideSpan).sort((a, b) => b.directs - a.directs);
+  add({
+    id: 'wideSpan', section: 'Shape', title: 'Spans too wide to lead',
+    figure: int(wide.length), unit: wide.length === 1 ? 'manager' : 'managers',
+    tone: wide.length ? 'warn' : 'ok', flagged: wide.length,
+    note: `Managers with ${T.wideSpan} or more direct reports. At this width a team is `
+      + 'usually several teams, or the manager is coordinating rather than leading.',
+    rows: wide.slice(0, INS_ROWS).map(n => posRow(n, unitPathOf(n), int(n.directs) + ' reports')),
+    more: Math.max(0, wide.length - INS_ROWS),
+  });
+
+  const narrow = managers.filter(n => n.directs <= T.narrowSpan)
+    .sort((a, b) => b.total - a.total || a.directs - b.directs);
+  add({
+    id: 'narrowSpan', section: 'Shape', title: 'Managers with few reports',
+    figure: pcts(narrow.length, managers.length), unit: 'of managers', tone: '', flagged: 0,
+    note: `${int(narrow.length)} of ${int(managers.length)} managers have ${T.narrowSpan} or `
+      + 'fewer direct reports. A team lead with two specialists is normal; the ones worth '
+      + 'reading are those carrying a whole organisation below them, listed first.',
+    rows: narrow.slice(0, INS_ROWS).map(n => posRow(n,
+      int(n.directs) + (n.directs === 1 ? ' report' : ' reports'),
+      int(n.total - 1) + ' below')),
+    more: Math.max(0, narrow.length - INS_ROWS),
+  });
+
+  const through = managers.filter(n => n.directs === 1 && n.children[0] && n.children[0].isManager);
+  add({
+    id: 'passThrough', section: 'Shape', title: 'Pass-through managers',
+    figure: int(through.length), unit: through.length === 1 ? 'position' : 'positions',
+    tone: through.length ? 'alert' : 'ok', flagged: through.length,
+    note: 'One direct report, who is a manager too. The work passes straight through: '
+      + 'a whole layer between a leader and their leader.',
+    rows: through.slice(0, INS_ROWS).map(n =>
+      posRow(n, 'over ' + (n.children[0].title || n.children[0].id), int(n.total - 1) + ' below')),
+    more: Math.max(0, through.length - INS_ROWS),
+  });
+
+  const spanTotal = managers.reduce((t, n) => t + n.directs, 0);
+  add({
+    id: 'managerRatio', section: 'Shape', title: 'Managers to the rest',
+    figure: pcts(managers.length, ns.length), unit: 'of seats manage someone',
+    tone: '', flagged: 0,
+    note: `${int(managers.length)} managers to ${int(ns.length - managers.length)} individual `
+      + `contributors. Average span is ${dec(managers.length ? spanTotal / managers.length : 0, 1)}.`,
+    rows: [], more: 0,
+  });
+
+  /* ── Staffing ── */
+  const vacant = ns.filter(n => n.vacant);
+  const rated = units.filter(u => u.headcount >= MIN_UNIT_FOR_RATE)
+    .sort((a, b) => pct(b.vacant, b.headcount) - pct(a.vacant, a.headcount) || b.vacant - a.vacant)
+    .filter(u => u.vacant > 0);
+  add({
+    id: 'vacancy', section: 'Staffing', title: 'Seats nobody is in',
+    figure: pcts(vacant.length, ns.length), unit: 'of seats vacant',
+    tone: vacant.length ? 'warn' : 'ok', flagged: vacant.length,
+    note: `${int(vacant.length)} of ${int(ns.length)} positions in view are unfilled. `
+      + `The units below carry the worst of it, counting only those with `
+      + `${MIN_UNIT_FOR_RATE} positions or more.`,
+    rows: rated.slice(0, INS_ROWS).map(u =>
+      unitRow(u, int(u.vacant) + ' of ' + int(u.headcount) + ' vacant', pcts(u.vacant, u.headcount))),
+    more: Math.max(0, rated.length - INS_ROWS),
+  });
+
+  const leaderless = vacant.filter(n => n.directs > 0).sort((a, b) => b.total - a.total);
+  add({
+    id: 'leaderless', section: 'Staffing', title: 'Teams with nobody at the top',
+    figure: int(leaderless.length), unit: leaderless.length === 1 ? 'vacant seat' : 'vacant seats',
+    tone: leaderless.length ? 'alert' : 'ok', flagged: leaderless.length,
+    note: 'Vacant positions that have people reporting to them: '
+      + `${int(leaderless.reduce((t, n) => t + n.total - 1, 0))} people in view report, directly or `
+      + 'through others, to somebody who is not there.',
+    rows: leaderless.slice(0, INS_ROWS).map(n =>
+      posRow(n, unitPathOf(n), int(n.directs) + ' direct')),
+    more: Math.max(0, leaderless.length - INS_ROWS),
+  });
+
+  const nobody = units.filter(u => u.empty || u.unstaffed);
+  if (nobody.length || S.unitList.length) {
+    add({
+      id: 'emptyUnits', section: 'Staffing', title: 'Units with nobody in post',
+      figure: int(nobody.length), unit: nobody.length === 1 ? 'unit' : 'units',
+      tone: nobody.length ? 'warn' : 'ok', flagged: nobody.length,
+      note: 'Units the structure declares that hold no filled position — either every seat in '
+        + 'them is vacant, or they carry no positions at all.',
+      rows: nobody.slice(0, INS_ROWS).map(u =>
+        unitRow(u, u.empty ? 'no positions' : 'every seat vacant',
+          u.headcount ? int(u.headcount) + ' seats' : '')),
+      more: Math.max(0, nobody.length - INS_ROWS),
+    });
+  }
+
+  /* ── Succession & control ── */
+  if (has('critical')) {
+    const critical = ns.filter(n => n.critical);
+    const gaps = critical.filter(n => !n.successor);
+    add({
+      id: 'successionGaps', section: 'Succession & control', title: 'Critical roles with no successor',
+      figure: int(gaps.length), unit: 'of ' + int(critical.length) + ' critical roles',
+      tone: gaps.length ? 'alert' : 'ok', flagged: gaps.length,
+      note: 'A critical role with nobody named behind it is a single point of failure with '
+        + 'a notice period attached.',
+      rows: gaps.sort((a, b) => b.total - a.total).slice(0, INS_ROWS)
+        .map(n => posRow(n, unitPathOf(n), n.vacant ? 'and vacant' : '')),
+      more: Math.max(0, gaps.length - INS_ROWS),
+    });
+
+    const criticalVacant = critical.filter(n => n.vacant);
+    add({
+      id: 'criticalVacant', section: 'Succession & control', title: 'Critical roles standing empty',
+      figure: int(criticalVacant.length), unit: criticalVacant.length === 1 ? 'role' : 'roles',
+      tone: criticalVacant.length ? 'alert' : 'ok', flagged: criticalVacant.length,
+      note: 'Critical and unfilled at the same time. The exposure is present, not future.',
+      rows: criticalVacant.sort((a, b) => b.total - a.total).slice(0, INS_ROWS)
+        .map(n => posRow(n, unitPathOf(n), n.successor ? 'successor named' : 'no successor')),
+      more: Math.max(0, criticalVacant.length - INS_ROWS),
+    });
+  }
+
+  if (has('sama')) {
+    const sama = ns.filter(n => n.sama);
+    const samaRisk = sama.filter(n => n.vacant || (has('successor') && !n.successor));
+    add({
+      id: 'sama', section: 'Succession & control', title: 'SAMA non-objection roles',
+      figure: int(sama.length), unit: sama.length === 1 ? 'controlled seat' : 'controlled seats',
+      tone: samaRisk.length ? 'warn' : 'ok', flagged: samaRisk.length,
+      note: `${int(sama.filter(n => n.vacant).length)} vacant`
+        + (has('successor') ? `, ${int(sama.filter(n => !n.successor).length)} with no successor named` : '')
+        + '. A regulator-facing appointment cannot be made at short notice.',
+      rows: samaRisk.slice(0, INS_ROWS).map(n => posRow(n, unitPathOf(n),
+        n.vacant ? 'vacant' : 'no successor')),
+      more: Math.max(0, samaRisk.length - INS_ROWS),
+    });
+  }
+
+  if (has('successorReadiness')) {
+    const withSucc = ns.filter(n => n.successor && n.successorReadiness);
+    const mix = countBy(withSucc, 'successorReadiness');
+    if (mix.length) {
+      add({
+        id: 'readiness', section: 'Succession & control', title: 'How ready the successors are',
+        figure: int(withSucc.length), unit: 'roles with a named successor',
+        tone: '', flagged: 0,
+        note: 'Naming a successor and having one ready are different things.',
+        rows: [], more: 0,
+        bar: insBar(mix, 'readiness', withSucc.length),
+      });
+    }
+  }
+
+  if (has('talentPool')) {
+    const pool = ns.filter(n => n.inTalentPool);
+    const mix = countBy(pool.filter(n => n.talentPool), 'talentPool').slice(0, 6);
+    add({
+      id: 'talentPool', section: 'Succession & control', title: 'Depth of the bench',
+      figure: int(pool.length), unit: 'people in a talent pool',
+      tone: '', flagged: 0,
+      note: has('critical')
+        ? `Against ${int(ns.filter(n => n.critical).length)} critical seats in view — `
+          + `${pcts(pool.length, ns.length)} of the population is in a pool.`
+        : `${pcts(pool.length, ns.length)} of the population is in a pool.`,
+      rows: [], more: 0,
+      bar: insBar(mix, 'talentPool', mix.reduce((t, [, c]) => t + c, 0) || 1),
+    });
+  }
+
+  /* ── Composition ── */
+  if (has('jobType')) {
+    const mix = countBy(ns, 'jobType');
+    add({
+      id: 'jobTypeMix', section: 'Composition', title: 'Front, middle and back',
+      figure: int(ns.length), unit: 'positions in view', tone: '', flagged: 0,
+      note: 'Where the work sits against the customer.',
+      rows: [], more: 0, bar: insBar(mix, 'jobType', ns.length),
+    });
+  }
+
+  if (has('functionType')) {
+    const mix = countBy(ns, 'functionType');
+    const control = ns.filter(n => /2nd|second|3rd|third|control|assurance|audit/i.test(n.functionType || ''));
+    add({
+      id: 'lines', section: 'Composition', title: 'The three lines',
+      figure: pcts(control.length, ns.length), unit: 'in second and third line',
+      tone: '', flagged: 0,
+      note: `${int(control.length)} of ${int(ns.length)} positions sit in control or assurance `
+        + 'functions rather than in the business itself.',
+      rows: [], more: 0, bar: insBar(mix, 'functionType', ns.length),
+    });
+  }
+
+  if (has('grade')) {
+    const mix = countBy(ns, 'grade');
+    if (mix.length > 1) {
+      add({
+        id: 'grades', section: 'Composition', title: 'Where the grades sit',
+        figure: int(mix.length), unit: 'distinct grades', tone: '', flagged: 0,
+        note: 'Listed by headcount: the tool reads grades as labels and does not know which '
+          + `outranks which. The largest, ${esc(mix[0][0])}, holds ${pcts(mix[0][1], ns.length)} `
+          + 'of the population.',
+        rows: mix.slice(0, INS_ROWS).map(([g, c]) => ({
+          who: g, said: '', num: int(c) + '  ·  ' + pcts(c, ns.length),
+          attr: ` data-drill='${esc(JSON.stringify({ k: 'grade', v: g }))}'`,
+        })),
+        more: Math.max(0, mix.length - INS_ROWS),
+      });
+    }
+  }
+
+  // Nationality is a personal field, so this card hides with the names.
+  if (has('nationality') && !S.present) {
+    const filled = ns.filter(n => !n.vacant && n.nationality);
+    const saudi = filled.filter(n => /saudi|سعود/i.test(n.nationality));
+    if (filled.length) {
+      const byGroup = new Map();
+      for (const n of filled) {
+        const g = n.group || n.division || UNSET;
+        const e = byGroup.get(g) || { total: 0, saudi: 0 };
+        e.total++; if (/saudi|سعود/i.test(n.nationality)) e.saudi++;
+        byGroup.set(g, e);
+      }
+      const worst = [...byGroup.entries()].filter(([, e]) => e.total >= MIN_UNIT_FOR_RATE)
+        .sort((a, b) => pct(a[1].saudi, a[1].total) - pct(b[1].saudi, b[1].total));
+      add({
+        id: 'saudization', section: 'Composition', title: 'Saudization',
+        figure: pcts(saudi.length, filled.length), unit: 'of filled seats',
+        tone: '', flagged: 0,
+        note: `${int(saudi.length)} of ${int(filled.length)} filled positions are held by Saudi `
+          + 'nationals. Vacant seats carry no nationality, so they are left out. Lowest first.',
+        rows: worst.slice(0, INS_ROWS).map(([g, e]) => ({
+          who: g, said: int(e.saudi) + ' of ' + int(e.total), num: pcts(e.saudi, e.total),
+          attr: ` data-drill='${esc(JSON.stringify({ k: 'group', v: g }))}'`,
+        })),
+        more: Math.max(0, worst.length - INS_ROWS),
+      });
+    }
+  }
+
+  return cards;
+}
+
+const INS_SECTIONS = ['Shape', 'Staffing', 'Succession & control', 'Composition'];
+
+function renderInsights() {
+  if (!isInsights() || !S.model) return;
+  const cards = insightCards();
+  S.insightCards = cards;
+
+  // Only the cards that name exceptions count towards "things to look at" — a
+  // proportion is a fact about the organisation, not an item of work.
+  const flagged = cards.reduce((t, c) => t + (c.flagged || 0), 0);
+  $('#ins-count').textContent = flagged
+    ? int(flagged) + (flagged === 1 ? ' thing to look at' : ' things to look at')
+    : 'nothing flagged in this view';
+
+  $('#th-wide').value = S.thresholds.wideSpan;
+  $('#th-narrow').value = S.thresholds.narrowSpan;
+  $('#th-deep').value = S.thresholds.deepLayer;
+
+  if (!cards.length) {
+    $('#ins-body').innerHTML = '<p class="ins-empty">Nothing in view to read. Clear a filter, '
+      + 'or load a file that carries grades, critical-role and succession columns.</p>';
+    return;
+  }
+
+  $('#ins-body').innerHTML = INS_SECTIONS.map(sec => {
+    const mine = cards.filter(c => c.section === sec);
+    if (!mine.length) return '';
+    return `<section class="ins-sec"><h4>${esc(sec)}</h4>
+      <div class="ins-grid">${mine.map(insCard).join('')}</div></section>`;
+  }).join('');
+}
+
+function insCard(c) {
+  const rows = c.rows.map(r =>
+    `<div class="ins-row"${r.attr || ''}><span class="who">${esc(r.who)}</span>` +
+    (r.said ? `<span class="said">${esc(r.said)}</span>` : '') +
+    `<span class="num">${esc(r.num || '')}</span></div>`).join('');
+  return `<article class="ins-card ${c.tone || ''}" data-card="${esc(c.id)}">
+    <h5>${esc(c.title)}</h5>
+    <div class="ins-fig"><b>${esc(c.figure)}</b><span>${esc(c.unit)}</span></div>
+    <p class="ins-note">${esc(c.note)}</p>
+    ${c.bar || ''}
+    ${rows ? `<div class="ins-rows">${rows}</div>` : ''}
+    ${c.more ? `<div class="ins-more">…and ${int(c.more)} more</div>` : ''}
+  </article>`;
+}
 
 /* ─── Detail panel ──────────────────────────────────────────────────────── */
 const SENSITIVE = ['successorName', 'email', 'hireDate', 'nationality'];
@@ -3660,7 +4209,28 @@ function exportFindingsCsv() {
   toast('Exported ' + rows.length + ' finding' + (rows.length === 1 ? '' : 's'));
 }
 
+/* The panel summarised into rows: the card, the number it produced and the
+   sentence it produced it from, then every subject it named. Read on its own,
+   away from the tool, it still says what was tested. */
+function exportInsightsCsv() {
+  const cards = S.insightCards || insightCards();
+  const cols = ['Section', 'Insight', 'Figure', 'Measures', 'What it tests',
+                'Subject', 'Detail', 'Value'];
+  const rows = [];
+  for (const c of cards) {
+    const head = [c.section, c.title, c.figure, c.unit, c.note];
+    if (!c.rows.length) rows.push(head.concat(['', '', '']));
+    for (const r of c.rows) rows.push(head.concat([r.who, r.said || '', r.num || '']));
+    if (c.more) rows.push(head.concat(['…and ' + c.more + ' more', '', '']));
+  }
+  const csv = [cols.map(csvCell).join(',')]
+    .concat(rows.map(r => r.map(csvCell).join(','))).join('\r\n');
+  download(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), 'org-insights.csv');
+  toast('Exported ' + cards.length + ' insight' + (cards.length === 1 ? '' : 's'));
+}
+
 function exportCsv() {
+  if (isInsights()) return exportInsightsCsv();
   if (isUnits() && !$('#reconcile').hidden) return exportFindingsCsv();
   if (isUnits()) return exportUnitCsv();
   const cols = [
@@ -3797,7 +4367,8 @@ function preparePrint() {
   // and the date around the edges.
   const scope = S.rootId ? M().byId.get(S.rootId) : null;
   const scopeName = scope ? (scope.kind === 'unit' ? scope.label : (scope.title || scope.name || scope.id))
-    : (isUnits() ? 'Organisation structure' : 'Organisation chart');
+    : isUnits() ? 'Organisation structure'
+    : isInsights() ? 'Organisation insights' : 'Organisation chart';
 
   const ns = positionsInScope();
   const units = isUnits() ? scopedNodes().filter(u => u.dim).length : 0;
@@ -3826,6 +4397,15 @@ function preparePrint() {
     (narrowed ? `<p>Showing only — ${esc(narrowed)}</p>` : '');
   for (const el of $$('.cmp-context')) {
     el.textContent = scopeName + (narrowed ? ' · ' + narrowed : '');
+  }
+
+  // A column of cards is not a chart: there is no viewBox to fit and no shape
+  // to turn the page for, so the insights view prints portrait and stops here.
+  if (isInsights()) {
+    const insPage = $('#print-page') || document.head.appendChild(
+      Object.assign(document.createElement('style'), { id: 'print-page' }));
+    insPage.textContent = '@page { size: portrait; margin: 12mm; }';
+    return function restore() {};
   }
 
   svg.setAttribute('viewBox',
@@ -4627,15 +5207,21 @@ function wireApp() {
 
   wirePopovers();
 
+  // A house rule, not a fact: change the number and every card that tests
+  // against it re-reads, sentence included.
+  for (const [id, key, lo, hi] of [['#th-wide', 'wideSpan', 3, 60],
+                                   ['#th-narrow', 'narrowSpan', 1, 10],
+                                   ['#th-deep', 'deepLayer', 2, 20]]) {
+    $(id).onchange = e => {
+      const v = Math.round(Number(e.target.value));
+      S.thresholds[key] = Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : S.thresholds[key];
+      renderInsights();
+    };
+  }
+
   $('#btn-compare').onclick = () => setCompare($('#compare').hidden);
   $('#btn-reconcile').onclick = () => setReconcile($('#reconcile').hidden);
   $('#rec-close').onclick = () => setReconcile(false);
-  $('#rec-body').onclick = e => {
-    const row = e.target.closest('[data-goto-unit]');
-    if (!row) return;
-    const u = S.unitModel.byId.get(row.dataset.gotoUnit);
-    if (u) { revealNode(u); refresh(true); centreOn(u, true); openDetail(u.id); }
-  };
   $('#cmp-close').onclick = () => setCompare(false);
   $('#cmp-level').onchange = e => { S.cmpLevel = e.target.value; renderCompare(); };
   $('#cmp-table').onclick = e => {
@@ -4716,6 +5302,15 @@ function wireApp() {
       const u = S.unitModel.nodes.find(x => x.dim && x.label === label);
       if (u) { revealNode(u); refresh(true); centreOn(u, true); openDetail(u.id); }
       else { refresh(); toast('"' + label + '" is not a unit in the current structure.'); }
+      return;
+    }
+    const gotoUnit = e.target.closest('[data-goto-unit]');
+    if (gotoUnit) {
+      // Reconcile is already in the org view and has a branch chosen; only a
+      // jump from somewhere else should reset it.
+      if (!isUnits()) setMode('units');
+      const u = S.unitModel.byId.get(gotoUnit.dataset.gotoUnit);
+      if (u) { revealNode(u); refresh(true); centreOn(u, true); openDetail(u.id); }
       return;
     }
     const gotoPos = e.target.closest('[data-goto-position]');
