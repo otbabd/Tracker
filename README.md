@@ -260,14 +260,29 @@ down; filters stay, because they are how the panel is scoped.
 | **Reconcile** | Where the approved structure and the reporting line disagree, banded by finding and clickable through to each one. |
 | **How to use** | The first tab, and the opening screen's button: what the tool needs, the three ways to give it, every column it recognises, and the template to download. |
 | **Insights** | A third view rather than a sheet: cards that read the file and say what is worth looking at — shape, staffing, succession and control, composition. The thresholds it tests against sit on the panel. |
-| **Flag chips** | Highlight critical roles, SAMA roles, succession gaps or vacancies in place. |
+| **Flag chips** | Highlight critical roles, SAMA roles, succession gaps, vacancies or people leaving, in place. |
 | **Colour** | Chart colours are checked rather than chosen by eye. Front / middle / back is an ordered scale, so it is a single hue running light to dark, stepped separately for each theme; pay basis is identity, so it takes distinct hues; staffing and readiness share one status vocabulary — filled, partly, all — so the same state is the same colour wherever you meet it. Every set clears the colourblind-separation and contrast thresholds in both themes, and every segment is labelled, so nothing depends on telling two colours apart. |
 | **Colour by** | Recolour the boxes by function, department, grade, location and so on — or by **Filled / vacant** in the positions view and **Staffing** in the org view, which use the theme's own green and amber rather than the categorical palette, so a vacant box reads as vacant wherever you meet it. The legend and the boxes take the same colour from the same place, in either theme. |
 | **Click a box** | Everything held about that position, in two parts: **The job** — code, grade, family, function type, job type, pay basis, talent pool, employment type, FTE, status — and **Where it sits**, the full ladder from group down to section plus branch, function, location and cost centre. Below them the incumbent, succession, mandatory training, direct reports and any column the tool did not recognise. A field your file does not carry is left out rather than shown as a dash. |
-| **Presentation** | One switch hides successor names, emails, hire dates and nationality, so the chart is safe to project or screen-share. |
+| **Presentation** | One switch hides successor names, emails, hire dates, nationality, previous incumbents and leaving dates — the leaving badge included — so the chart is safe to project or screen-share. A resignation nobody has announced is exactly what must not go on a wall. |
 | **PNG** | Saves exactly what is on screen, at slide proportions. |
 | **Print** | A heading naming the scope and the figures for it, and then the chart, which fills the rest of the page in light theme, turned landscape or portrait to suit its shape. Nothing else — the browser already prints the file and the date around the edges. The one exception is a filter, a search or presentation mode, which a reader cannot see and must not miss, so those are named under the heading. With **Compare** or **Reconcile** open, the sheet follows on its own pages — a printed reconciliation to hand to whoever owns the HRIS. In **Insights** there is no chart, so the cards are the page: portrait, unbroken across pages. Use it to save a PDF. |
 | **CSV** | Follows the view — and the open sheet, so with **Reconcile** open it exports the findings and in **Insights** the cards, one row per named subject. Otherwise positions with computed layer, branch headcount, branch FTE and reporting line — or units with headcount, FTE, vacancies, sub-unit counts, flag totals and the full profile. |
+
+## People on their way out, and people who have gone
+
+An **assignment end date** in the future on a filled seat means somebody has a
+departure booked. That seat gets a badge on the chart, a **Leaving** highlight
+chip, a column in **Compare**, and a card in **Insights** counting how many seats
+are emptying and how many of them are critical roles — listed soonest first, by
+job title rather than by name. A date already in the past means the row is stale
+rather than that somebody is leaving, and is not flagged.
+
+A vacant box says who held it last: *Vacant · was Amal Al-Harbi*. That comes from
+a **previous incumbent** column if your file has one — but most exports do not
+need it, because they leave the outgoing name on the row while the status says
+Vacant, and that name is used. Both are personal fields, so both go in
+**Presentation** mode.
 
 ## Units with nobody in them
 
@@ -339,8 +354,8 @@ family, **group**, **division**, **department**, **unit**, **sub-unit**,
 **section**, **branch**, function, location, employment type, status, FTE, cost
 centre, email, hire date, nationality, **function type**, **job type**, **pay
 basis**, **talent pool**, **roles & responsibilities**, **critical role**, **SAMA
-non-objection role**, **successor identified**, **successor name** and
-**successor readiness**.
+non-objection role**, **successor identified**, **successor name**,
+**successor readiness**, **assignment end date** and **previous incumbent**.
 
 Function type is whatever classification you use — Business / Support / Control,
 or first / second / third line of defence. It appears on unit boxes and in the

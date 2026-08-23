@@ -9,10 +9,23 @@ division and department except four left out on purpose, so reconciling the two
 hierarchies has something true to find.
 """
 import csv
+import datetime
 import random
 import sys
 
 random.seed(11)
+
+# Leaving dates are written relative to the day the sample is generated, so the
+# file never quietly ages into one where every notice has already expired.
+TODAY = datetime.date.today()
+
+# Drawn from its own stream: taking numbers off the shared one would shift every
+# later decision in the file and silently reshape the whole sample.
+LEAVERS = random.Random(4242)
+
+
+def in_days(n):
+    return (TODAY + datetime.timedelta(days=n)).isoformat()
 
 AR_FIRST = ["أحمد", "نورة", "خالد", "سارة", "فيصل", "ريم", "عبدالله", "لطيفة",
             "سلطان", "هند", "ماجد", "دانة"]
@@ -247,6 +260,13 @@ def add(pid, mgr, title, grade, group, fn, division="", dept="", vac_p=0.08,
         "Talent Pool": (random.choice(TALENT_POOLS)
                         if random.random() < (0.30 if grade in ("G15", "G14", "G13") else 0.08)
                         else ""),
+        # About one in twenty-five people has a departure booked, and a vacant
+        # seat that somebody has just left still names them.
+        "Assignment End Date": ("" if vacant else
+                                in_days(LEAVERS.randint(7, 150))
+                                if LEAVERS.random() < 0.04 else ""),
+        "Previous Incumbent": (LEAVERS.choice(names_pool)
+                               if vacant and LEAVERS.random() < 0.55 else ""),
         "Work Email": "" if vacant else f"user{seq}@example.com",
         "Hire Date": f"{random.randint(2008, 2025)}-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
         "Nationality": random.choice(["Saudi"] * 7 + ["Egyptian", "Indian", "Jordanian", "British"]),

@@ -281,6 +281,7 @@ select:disabled { opacity: .5; cursor: not-allowed; }
 .t-meta   { fill: var(--text-mute); font-size: 10px; }
 .t-count  { fill: var(--text-mute); font-size: 10px; font-variant-numeric: tabular-nums; }
 .t-vacant { fill: var(--vacant); font-size: 11px; font-weight: 550; }
+.t-was { fill: var(--text-mute); font-size: 11px; font-weight: 400; }
 svg text { unicode-bidi: plaintext; }
 
 .exp { cursor: pointer; }
@@ -1547,6 +1548,13 @@ const FIELDS = [
   { key: 'email',      label: 'Email',       aliases: ['email','emailaddress','workemail','mail','upn'] },
   { key: 'hireDate',   label: 'Hire Date',   aliases: ['hiredate','startdate','joindate','dateofjoining','dateofhire','joiningdate','servicedate'] },
   { key: 'nationality',label: 'Nationality', aliases: ['nationality','citizenship','nationalitycode','saudization','saudi'] },
+  { key: 'assignmentEnd', label: 'Assignment End Date', aliases: [
+    'assignmentenddate','assignmentend','lastworkingday','lastdayofwork','lastday',
+    'terminationdate','leavingdate','leavedate','exitdate','separationdate',
+    'resignationdate','contractenddate','contractend','endofassignment','enddate'] },
+  { key: 'previousIncumbent', label: 'Previous Incumbent', aliases: [
+    'previousincumbent','previousemployee','previousholder','lastincumbent',
+    'formerincumbent','outgoingincumbent','outgoing','vacatedby','replacing'] },
 
   { key: 'jobType', label: 'Job Type', aliases: [
     'jobtype','officetype','frontmiddleback','fmb','frontbackoffice','officecategory',
@@ -1683,6 +1691,54 @@ function parseFlag(raw) {
 const VACANT_WORDS = /^(vacant|open|unfilled|tobehired|tbh|torecruit|newposition|newrole|hiring|backfill|notfilled|empty|شاغر)$/;
 const BLANK_NAMES = new Set(['','-','--','n/a','na','none','null','tbd','tbh','vacant','open','unknown','?','.']);
 
+/* Dates arrive three ways: an ISO string, which readXlsx already produces for a
+   date-styled cell; a bare Excel serial where the cell was not styled; or
+   whatever somebody typed. Only the first is unambiguous.
+
+   dd/mm and mm/dd cannot be told apart one cell at a time, so the decision is
+   made once for the whole column: if any value in it has a first part above 12,
+   nothing else in that column can be month-first either. Anything that still
+   cannot be read is left exactly as written rather than guessed at — a wrong
+   date on a leaving indicator is worse than no date. */
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})/;
+const SLASHED = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/;
+
+const iso = (y, m, d) =>
+  y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+
+function dayFirstColumn(values) {
+  return values.some(v => {
+    const m = SLASHED.exec(String(v ?? '').trim());
+    return m && +m[1] > 12;
+  });
+}
+
+function parseDay(value, dayFirst) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const isoM = ISO_DAY.exec(raw);
+  if (isoM) return isoM[0].slice(0, 10);
+
+  const slash = SLASHED.exec(raw);
+  if (slash) {
+    let [, a, b, y] = slash;
+    // A first part above 12 settles it whatever the column said.
+    const d = (dayFirst || +a > 12) ? +a : +b;
+    const mo = (dayFirst || +a > 12) ? +b : +a;
+    if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12) return iso(+y, mo, d);
+    return '';
+  }
+  // A bare Excel serial, bounded to dates a workforce file could plausibly hold.
+  if (/^\d+(\.\d+)?$/.test(raw)) {
+    const n = +raw;
+    return n > 20000 && n < 80000 ? serialToDate(n) : '';
+  }
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : '';
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
 function isVacant(name, status) {
   const st = String(status ?? '').trim().toLowerCase().replace(/\s+/g, '');
   if (st && VACANT_WORDS.test(st)) return true;
@@ -1702,6 +1758,8 @@ function buildModel(headers, records, map) {
   if (!map.id) throw new Error('No ID column could be found. Open Columns and point at the one that identifies each position.');
 
   const extraHeaders = headers.filter(h => !Object.values(map).includes(h));
+  const dayFirstEnd = map.assignmentEnd
+    ? dayFirstColumn(records.map(r => r[map.assignmentEnd])) : false;
   const issues = [];
   const nodes = [];
   const declaredUnits = [];
@@ -1737,6 +1795,11 @@ function buildModel(headers, records, map) {
     const name = get('name');
     const status = get('status');
     const vacant = isVacant(name, status);
+    // A seat whose Status says vacant while the Name column still holds a real
+    // person is naming whoever just left. That name used to be discarded.
+    const previousName = get('previousIncumbent')
+      || (vacant && !BLANK_NAMES.has(String(name ?? '').trim().toLowerCase()) ? name : '');
+    const endsOn = parseDay(get('assignmentEnd'), dayFirstEnd);
     const critical  = map.critical  ? parseFlag(get('critical'))  : false;
     const sama      = map.sama      ? parseFlag(get('sama'))      : false;
     const successorName = get('successorName');
@@ -1763,6 +1826,13 @@ function buildModel(headers, records, map) {
       location: get('location'), employmentType: get('employmentType'),
       costCenter: get('costCenter'), email: get('email'), hireDate: get('hireDate'),
       nationality: get('nationality'),
+      previousName,
+      assignmentEnd: endsOn || get('assignmentEnd'),
+      leavingOn: endsOn,
+      // Somebody still in post with a departure already booked. A date already
+      // past means they have gone and the row is stale, which is not the same
+      // thing and is not flagged as one.
+      leaving: !!endsOn && !vacant && endsOn >= today(),
       functionType: get('functionType'), responsibilities: get('responsibilities'),
       inTalentPool: (() => {
         const v = get('talentPool');
@@ -2390,6 +2460,7 @@ function finishUnits(root, byId, levels) {
       if (Object.keys(counts).length) u.mix[key] = counts;
     }
     u.talentPoolCount = u.all.filter(p => p.inTalentPool).length;
+    u.leaving = u.all.filter(p => p.leaving).length;
     u.withCourses = u.all.filter(p => p.courseCount > 0).length;
 
     // Compare ranks on numbers, so the mix is also flattened into countable
@@ -2521,6 +2592,7 @@ const HIGHLIGHTS = [
   { key: 'sama',     label: 'SAMA non-objection',     colour: 'var(--sama)',     test: n => n.sama },
   { key: 'successor',label: 'Successor identified',   colour: 'var(--ok)',       test: n => n.successor },
   { key: 'vacant',   label: 'Vacant',                 colour: 'var(--vacant)',   test: n => n.vacant },
+  { key: 'leaving',  label: 'Leaving',                colour: 'var(--vacant)',   test: n => n.leaving },
 ];
 
 /* Unit-only highlights: these describe a box, not a person, so they cannot be
@@ -2901,25 +2973,57 @@ function colourOf(n) {
 /* ─── Drawing ───────────────────────────────────────────────────────────── */
 const svgesc = s => esc(s);
 
+/* Line pictograms on a 16-unit grid, hairline and unfilled, with the colour on
+   the stroke. Letters needed a legend and only worked in English; a shape can be
+   recognised before it is understood, and the tooltip and the Highlight panel
+   still do the naming.
+
+   Every colour here is one of the five theme variables exportPng() resolves into
+   the detached SVG. Anything outside that list would export black. */
+const BADGE_ICONS = {
+  // A star: the role the organisation cannot do without.
+  critical: 'M8 2.2 9.8 6l4.2.5-3.1 2.8.9 4.1L8 11.4 4.2 13.4l.9-4.1L2 6.5 6.2 6z',
+  // A shield: an appointment somebody else has to approve.
+  sama: 'M8 2.2 13.2 4v4.1c0 3-2.2 5-5.2 5.9-3-.9-5.2-2.9-5.2-5.9V4z',
+  // A warning triangle: named critical, nobody behind it.
+  gap: 'M8 2.6 14 13H2z M8 6.6v3.1 M8 11.2v.1',
+  // A tick: somebody is ready to step in.
+  successor: 'M3 8.4 6.4 11.8 13 5.2',
+  // A door with an arrow leaving it: the seat is emptying.
+  leaving: 'M9.5 2.5H4v11h5.5 M7 8h7 M11.4 5.4 14 8l-2.6 2.6',
+};
+
 function badges(n) {
   const chips = [];
-  if (n.critical) chips.push(['C', 'var(--critical)', '#fff', 'Critical role']);
-  if (n.sama)     chips.push(['S', 'var(--sama)', '#fff', 'SAMA non-objection role']);
-  if (n.critical && !n.successor) chips.push(['!', 'none', 'var(--critical)', 'Critical role with no successor identified']);
-  else if (n.successor)           chips.push(['✓', 'var(--ok)', '#fff', 'Successor identified']);
+  if (n.critical) chips.push(['critical', 'var(--critical)', 'Critical role']);
+  if (n.sama)     chips.push(['sama', 'var(--sama)', 'SAMA non-objection role']);
+  if (n.critical && !n.successor) {
+    chips.push(['gap', 'var(--critical)', 'Critical role with no successor identified']);
+  } else if (n.successor) {
+    chips.push(['successor', 'var(--ok)', 'Successor identified']);
+  }
+  // A resignation that has not been announced is exactly what Presentation mode
+  // exists to keep off a projector, so the badge goes with the date.
+  if (n.leaving && !S.present) {
+    chips.push(['leaving', 'var(--vacant)',
+                'Leaving on ' + (n.leavingOn || n.assignmentEnd)]);
+  }
 
-  const size = 15, gap = 3;
+  const size = 16, gap = 3;
   let x = NODE_W - 11 - size;
-  return chips.map(([glyph, fill, ink, tip]) => {
-    const g = `<g transform="translate(${x},67)"><title>${svgesc(tip)}</title>` +
-      `<rect width="${size}" height="${size}" rx="4" fill="${fill}"` +
-      (fill === 'none' ? ` stroke="var(--critical)" stroke-width="1.4"` : '') + `/>` +
-      `<text x="${size / 2}" y="${size - 4}" text-anchor="middle" font-size="10" ` +
-      `font-weight="700" fill="${ink}">${glyph}</text></g>`;
+  return chips.map(([icon, ink, tip]) => {
+    const g = `<g class="bdg" transform="translate(${x},${BADGE_Y})">` +
+      `<title>${svgesc(tip)}</title>` +
+      `<path d="${BADGE_ICONS[icon]}" fill="none" stroke="${ink}" stroke-width="1.3" ` +
+      `stroke-linejoin="round" stroke-linecap="round"/></g>`;
     x -= size + gap;
     return g;
   }).join('');
 }
+
+const BADGE_Y = 66;
+const badgeCount = n => (n.critical ? 1 : 0) + (n.sama ? 1 : 0)
+  + ((n.successor || n.critical) ? 1 : 0) + (n.leaving && !S.present ? 1 : 0);
 
 /* A stacked strip along the bottom edge. It costs no text line, so a unit that
    is mostly back office simply looks different from one that is mostly front. */
@@ -3009,9 +3113,9 @@ function unitCardSvg(n) {
 
 function cardSvg(n) {
   if (n.kind === 'unit') return unitCardSvg(n);
-  const badgeCount = (n.critical ? 1 : 0) + (n.sama ? 1 : 0) + ((n.successor || n.critical) ? 1 : 0);
+  const badges_ = badgeCount(n);
   const titleMax = NODE_W - 28;
-  const countMax = NODE_W - 28 - (badgeCount ? badgeCount * 18 + 6 : 0);
+  const countMax = NODE_W - 28 - (badges_ ? badges_ * 19 + 6 : 0);
 
   const metaBits = [n.grade, n.function || n.department, n.location].filter(Boolean);
   const meta = metaBits.join(' · ');
@@ -3019,8 +3123,15 @@ function cardSvg(n) {
     ? int(n.directs) + ' direct · ' + int(n.total) + ' total'
     : (n.jobCode ? 'Job code ' + n.jobCode : 'Individual contributor');
 
+  // A vacancy that knows who left says so on the same line: no extra height, and
+  // the box answers "who has gone?" without a click. The name is a person's, so
+  // it goes when the names go.
+  const was = n.vacant && n.previousName && !S.present ? ' · was ' + n.previousName : '';
   const nameLine = n.vacant
-    ? `<text class="t-vacant" x="14" y="42">Vacant</text>`
+    ? `<text x="14" y="42"><tspan class="t-vacant">Vacant</tspan>` +
+      (was ? `<tspan class="t-was">${svgesc(
+        fit('Vacant' + was, NODE_W - 28, FONTS.name).slice('Vacant'.length))}</tspan>` : '') +
+      `</text>`
     : `<text class="t-name" x="14" y="42">${svgesc(fit(n.name || '—', NODE_W - 28, FONTS.name))}</text>`;
 
   const cls = ['card'];
@@ -3630,6 +3741,8 @@ const CMP_COLUMNS = [
   { key: 'critical',     label: 'Critical' },
   { key: 'sama',         label: 'SAMA' },
   { key: 'gaps',         label: 'Gaps',        tone: v => v ? 'alert' : 'muted' },
+  { key: 'leaving',      label: 'Leaving',     tone: v => v ? 'warn' : 'muted',
+    optional: u => u.leaving > 0 },
   { key: 'front',           label: 'Front',       optional: u => !!u.mix.jobType },
   { key: 'middle',          label: 'Middle',      optional: u => !!u.mix.jobType },
   { key: 'back',            label: 'Back',        optional: u => !!u.mix.jobType },
@@ -4084,6 +4197,26 @@ function insightCards() {
     more: Math.max(0, leaderless.length - INS_ROWS),
   });
 
+  if (has('assignmentEnd')) {
+    const going = ns.filter(n => n.leaving).sort((a, b) =>
+      String(a.leavingOn).localeCompare(String(b.leavingOn)));
+    const criticalGoing = going.filter(n => n.critical);
+    add({
+      id: 'leaving', section: 'Staffing', title: 'Seats emptying soon',
+      figure: int(going.length), unit: going.length === 1 ? 'notice served' : 'notices served',
+      tone: going.length ? 'warn' : 'ok', flagged: going.length,
+      note: 'Positions with a departure already booked'
+        + (has('critical') && criticalGoing.length
+          ? `, ${int(criticalGoing.length)} of them critical roles` : '')
+        + '. Soonest first — the list names the seat, not the person.',
+      rows: going.slice(0, INS_ROWS).map(n => ({
+        who: n.title || n.id, said: unitPathOf(n), num: n.leavingOn,
+        attr: ` data-goto-position="${esc(n.id)}"`,
+      })),
+      more: Math.max(0, going.length - INS_ROWS),
+    });
+  }
+
   const nobody = units.filter(u => u.empty || u.unstaffed);
   if (nobody.length || S.unitList.length) {
     add({
@@ -4317,7 +4450,8 @@ function insCard(c) {
 }
 
 /* ─── Detail panel ──────────────────────────────────────────────────────── */
-const SENSITIVE = ['successorName', 'email', 'hireDate', 'nationality'];
+const SENSITIVE = ['successorName', 'email', 'hireDate', 'nationality',
+                   'previousName', 'assignmentEnd'];
 
 function fieldValue(node, key) {
   if (S.present && SENSITIVE.includes(key)) return '<span class="redacted">hidden</span>';
@@ -4563,6 +4697,9 @@ function openDetail(id) {
       <div class="dt-sec"><h4>Incumbent</h4><div class="kv">
         ${raw('Name', n.vacant ? 'Vacant' : n.name)} ${kv('Email', 'email')}
         ${kv('Hire date', 'hireDate')} ${kv('Nationality', 'nationality')}
+        ${n.previousName ? kv('Previously', 'previousName') : ''}
+        ${n.assignmentEnd ? kv(n.leaving ? 'Leaving on' : 'Assignment ends',
+                               'assignmentEnd') : ''}
       </div></div>
       ${succ}
       ${n.courses && n.courses.length ? `<div class="dt-sec">
@@ -4715,6 +4852,9 @@ function exportCsv() {
     ['Successor Identified', n => n.successor ? 'Yes' : 'No'],
     ['Successor Name', n => S.present ? '' : n.successorName],
     ['Successor Readiness', n => n.successorReadiness],
+    ['Assignment End', n => S.present ? '' : n.assignmentEnd],
+    ['Leaving', n => n.leaving ? 'Yes' : 'No'],
+    ['Previous Incumbent', n => S.present ? '' : n.previousName],
     ['Manager ID', n => n.managerId], ['Manager', n => {
       const m = S.model.byId.get(n.managerId); return m ? (m.title || m.name || m.id) : '';
     }],
@@ -4761,6 +4901,7 @@ function inlineStyles() {
     .t-meta{fill:${v('--text-mute')};font-size:10.5px}
     .t-count{fill:${v('--text-dim')};font-size:10.5px}
     .t-vacant{fill:${v('--vacant')};font-size:11.5px;font-weight:600}
+    .t-was{fill:${v('--text-mute')};font-size:11.5px;font-weight:400}
     .exp-c{fill:${v('--surface')};stroke:${v('--border-2')};stroke-width:1.2}
     .exp-s{fill:${v('--text-dim')};font-size:12px;font-weight:700;text-anchor:middle}
     .exp-n{fill:${v('--text-mute')};font-size:9.5px;text-anchor:middle}`
@@ -4953,22 +5094,27 @@ function showIssues() {
    guess at: a vacant seat, a critical role with nobody behind it, a
    SAMA-controlled role, and a unit the list declares that no position sits in.
    ───────────────────────────────────────────────────────────────────────── */
+/* The template's dates are written relative to the day it is downloaded, so the
+   worked example never quietly goes stale into a file full of past leavers. */
+const inDays = d => new Date(Date.now() + d * 86400000).toISOString().slice(0, 10);
+
 const TEMPLATE_POSITIONS = [
   // id, mgr, title, name, grade, group, division, department, unit, function,
   // functionType, jobType, payType, talentPool, jobFamily, location, empType,
-  // fte, cost, status, critical, sama, successor, successorName, readiness
-  ['P001', '', 'Chief Executive Officer', 'Amal Al-Harbi', 'G16', 'CEO Office', 'Executive', 'Executive Office', '', 'Executive', 'Governance', 'Middle office', 'Bonus', 'Future Executives', 'Leadership', 'Riyadh', 'Full-time', '1', 'CC-100', 'Filled', 'Yes', 'Yes', 'Yes', 'Nasser Al-Qahtani', 'Ready 1-2 years'],
-  ['P002', 'P001', 'Chief Risk Officer', 'Nasser Al-Qahtani', 'G15', 'Risk Group', 'Credit Risk Division', 'Credit Risk', '', 'Risk', 'Control (2nd line)', 'Middle office', 'Bonus', 'Future Executives', 'Risk', 'Riyadh', 'Full-time', '1', 'CC-200', 'Filled', 'Yes', 'Yes', 'No', '', ''],
-  ['P003', 'P001', 'Chief Human Capital Officer', '', 'G15', 'Human Resources Group', 'Talent & Performance Division', 'Talent Management', '', 'Human Resources', 'Enabling', 'Back office', 'Bonus', '', 'HR', 'Riyadh', 'Full-time', '1', 'CC-300', 'Vacant', 'Yes', 'No', 'No', '', ''],
-  ['P004', 'P002', 'Head of Credit Risk', 'Layla Al-Otaibi', 'G13', 'Risk Group', 'Credit Risk Division', 'Credit Risk', 'Corporate Credit Unit', 'Risk', 'Control (2nd line)', 'Middle office', 'Incentive', 'Emerging Leaders', 'Risk', 'Riyadh', 'Full-time', '1', 'CC-201', 'Filled', 'No', 'No', 'Yes', 'Omar Al-Dosari', 'Ready now'],
-  ['P005', 'P004', 'Senior Credit Analyst', 'Omar Al-Dosari', 'G11', 'Risk Group', 'Credit Risk Division', 'Credit Risk', 'Corporate Credit Unit', 'Risk', 'Control (2nd line)', 'Middle office', 'Incentive', 'Emerging Leaders', 'Risk', 'Riyadh', 'Full-time', '1', 'CC-201', 'Filled', 'No', 'No', 'No', '', ''],
-  ['P006', 'P004', 'Credit Analyst', 'Huda Al-Zahrani', 'G10', 'Risk Group', 'Credit Risk Division', 'Credit Risk', 'Corporate Credit Unit', 'Risk', 'Control (2nd line)', 'Middle office', 'Fixed', '', 'Risk', 'Jeddah', 'Full-time', '1', 'CC-201', 'Filled', 'No', 'No', 'No', '', ''],
-  ['P007', 'P004', 'Credit Analyst', '', 'G10', 'Risk Group', 'Credit Risk Division', 'Credit Risk', 'Corporate Credit Unit', 'Risk', 'Control (2nd line)', 'Middle office', 'Fixed', '', 'Risk', 'Jeddah', 'Full-time', '1', 'CC-201', 'Vacant', 'No', 'No', 'No', '', ''],
-  ['P008', 'P002', 'Head of Market Risk', 'Faisal Al-Mutairi', 'G13', 'Risk Group', 'Market Risk Division', 'Market Risk', '', 'Risk', 'Control (2nd line)', 'Middle office', 'Incentive', '', 'Risk', 'Riyadh', 'Full-time', '1', 'CC-202', 'Filled', 'Yes', 'No', 'No', '', ''],
-  ['P009', 'P008', 'Market Risk Analyst', 'Sara Al-Ghamdi', 'G10', 'Risk Group', 'Market Risk Division', 'Market Risk', '', 'Risk', 'Control (2nd line)', 'Middle office', 'Fixed', 'Saudi Graduates', 'Risk', 'Riyadh', 'Part-time', '0.5', 'CC-202', 'Filled', 'No', 'No', 'No', '', ''],
-  ['P010', 'P003', 'Head of Talent Management', 'Maya Al-Shammari', 'G13', 'Human Resources Group', 'Talent & Performance Division', 'Talent Management', '', 'Human Resources', 'Enabling', 'Back office', 'Incentive', 'Emerging Leaders', 'HR', 'Riyadh', 'Full-time', '1', 'CC-301', 'Filled', 'No', 'No', 'Yes', 'Dana Al-Subaie', 'Ready now'],
-  ['P011', 'P010', 'Talent Partner', 'Dana Al-Subaie', 'G11', 'Human Resources Group', 'Talent & Performance Division', 'Talent Management', '', 'Human Resources', 'Enabling', 'Back office', 'Fixed', 'Emerging Leaders', 'HR', 'Riyadh', 'Full-time', '1', 'CC-301', 'Filled', 'No', 'No', 'No', '', ''],
-  ['P012', 'P001', 'Head of Internal Audit', 'Bilal Rashed', 'G14', 'Internal Audit Group', 'Audit Division', 'Internal Audit', '', 'Audit', 'Assurance (3rd line)', 'Back office', 'Bonus', '', 'Audit', 'Riyadh', 'Full-time', '1', 'CC-400', 'Filled', 'Yes', 'Yes', 'No', '', ''],
+  // fte, cost, status, critical, sama, successor, successorName, readiness,
+  // assignment end, previous incumbent
+  ['P001', '', 'Chief Executive Officer', 'Amal Al-Harbi', 'G16', 'CEO Office', 'Executive', 'Executive Office', '', 'Executive', 'Governance', 'Middle office', 'Bonus', 'Future Executives', 'Leadership', 'Riyadh', 'Full-time', '1', 'CC-100', 'Filled', 'Yes', 'Yes', 'Yes', 'Nasser Al-Qahtani', 'Ready 1-2 years', '', ''],
+  ['P002', 'P001', 'Chief Risk Officer', 'Nasser Al-Qahtani', 'G15', 'Risk Group', 'Credit Risk Division', 'Credit Risk', '', 'Risk', 'Control (2nd line)', 'Middle office', 'Bonus', 'Future Executives', 'Risk', 'Riyadh', 'Full-time', '1', 'CC-200', 'Filled', 'Yes', 'Yes', 'No', '', '', inDays(74), ''],
+  ['P003', 'P001', 'Chief Human Capital Officer', '', 'G15', 'Human Resources Group', 'Talent & Performance Division', 'Talent Management', '', 'Human Resources', 'Enabling', 'Back office', 'Bonus', '', 'HR', 'Riyadh', 'Full-time', '1', 'CC-300', 'Vacant', 'Yes', 'No', 'No', '', '', '', 'Rana Al-Faisal'],
+  ['P004', 'P002', 'Head of Credit Risk', 'Layla Al-Otaibi', 'G13', 'Risk Group', 'Credit Risk Division', 'Credit Risk', 'Corporate Credit Unit', 'Risk', 'Control (2nd line)', 'Middle office', 'Incentive', 'Emerging Leaders', 'Risk', 'Riyadh', 'Full-time', '1', 'CC-201', 'Filled', 'No', 'No', 'Yes', 'Omar Al-Dosari', 'Ready now', '', ''],
+  ['P005', 'P004', 'Senior Credit Analyst', 'Omar Al-Dosari', 'G11', 'Risk Group', 'Credit Risk Division', 'Credit Risk', 'Corporate Credit Unit', 'Risk', 'Control (2nd line)', 'Middle office', 'Incentive', 'Emerging Leaders', 'Risk', 'Riyadh', 'Full-time', '1', 'CC-201', 'Filled', 'No', 'No', 'No', '', '', '', ''],
+  ['P006', 'P004', 'Credit Analyst', 'Huda Al-Zahrani', 'G10', 'Risk Group', 'Credit Risk Division', 'Credit Risk', 'Corporate Credit Unit', 'Risk', 'Control (2nd line)', 'Middle office', 'Fixed', '', 'Risk', 'Jeddah', 'Full-time', '1', 'CC-201', 'Filled', 'No', 'No', 'No', '', '', inDays(31), ''],
+  ['P007', 'P004', 'Credit Analyst', '', 'G10', 'Risk Group', 'Credit Risk Division', 'Credit Risk', 'Corporate Credit Unit', 'Risk', 'Control (2nd line)', 'Middle office', 'Fixed', '', 'Risk', 'Jeddah', 'Full-time', '1', 'CC-201', 'Vacant', 'No', 'No', 'No', '', '', '', 'Yousef Al-Amri'],
+  ['P008', 'P002', 'Head of Market Risk', 'Faisal Al-Mutairi', 'G13', 'Risk Group', 'Market Risk Division', 'Market Risk', '', 'Risk', 'Control (2nd line)', 'Middle office', 'Incentive', '', 'Risk', 'Riyadh', 'Full-time', '1', 'CC-202', 'Filled', 'Yes', 'No', 'No', '', '', '', ''],
+  ['P009', 'P008', 'Market Risk Analyst', 'Sara Al-Ghamdi', 'G10', 'Risk Group', 'Market Risk Division', 'Market Risk', '', 'Risk', 'Control (2nd line)', 'Middle office', 'Fixed', 'Saudi Graduates', 'Risk', 'Riyadh', 'Part-time', '0.5', 'CC-202', 'Filled', 'No', 'No', 'No', '', '', '', ''],
+  ['P010', 'P003', 'Head of Talent Management', 'Maya Al-Shammari', 'G13', 'Human Resources Group', 'Talent & Performance Division', 'Talent Management', '', 'Human Resources', 'Enabling', 'Back office', 'Incentive', 'Emerging Leaders', 'HR', 'Riyadh', 'Full-time', '1', 'CC-301', 'Filled', 'No', 'No', 'Yes', 'Dana Al-Subaie', 'Ready now', '', ''],
+  ['P011', 'P010', 'Talent Partner', 'Dana Al-Subaie', 'G11', 'Human Resources Group', 'Talent & Performance Division', 'Talent Management', '', 'Human Resources', 'Enabling', 'Back office', 'Fixed', 'Emerging Leaders', 'HR', 'Riyadh', 'Full-time', '1', 'CC-301', 'Filled', 'No', 'No', 'No', '', '', '', ''],
+  ['P012', 'P001', 'Head of Internal Audit', 'Bilal Rashed', 'G14', 'Internal Audit Group', 'Audit Division', 'Internal Audit', '', 'Audit', 'Assurance (3rd line)', 'Back office', 'Bonus', '', 'Audit', 'Riyadh', 'Full-time', '1', 'CC-400', 'Filled', 'Yes', 'Yes', 'No', '', '', '', ''],
 ];
 
 const TEMPLATE_UNITS = [
@@ -5001,7 +5147,9 @@ const TEMPLATE_POSITION_KEYS = [
   'unit', 'function', 'functionType', 'jobType', 'payType', 'talentPool',
   'jobFamily', 'location', 'employmentType', 'fte', 'costCenter', 'status',
   'critical', 'sama', 'successor', 'successorName', 'successorReadiness',
+  'assignmentEnd', 'previousIncumbent',
 ];
+
 
 const labelsFor = (table, keys) =>
   keys.map(k => (table.find(f => f.key === k) || { label: k }).label);
@@ -5088,6 +5236,14 @@ function guideHtml() {
   it holds the ID of the position this one reports to, and is left blank for the
   top of the house. A vacancy is a normal state of a position — leave the
   incumbent name empty, or write <code>Vacant</code> in Status.</p>
+  <p class="g-note"><strong>Assignment End Date</strong> is what makes a leaver.
+  A date in the future on a filled seat marks that box as emptying, adds it to the
+  <strong>Leaving</strong> highlight and counts it in Insights; a date already
+  past just means the row is stale, and is not flagged. <strong>Previous
+  Incumbent</strong> names who held a vacant seat last — and if your export
+  already leaves the name on the row while the status says Vacant, that name is
+  used, so there is often nothing to add. Both are personal, so both hide in
+  <strong>Presentation</strong> mode, along with the leaving badge itself.</p>
 </section>
 
 <section class="g-sec">
