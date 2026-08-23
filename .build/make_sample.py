@@ -356,8 +356,13 @@ UNDECLARED = {"Digital Onboarding", "Leadership Academy", "Cost & Performance",
 # to Talent & Performance, the HRIS still tags it under HR Operations.
 MOVED = {"Payroll & Benefits": "Talent & Performance Division"}
 
+# And one the list puts on a different rung from the one the position columns
+# tag it on, so the declared-level check has something true to find as well.
+MISLEVELLED = {"Fraud Prevention": "Unit"}
+
 unit_rows = [{
     "Org Unit": group, "Parent Unit": "", "Unit Code": f"ORG-{100 + i * 10}",
+    "Level": "Group",
     "Function Type": FUNCTION_TYPE.get(group, ""), "Unit Head": "",
     "Unit Status": "Active", "Roles and Responsibilities": MANDATES.get(group, ""),
 } for i, group in enumerate(STRUCTURE)]
@@ -369,6 +374,7 @@ for group, (fn, _head, divisions) in STRUCTURE.items():
         declared = DIVISION_MANDATES.get(division)
         unit_rows.append({
             "Org Unit": division, "Parent Unit": group, "Unit Code": f"ORG-{code}",
+            "Level": "Division",
             "Function Type": FUNCTION_TYPE.get(group, ""), "Unit Head": "",
             "Unit Status": "Active",
             "Roles and Responsibilities": declared[2] if declared else "",
@@ -380,19 +386,20 @@ for group, (fn, _head, divisions) in STRUCTURE.items():
             unit_rows.append({
                 "Org Unit": dept, "Parent Unit": MOVED.get(dept, division),
                 "Unit Code": f"ORG-{code}",
+                "Level": MISLEVELLED.get(dept, "Department"),
                 "Function Type": FUNCTION_TYPE.get(group, ""), "Unit Head": "",
                 "Unit Status": "Active", "Roles and Responsibilities": "",
             })
 
 unit_rows += [
     {"Org Unit": "Data Governance Office", "Parent Unit": "Data & Analytics Division",
-     "Unit Code": "ORG-310",
+     "Unit Code": "ORG-310", "Level": "Department",
      "Function Type": "Control (2nd line)", "Unit Head": "TBA", "Unit Status": "Approved",
      "Roles and Responsibilities": "Approved in the 2026 structure to own data quality, lineage and the data catalogue. Recruitment has not started; no positions have been created yet."},
-    {"Org Unit": "Climate Risk Unit", "Parent Unit": "Risk Group", "Unit Code": "ORG-230",
+    {"Org Unit": "Climate Risk Unit", "Parent Unit": "Risk Group", "Unit Code": "ORG-230", "Level": "Unit",
      "Function Type": "Control (2nd line)", "Unit Head": "TBA", "Unit Status": "Approved",
      "Roles and Responsibilities": "Established to meet SAMA climate-related financial disclosure expectations. Mandate approved, headcount pending Board approval."},
-    {"Org Unit": "Shariah Audit", "Parent Unit": "Internal Audit Group", "Unit Code": "ORG-221",
+    {"Org Unit": "Shariah Audit", "Parent Unit": "Internal Audit Group", "Unit Code": "ORG-221", "Level": "Division",
      "Function Type": "Assurance (3rd line)", "Unit Head": "", "Unit Status": "Approved",
      "Roles and Responsibilities": "Independent assurance over Shariah compliance of products and processes."},
 ]

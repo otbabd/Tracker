@@ -122,7 +122,7 @@ panel lets you switch between the two deliberately.
 
 ### Reconcile
 
-Six ways the approved structure and the reporting line can disagree, counted in
+Seven ways the approved structure and the reporting line can disagree, counted in
 the toolbar and listed in a sheet under the chart. Each row clicks through to the
 unit or the position it names, and the CSV button exports the list.
 
@@ -131,6 +131,7 @@ unit or the position it names, and the CSV button exports the list.
 | **Not in the approved structure** | Positions are tagged to a unit the org unit list does not declare |
 | **Declared, nobody in it** | A unit in the list with no positions mapped to it |
 | **Declared parent disagrees** | The list puts the unit in one place, the position columns in another |
+| **Declared level disagrees** | The list puts the unit on one rung, the position columns tag it on another |
 | **Head reports outside the unit** | The most senior position answers to neither its own unit nor its parent |
 | **Reporting line skips a level** | The head reports past the parent unit to something above it |
 | **Managed from another unit** | Staff whose manager sits neither in their unit nor anywhere above it |
@@ -292,7 +293,7 @@ ways, and you can use both:
 2. **An org unit list** — a second sheet in the same workbook (any tab that names
    units and describes them is picked up automatically), or a second file added
    with the **＋ Add unit list** button in the org-unit view. It is read for unit
-   name, parent unit, unit code, function type, unit head and roles &
+   name, parent unit, unit code, **level**, function type, unit head and roles &
    responsibilities. Units in the list that have no positions appear as empty
    boxes; units that do have positions are annotated with their type and mandate.
 
@@ -300,6 +301,21 @@ ways, and you can use both:
    from. Without a unit list those two are simply absent — units still show
    headcount, FTE and vacancies, and a function type carried on the position rows
    is inherited, but a mandate has nowhere else to come from.
+
+   **Level** and **function type** answer different questions, and it is worth
+   keeping them apart. **Level** is which rung of the ladder the unit sits on —
+   Group, Division, Department, Unit, Sub-unit, Section — and it is what a box
+   means when it says it holds three divisions. **Function type** is what kind of
+   work it does: Business (1st line), Control (2nd line), Assurance (3rd line),
+   Enabling, Governance.
+
+   Without a level the rung is inferred: from the column the positions tag the
+   unit in, or failing that from whichever rung its siblings are on. That second
+   guess covers exactly the case the list exists for — a unit nobody is mapped to
+   leaves no trace in a position export — so an approved unit sitting beside two
+   divisions is called a division whatever its name says. Stating a level settles
+   it. Where a stated level and the position columns disagree, the list wins on
+   the chart and **Reconcile** names both.
 
    A listed unit is matched to a box by name, so it has to be named after a
    column the chart is nesting by. If you list your divisions and then nest by

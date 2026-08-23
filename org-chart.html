@@ -1894,6 +1894,13 @@ const UNIT_LIST_FIELDS = [
     'belongsto','higherunit','parentdepartment','parentfunction'] },
   { key: 'code', label: 'Unit Code', aliases: [
     'unitcode','orgunitcode','unitid','orgunitid','code','departmentcode','deptcode'] },
+  // Which rung of the ladder this unit sits on — Group, Division, Department and
+  // so on. A different question from Function Type below, which is the line of
+  // defence, so it is claimed first: `type` matches loosely enough to swallow a
+  // header meant for this one.
+  { key: 'level', label: 'Level', aliases: [
+    'level','unitlevel','orglevel','organisationlevel','organizationlevel',
+    'hierarchylevel','structurelevel','orgtier','tier','rank','layer'] },
   { key: 'type', label: 'Function Type', aliases: [
     'functiontype','unittype','orgunittype','type','category','unitcategory',
     'lineofdefence','lineofdefense','linesofdefence','businesstype','classification'] },
@@ -1953,6 +1960,7 @@ function parseUnitList(headers, records, map) {
       name,
       parent: map.parent ? (r[map.parent] || '').trim() : '',
       code: map.code ? (r[map.code] || '').trim() : '',
+      level: map.level ? (r[map.level] || '').trim() : '',
       type: map.type ? (r[map.type] || '').trim() : '',
       responsibilities: map.responsibilities ? (r[map.responsibilities] || '').trim() : '',
       head: map.head ? (r[map.head] || '').trim() : '',
@@ -2100,6 +2108,39 @@ function unitNode(id, label, dim, level) {
    the list describes becomes a visible, reportable exception instead of a box
    that looks as official as the rest.
    ────────────────────────────────────────────────────────────────────────── */
+/* What somebody typed in the Level column, turned into a rung of the ladder.
+   A named rung is honoured even when the chart is not nesting by it: a list that
+   says Unit is stating something true, and saying so beats falling back to a
+   sibling's rung, which is how this unit gets called a division in the first
+   place. A bare number is different — it only means anything relative to the
+   rungs actually in use — so that form stays bounded by them. Anything
+   unreadable returns null and falls through to the old inference. */
+const LEVEL_WORDS = {
+  group: 'group', groups: 'group', sector: 'division', division: 'division',
+  divisions: 'division', businessunit: 'division', department: 'department',
+  departments: 'department', dept: 'department', unit: 'unit', units: 'unit',
+  subunit: 'subUnit', subdepartment: 'subUnit', subdivision: 'subUnit',
+  section: 'section', sections: 'section', team: 'section', branch: 'branch',
+};
+
+function parseUnitLevel(value, levels) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const norm = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  if (LEVEL_WORDS[norm]) return LEVEL_WORDS[norm];
+  // "L2", "Level 2", "Tier 2", or a bare number: an index into the rungs in use.
+  const n = /^(?:l|lvl|level|tier|layer)?(\d{1,2})$/.exec(norm);
+  if (n) {
+    const i = +n[1] - 1;
+    return i >= 0 && i < levels.length ? levels[i] : null;
+  }
+  // A label from the ladder itself, so "Sub-unit" works however it is punctuated.
+  const dim = DIMENSIONS.find(d =>
+    d.key.toLowerCase() === norm || d.label.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
+  return dim ? dim.key : null;
+}
+
 function buildUnitsDeclared(positions, levels, declaredUnits, unitList) {
   const root = unitNode('u:', 'Whole organisation', null, 0);
   const byId = new Map([[root.id, root]]);
@@ -2116,6 +2157,7 @@ function buildUnitsDeclared(positions, levels, declaredUnits, unitList) {
     node.code = u.code || '';
     node.declaredHead = u.head || '';
     node.listParent = u.parent || '';
+    node.declaredDim = parseUnitLevel(u.level, levels);
     if (u.status) node.unitStatus = u.status;
     byId.set(node.id, node);
     byLabel.set(key(u.name), node);
@@ -2144,20 +2186,26 @@ function buildUnitsDeclared(positions, levels, declaredUnits, unitList) {
   }
   for (const node of byLabel.values()) {
     const i = seen.findIndex(set => set.has(key(node.label)));
-    node.dim = i >= 0 ? levels[i] : null;
+    node.taggedDim = i >= 0 ? levels[i] : null;
     node.inData = i >= 0;
+    // The list is the authority on its own structure, so a declared rung wins
+    // over the one the position columns imply. Both are kept: where they
+    // disagree, Reconcile says so rather than the chart deciding quietly.
+    node.dim = node.declaredDim || node.taggedDim;
   }
   // A declared unit that appears nowhere in the position data — approved but
-  // unstaffed — takes the rung its siblings are on. Shariah Audit sits among
-  // divisions, so it is a division, whatever its depth in the list happens to
-  // be. Only when its siblings say nothing does depth decide.
+  // unstaffed — and with no Level of its own takes the rung its siblings are on.
+  // Shariah Audit sits among divisions, so it is a division, whatever its depth
+  // in the list happens to be. Only when its siblings say nothing does depth
+  // decide. Stating a Level is how a list settles this rather than being read.
   for (const node of byLabel.values()) {
     if (node.dim) continue;
     const sibling = (node.parent ? node.parent.children : []).find(c => c !== node && c.dim);
     node.dim = (sibling && sibling.dim)
       || levels[Math.min(node.unitLevel, levels.length - 1)] || 'unit';
   }
-  const described = new Set([...byLabel.values()].filter(n => n.inData).map(n => n.dim));
+  const described = new Set(
+    [...byLabel.values()].filter(n => n.inData).map(n => n.taggedDim));
 
   // 3. Anchor a row on the deepest declared unit it names, then nest whatever
   //    ladder it carries below that.
@@ -2527,6 +2575,8 @@ const BANDS = [
    'In the approved structure with no positions mapped to it.'],
   ['parent', 'Declared parent disagrees',
    'The list puts the unit in one place, the position columns in another.'],
+  ['level', 'Declared level disagrees',
+   'The list puts the unit on one rung; the position columns tag it on another.'],
   ['outside', 'Head reports outside the unit',
    'The most senior position answers to neither its own unit nor its parent.'],
   ['skips', 'Reporting line skips a level',
@@ -2555,12 +2605,21 @@ function reconcile() {
   const described = new Set(m.described || []);
   for (const u of m.nodes) {
     if (!u.listed || !u.parent || !u.parent.listed || !u.positions.length) continue;
-    const rung = levels.indexOf(u.dim);
+    const rung = levels.indexOf(u.taggedDim || u.dim);
     if (rung < 1) continue;
     const dim = levels.slice(0, rung).reverse().find(d => described.has(d) && u.positions[0][d]);
     const tagged = dim && u.positions[0][dim];
     if (tagged && key(tagged) !== key(u.parent.label)) {
       out.push({ band: 'parent', unit: u, note: tagged });
+    }
+  }
+
+  // Same shape of disagreement as the one above, a rung instead of a parent:
+  // the list says Unit, the position rows carry the name in their Division
+  // column. The list wins on the chart, so this is the only place it shows.
+  for (const u of m.nodes) {
+    if (u.declaredDim && u.taggedDim && u.declaredDim !== u.taggedDim) {
+      out.push({ band: 'level', unit: u, note: u.taggedDim });
     }
   }
 
@@ -3706,6 +3765,8 @@ function recRow(band, f) {
   else if (band === 'empty') said = u.code ? 'unit code ' + u.code : 'declared in the list';
   else if (band === 'parent') said = 'list says ' + (u.parent ? u.parent.label : '—')
     + ' · columns say ' + f.note;
+  else if (band === 'level') said = 'list says ' + dimLabel(u.declaredDim)
+    + ' · columns say ' + dimLabel(f.note);
   else if (band === 'skips' || band === 'outside') said =
     (f.position.title || f.position.id) + ' → ' + (unitTitleOf(f.other) || f.other.label);
   else said = 'managed from ' + f.other.label;
@@ -3715,6 +3776,7 @@ function recRow(band, f) {
 }
 
 const unitTitleOf = u => u && u.leader ? (u.leader.title || u.label) : (u ? u.label : '');
+const dimLabel = d => (DIMENSIONS.find(x => x.key === d) || {}).label || d || '—';
 
 /* ─── Insights ──────────────────────────────────────────────────────────────
    Compare ranks what you asked about and Reconcile lists where two records
@@ -4607,8 +4669,9 @@ function exportFindingsCsv() {
     ['Position', f => f.position ? (f.position.title || f.position.id) : ''],
     ['Position ID', f => f.position ? f.position.id : ''],
     ['Reports Into', f => f.other ? f.other.label : ''],
-    ['Structure Says', f => f.band === 'parent' && f.unit.parent ? f.unit.parent.label : ''],
-    ['Columns Say', f => f.note || ''],
+    ['Structure Says', f => f.band === 'parent' ? (f.unit.parent ? f.unit.parent.label : '')
+      : f.band === 'level' ? dimLabel(f.unit.declaredDim) : ''],
+    ['Columns Say', f => f.band === 'level' ? dimLabel(f.note) : (f.note || '')],
   ];
   const scope = new Set(scopedNodes().map(u => u.id));
   const rows = (S.findings || []).filter(f => scope.has(f.unit.id));
@@ -4909,15 +4972,18 @@ const TEMPLATE_POSITIONS = [
 ];
 
 const TEMPLATE_UNITS = [
-  ['CEO Office', '', 'U-100', 'Governance', 'Sets strategy and owns the executive agenda.', 'Chief Executive Officer', 'Active'],
-  ['Risk Group', 'CEO Office', 'U-200', 'Control (2nd line)', 'Owns the risk appetite and the second line of defence.', 'Chief Risk Officer', 'Active'],
-  ['Credit Risk Division', 'Risk Group', 'U-210', 'Control (2nd line)', 'Credit policy, underwriting standards and portfolio limits.', 'Head of Credit Risk', 'Active'],
-  ['Market Risk Division', 'Risk Group', 'U-220', 'Control (2nd line)', 'Market, liquidity and interest-rate risk oversight.', 'Head of Market Risk', 'Active'],
-  ['Human Resources Group', 'CEO Office', 'U-300', 'Enabling', 'Workforce strategy, talent, learning and succession.', 'Chief Human Capital Officer', 'Active'],
-  ['Talent & Performance Division', 'Human Resources Group', 'U-310', 'Enabling', 'Talent management, performance and succession planning.', 'Head of Talent Management', 'Active'],
-  ['Internal Audit Group', 'CEO Office', 'U-400', 'Assurance (3rd line)', 'Independent assurance to the board audit committee.', 'Head of Internal Audit', 'Active'],
-  // Approved, staffed by nobody yet — the case a position export cannot show.
-  ['Climate Risk Unit', 'Risk Group', 'U-230', 'Control (2nd line)', 'Approved in the structure; not yet staffed.', '', 'Active'],
+  // name, parent, code, level, function type, mandate, head, status
+  ['CEO Office', '', 'U-100', 'Group', 'Governance', 'Sets strategy and owns the executive agenda.', 'Chief Executive Officer', 'Active'],
+  ['Risk Group', 'CEO Office', 'U-200', 'Group', 'Control (2nd line)', 'Owns the risk appetite and the second line of defence.', 'Chief Risk Officer', 'Active'],
+  ['Credit Risk Division', 'Risk Group', 'U-210', 'Division', 'Control (2nd line)', 'Credit policy, underwriting standards and portfolio limits.', 'Head of Credit Risk', 'Active'],
+  ['Market Risk Division', 'Risk Group', 'U-220', 'Division', 'Control (2nd line)', 'Market, liquidity and interest-rate risk oversight.', 'Head of Market Risk', 'Active'],
+  ['Human Resources Group', 'CEO Office', 'U-300', 'Group', 'Enabling', 'Workforce strategy, talent, learning and succession.', 'Chief Human Capital Officer', 'Active'],
+  ['Talent & Performance Division', 'Human Resources Group', 'U-310', 'Division', 'Enabling', 'Talent management, performance and succession planning.', 'Head of Talent Management', 'Active'],
+  ['Internal Audit Group', 'CEO Office', 'U-400', 'Group', 'Assurance (3rd line)', 'Independent assurance to the board audit committee.', 'Head of Internal Audit', 'Active'],
+  // Approved, staffed by nobody yet — the case a position export cannot show,
+  // and the reason Level is worth stating: with no positions to read, nothing
+  // else can tell this apart from the two divisions it sits beside.
+  ['Climate Risk Unit', 'Risk Group', 'U-230', 'Unit', 'Control (2nd line)', 'Approved in the structure; not yet staffed.', '', 'Active'],
 ];
 
 const TEMPLATE_COURSES = [
@@ -5030,6 +5096,14 @@ function guideHtml() {
   list and the position tags disagree, <strong>Reconcile</strong> shows you where.
   It is also the only way to state a unit that <em>nobody is mapped to</em> — an
   approved box with no positions in it leaves no trace in a position export.</p>
+  <p class="g-note"><strong>Level</strong> and <strong>Function Type</strong> are
+  two different questions. <strong>Level</strong> is which rung of the ladder the
+  unit sits on — Group, Division, Department, Unit, Sub-unit, Section — and it is
+  what a box means when it says “holds 3 divisions”. <strong>Function Type</strong>
+  is what kind of work it does: Business (1st line), Control (2nd line), Assurance
+  (3rd line), Enabling, Governance. Without a Level the tool infers the rung from
+  where the positions are tagged, which is a guess for any unit nobody is mapped
+  to yet.</p>
   ${fieldTable(UNIT_LIST_FIELDS)}
 </section>
 
@@ -5374,16 +5448,19 @@ function sampleUnitList() {
   // true to find; and one the list has moved but the columns have not.
   const undeclared = new Set(['Leadership Academy', 'Payments Systems']);
   const moved = { 'Compliance Monitoring': 'Financial Crime Division' };
+  // And one the list puts on a different rung from the one the columns tag it
+  // on, so the level check has something true to find too.
+  const mislevelled = { 'Fraud Prevention': 'Unit' };
   const groups = Object.keys(SAMPLE_STRUCTURE);
   const list = groups.map((g, i) => ({
-    name: g, parent: '', code: 'ORG-' + (100 + i * 10),
+    name: g, parent: '', code: 'ORG-' + (100 + i * 10), level: 'Group',
     type: SAMPLE_TYPES[g] || '', responsibilities: mandates[g] || '', head: '', status: 'Active',
   }));
   let code = 400;
   for (const [g, [, , divisions]] of Object.entries(SAMPLE_STRUCTURE)) {
     for (const [division, depts] of Object.entries(divisions)) {
       list.push({
-        name: division, parent: g, code: 'ORG-' + ++code,
+        name: division, parent: g, code: 'ORG-' + ++code, level: 'Division',
         type: SAMPLE_TYPES[g] || '', responsibilities: divisionMandates[division] || '',
         head: '', status: 'Active',
       });
@@ -5391,6 +5468,7 @@ function sampleUnitList() {
         if (undeclared.has(dept)) continue;
         list.push({
           name: dept, parent: moved[dept] || division, code: 'ORG-' + ++code,
+          level: mislevelled[dept] || 'Department',
           type: SAMPLE_TYPES[g] || '', responsibilities: '', head: '', status: 'Active',
         });
       }
@@ -5398,12 +5476,12 @@ function sampleUnitList() {
   }
   list.push({
     name: 'Data Governance Office', parent: 'Data & Analytics Division', code: 'ORG-310',
-    type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
+    level: 'Department', type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
     responsibilities: 'Approved in the current structure to own data quality, lineage and the data catalogue. No positions have been created yet.',
   });
   list.push({
     name: 'Climate Risk Unit', parent: 'Risk Group', code: 'ORG-230',
-    type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
+    level: 'Unit', type: 'Control (2nd line)', head: 'TBA', status: 'Approved',
     responsibilities: 'Established to meet SAMA climate-related disclosure expectations. Mandate approved, headcount pending Board approval.',
   });
   return list;
