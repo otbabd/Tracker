@@ -155,12 +155,20 @@ does: each card is one test, the number it produced, the sentence saying what wa
 tested, and the seats or units that failed it — every row a click through to that
 box in the chart.
 
+The page opens on **one number** — everything flagged in the current view — with
+a strip of tiles beside it carrying the figures you came for: the vacancy rate,
+critical roles with nobody behind them, seats emptying, teams with no one at the
+top, the deepest chain. Click a tile and it takes you to the card behind it.
+Below that, three sections of findings, each ordered with the most to do first;
+and at the foot, a quieter band of statistics that describe the organisation
+rather than asking anything of you.
+
 | Section | What the cards test |
 |---|---|
-| **Shape** | How deep the longest chain runs and what sits below the line; managers whose span is too wide to lead; the share of managers with few reports, listed by how much organisation hangs beneath them; pass-through managers — one direct report who is a manager too, a whole layer between a leader and their leader; managers against individual contributors. |
+| **Shape** | How deep the longest chain runs and what sits below the line; managers whose span is too wide to lead; the share of managers with few reports, listed by how much organisation hangs beneath them; pass-through managers — one direct report who is a manager too, a whole layer between a leader and their leader. |
 | **Staffing** | The vacancy rate and the units carrying the worst of it; teams whose top seat is empty, and how many people report through them to nobody; units the structure declares that hold no filled position. |
-| **Succession & control** | Critical roles with no successor named; critical roles standing empty, where the exposure is present rather than future; SAMA non-objection roles with their vacancies and gaps; how ready the named successors are; the depth of the talent-pool bench against the critical seats. |
-| **Composition** | Front, middle and back office; the three lines of defence, and what share of the workforce sits in control and assurance rather than in the business; where the grades sit; Saudization across the filled seats, lowest group first. |
+| **Succession & control** | Critical roles with no successor named; critical roles standing empty, where the exposure is present rather than future; SAMA non-objection roles with their vacancies and gaps. |
+| **The workforce in this view** | The statistics rather than the findings, compacted into one band: managers against individual contributors; front, middle and back office; the three lines of defence and what share sits in control and assurance rather than in the business; where the grades sit; the depth of the talent-pool bench; how ready the named successors are; Saudization across the filled seats, lowest group first. |
 
 **A chart where the question is "how much", a list where the question is
 "which ones".** A distribution gets drawn: managers by span with the flagged end
@@ -179,8 +187,10 @@ Three numbers decide what counts as wide, narrow and deep. They are house rules
 rather than facts, so they sit on the panel — change one and every card that uses
 it re-reads, its sentence included, so a printed page still says what was tested.
 
-A card whose column your file does not carry is left out rather than shown empty,
-and a section left with no cards does not appear at all. Saudization reads
+Cards flow down the columns rather than tiling across them, so a short card
+beside a tall one leaves no hole and a job title has room to finish. A card whose
+column your file does not carry is left out rather than shown empty, and a
+section left with no cards does not appear at all. Saudization reads
 nationality, so it hides with the names in **Presentation** mode.
 
 Filters scope the whole panel: filter to one group and every card is about that

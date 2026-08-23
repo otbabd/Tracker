@@ -472,24 +472,37 @@ svg text { unicode-bidi: plaintext; }
 .ins-body { flex: 1; overflow: auto; padding: 4px 16px 28px; }
 
 .ins-sec > h4 {
-  font-size: .69rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--text-mute); padding: 18px 2px 9px;
+  display: flex; align-items: center; gap: 9px;
+  font-size: .8rem; font-weight: 600; letter-spacing: .01em; color: var(--text);
+  padding: 26px 0 11px; margin-bottom: 13px;
+  border-bottom: 1px solid var(--border);
 }
-.ins-grid {
-  display: grid; gap: 12px; align-items: start;
-  grid-template-columns: repeat(auto-fill, minmax(316px, 1fr));
+.ins-sec > h4 .n {
+  font-size: .7rem; font-weight: 600; color: var(--text-mute);
+  background: var(--surface-2); border-radius: 20px; padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
 }
+.ins-sec:first-of-type > h4 { padding-top: 8px; }
+
+/* Cards pack down the columns instead of tiling across them. A grid row is as
+   tall as its tallest card, so one 167px card beside a 560px one left a hole the
+   height of a screen; flowing them fills that space instead. The wider column is
+   the other half of the fix — at four columns a job title had nowhere to go but
+   an ellipsis. */
+.ins-grid { columns: 380px; column-gap: 13px; }
+.ins-card, .prof-panel { break-inside: avoid; margin: 0 0 13px; width: 100%; }
 .ins-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 13px 14px 5px;
   display: flex; flex-direction: column;
 }
+.ins-card.lit { border-color: var(--accent); box-shadow: var(--ring); }
 .ins-card > h5 {
   font-size: .82rem; font-weight: 600; color: var(--text-dim);
   display: flex; align-items: baseline; gap: 8px;
 }
 .ins-fig { display: flex; align-items: baseline; gap: 7px; margin: 7px 0 2px; }
-.ins-fig b { font-size: 1.62rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; }
+.ins-fig b { font-size: 1.25rem; font-weight: 650; letter-spacing: -.01em; line-height: 1.1; }
 .ins-fig span { font-size: .79rem; color: var(--text-mute); }
 .ins-card.warn  .ins-fig b { color: var(--vacant); }
 .ins-card.alert .ins-fig b { color: var(--critical); }
@@ -543,8 +556,11 @@ svg text { unicode-bidi: plaintext; }
 .ins-card .prof-bar span:only-child  { border-radius: 4px; }
 
 /* A ranked row is a bar chart that kept its labels: name, mark, value. */
+/* The name gets the lion's share: the bar is a comparison and reads fine short,
+   but a unit called "Business Intelligence Unit 2 - Team B / Section 2" losing
+   its last third tells the reader nothing. */
 .ins-row.ranked {
-  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(46px, 1fr) auto; gap: 9px;
+  display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(44px, 1fr) auto; gap: 9px;
 }
 .ins-row.ranked .who { max-width: none; }
 .ins-track {
@@ -564,6 +580,68 @@ svg text { unicode-bidi: plaintext; }
 #ins-tip b { display: block; color: var(--text); font-weight: 600; font-size: .84rem; }
 #ins-tip span { color: var(--text-mute); }
 .ins-empty { padding: 34px 2px; font-size: .84rem; color: var(--text-mute); max-width: 60ch; }
+
+/* ── The lead band ────────────────────────────────────────────────────────
+   One hero for the view — the reference is explicit that there is exactly one,
+   and seventeen competing figures is the same as none — with the numbers the
+   reader actually came for ranged beside it.
+   ────────────────────────────────────────────────────────────────────────── */
+.ins-lead {
+  display: flex; align-items: stretch; gap: 26px; flex-wrap: wrap;
+  padding: 22px 0 4px;
+}
+.lead-hero { display: flex; flex-direction: column; justify-content: center; min-width: 190px; }
+.lead-hero b {
+  font-size: 3.2rem; font-weight: 620; line-height: 1; letter-spacing: -.035em;
+  color: var(--text);
+}
+.lead-hero.warn b { color: var(--vacant); }
+.lead-hero.ok b { color: var(--ok); }
+.lead-hero span { font-size: .84rem; color: var(--text-mute); margin-top: 6px; }
+
+.lead-tiles { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; flex: 1; }
+.lead-tile {
+  flex: 1 1 120px; min-width: 118px; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 11px 13px 12px; font: inherit;
+  border-top: 2px solid var(--border-2);
+}
+.lead-tile:hover { border-color: var(--border-2); background: var(--surface-2); }
+.lead-tile:focus-visible { outline: none; box-shadow: var(--ring); }
+.lead-tile.warn  { border-top-color: var(--vacant); }
+.lead-tile.alert { border-top-color: var(--critical); }
+.lead-tile .k { font-size: .72rem; color: var(--text-mute); }
+.lead-tile .v {
+  font-size: 1.42rem; font-weight: 620; letter-spacing: -.02em; color: var(--text);
+  line-height: 1.1;
+}
+.lead-tile.warn .v  { color: var(--vacant); }
+.lead-tile.alert .v { color: var(--critical); }
+.lead-tile .u {
+  font-size: .71rem; color: var(--text-mute);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── The profile band ─────────────────────────────────────────────────────
+   Statistics, not findings. No border and no big number, so they read as the
+   background the findings sit against.
+   ────────────────────────────────────────────────────────────────────────── */
+.ins-profile .ins-grid { columns: 300px; }
+.prof-panel { padding: 0 0 4px; }
+.prof-top {
+  display: flex; align-items: baseline; gap: 9px;
+  border-bottom: 1px solid var(--border); padding-bottom: 6px;
+}
+.prof-top h5 { font-size: .8rem; font-weight: 600; color: var(--text-dim); }
+.prof-fig {
+  margin-left: auto; font-size: .88rem; font-weight: 650; color: var(--text);
+  white-space: nowrap;
+}
+.prof-fig i { font-style: normal; font-size: .71rem; font-weight: 400; color: var(--text-mute); }
+.prof-panel .prof { margin-top: 9px; }
+.prof-panel .ins-rows { margin-top: 6px; border-top: none; }
+.prof-panel .ins-row { font-size: .78rem; }
 
 /* ═══ Detail panel ═════════════════════════════════════════════════════════ */
 /* With the compare sheet open the panel stops above it, so both stay usable. */
@@ -726,7 +804,13 @@ svg text { unicode-bidi: plaintext; }
   .ins-head { border-bottom: 1px solid #d9dde3; padding-left: 0; padding-right: 0; }
   .ins-head .icon-btn, .ins-thresholds { display: none !important; }
   .ins-body { overflow: visible; padding: 0; }
-  .ins-grid { grid-template-columns: repeat(2, 1fr); gap: 5mm; }
+  .ins-grid { columns: 2; column-gap: 6mm; }
+  .ins-lead { padding: 0 0 4mm; gap: 8mm; break-inside: avoid; }
+  .lead-hero b { font-size: 22pt; }
+  .lead-tile { border: 1px solid #d9dde3; }
+  .lead-tile .v { font-size: 12pt; }
+  .ins-sec > h4 { border-bottom: 1px solid #d9dde3; padding: 4mm 0 2mm; margin-bottom: 3mm; }
+  .prof-panel { break-inside: avoid; }
   .ins-card { break-inside: avoid; border: 1px solid #d9dde3; }
   .ins-sec { break-inside: auto; }
   .ins-sec > h4 { padding: 5mm 0 2mm; }
@@ -3907,8 +3991,14 @@ const has = key => !!(S.model && S.model.map && S.model.map[key]);
 
 /* Where a position sits, in the words of the ladder, so a row says something
    about the organisation and not only about the person. */
-const unitPathOf = n => DIMENSIONS.slice(0, 6).map(d => n[d.key]).filter(Boolean).slice(-2).join(' › ')
-  || n.function || n.location || '';
+const unitPathOf = n => {
+  const rungs = DIMENSIONS.slice(0, 6).map(d => n[d.key]).filter(Boolean).slice(-2);
+  // Sub-units are usually named after their parent — "Fraud Prevention Unit 2 ›
+  // Fraud Prevention Unit 2 - Team B" spends half its width saying the same
+  // thing twice, and then truncates before it gets to the part that differs.
+  if (rungs.length === 2 && rungs[1].startsWith(rungs[0])) return rungs[1];
+  return rungs.join(' › ') || n.function || n.location || '';
+};
 
 /* Units in view. The unit model is already built from the filtered positions,
    so the only narrowing left is a chosen branch of the reporting line. */
@@ -4145,7 +4235,7 @@ function insightCards() {
 
   const spanTotal = managers.reduce((t, n) => t + n.directs, 0);
   add({
-    id: 'managerRatio', section: 'Shape', title: 'Managers to the rest',
+    id: 'managerRatio', profile: true, section: 'Shape', title: 'Managers to the rest',
     figure: pcts(managers.length, ns.length), unit: 'of seats manage someone',
     tone: '', flagged: 0,
     note: `${int(managers.length)} managers to ${int(ns.length - managers.length)} individual `
@@ -4291,7 +4381,7 @@ function insightCards() {
     const mix = countBy(withSucc, 'successorReadiness');
     if (mix.length) {
       add({
-        id: 'readiness', section: 'Succession & control', title: 'How ready the successors are',
+        id: 'readiness', profile: true, section: 'Succession & control', title: 'How ready the successors are',
         figure: int(withSucc.length), unit: 'roles with a named successor',
         tone: '', flagged: 0,
         note: 'Naming a successor and having one ready are different things.',
@@ -4305,7 +4395,7 @@ function insightCards() {
     const pool = ns.filter(n => n.inTalentPool);
     const mix = countBy(pool.filter(n => n.talentPool), 'talentPool').slice(0, 6);
     add({
-      id: 'talentPool', section: 'Succession & control', title: 'Depth of the bench',
+      id: 'talentPool', profile: true, section: 'Succession & control', title: 'Depth of the bench',
       figure: int(pool.length), unit: 'people in a talent pool',
       tone: '', flagged: 0,
       note: has('critical')
@@ -4321,7 +4411,7 @@ function insightCards() {
   if (has('jobType')) {
     const mix = countBy(ns, 'jobType');
     add({
-      id: 'jobTypeMix', section: 'Composition', title: 'Front, middle and back',
+      id: 'jobTypeMix', profile: true, section: 'Composition', title: 'Front, middle and back',
       figure: int(ns.length), unit: 'positions in view', tone: '', flagged: 0,
       note: 'Where the work sits against the customer.',
       rows: [], more: 0, bar: insBar(mix, 'jobType', ns.length),
@@ -4332,7 +4422,7 @@ function insightCards() {
     const mix = countBy(ns, 'functionType');
     const control = ns.filter(n => /2nd|second|3rd|third|control|assurance|audit/i.test(n.functionType || ''));
     add({
-      id: 'lines', section: 'Composition', title: 'The three lines',
+      id: 'lines', profile: true, section: 'Composition', title: 'The three lines',
       figure: pcts(control.length, ns.length), unit: 'in second and third line',
       tone: '', flagged: 0,
       note: `${int(control.length)} of ${int(ns.length)} positions sit in control or assurance `
@@ -4345,7 +4435,7 @@ function insightCards() {
     const mix = countBy(ns, 'grade');
     if (mix.length > 1) {
       add({
-        id: 'grades', section: 'Composition', title: 'Where the grades sit',
+        id: 'grades', profile: true, section: 'Composition', title: 'Where the grades sit',
         figure: int(mix.length), unit: 'distinct grades', tone: '', flagged: 0,
         note: 'Listed by headcount: the tool reads grades as labels and does not know which '
           + `outranks which. The largest, ${esc(mix[0][0])}, holds ${pcts(mix[0][1], ns.length)} `
@@ -4375,7 +4465,7 @@ function insightCards() {
       const worst = [...byGroup.entries()].filter(([, e]) => e.total >= MIN_UNIT_FOR_RATE)
         .sort((a, b) => pct(a[1].saudi, a[1].total) - pct(b[1].saudi, b[1].total));
       add({
-        id: 'saudization', section: 'Composition', title: 'Saudization',
+        id: 'saudization', profile: true, section: 'Composition', title: 'Saudization',
         figure: pcts(saudi.length, filled.length), unit: 'of filled seats',
         tone: '', flagged: 0,
         note: `${int(saudi.length)} of ${int(filled.length)} filled positions are held by Saudi `
@@ -4396,7 +4486,41 @@ function insightCards() {
   return cards;
 }
 
-const INS_SECTIONS = ['Shape', 'Staffing', 'Succession & control', 'Composition'];
+/* Composition is no longer a section: everything that was in it describes the
+   organisation rather than asking anything of the reader, so it moved to the
+   band at the foot with the other statistics. What is left is three sections of
+   things that need doing. */
+const INS_SECTIONS = ['Shape', 'Staffing', 'Succession & control'];
+
+/* The tiles beside the hero. Each is a number the reader came for, and each
+   drops out when its column is not in the file — the same habit the cards
+   follow. `card` is where the tile scrolls to when clicked. */
+function leadTiles(cards) {
+  const by = id => cards.find(c => c.id === id);
+  const out = [];
+  const tile = (id, label, card) => {
+    const c = by(id);
+    if (c) out.push({ label, value: c.figure, unit: c.unit, tone: c.tone, card });
+  };
+  tile('vacancy', 'Vacant', 'vacancy');
+  tile('successionGaps', 'No successor', 'successionGaps');
+  tile('leaving', 'Leaving', 'leaving');
+  tile('leaderless', 'No one at the top', 'leaderless');
+  tile('layers', 'Deepest chain', 'layers');
+  tile('wideSpan', 'Spans too wide', 'wideSpan');
+  return out.slice(0, 5);
+}
+
+/* Sharpest first: a page that opens on "1 manager" and buries "31 critical roles
+   with nobody behind them" three cards down is sorted by nothing useful. How much
+   there is to do leads, and the tone breaks ties — ranking tone first put a
+   two-item curiosity above a twenty-five item finding. A card with nothing
+   flagged has nothing to ask for, so it sinks. */
+const TONE_RANK = { alert: 0, warn: 1 };
+const bySeverity = (a, b) =>
+  (b.flagged ? 1 : 0) - (a.flagged ? 1 : 0)
+  || (b.flagged || 0) - (a.flagged || 0)
+  || (TONE_RANK[a.tone] ?? 2) - (TONE_RANK[b.tone] ?? 2);
 
 function renderInsights() {
   if (!isInsights() || !S.model) return;
@@ -4406,9 +4530,7 @@ function renderInsights() {
   // Only the cards that name exceptions count towards "things to look at" — a
   // proportion is a fact about the organisation, not an item of work.
   const flagged = cards.reduce((t, c) => t + (c.flagged || 0), 0);
-  $('#ins-count').textContent = flagged
-    ? int(flagged) + (flagged === 1 ? ' thing to look at' : ' things to look at')
-    : 'nothing flagged in this view';
+  $('#ins-count').textContent = S.rootId || filtersActive() ? 'in this view' : '';
 
   const tipEl = $('#ins-tip');
   if (tipEl) tipEl.hidden = true;
@@ -4422,12 +4544,56 @@ function renderInsights() {
     return;
   }
 
-  $('#ins-body').innerHTML = INS_SECTIONS.map(sec => {
-    const mine = cards.filter(c => c.section === sec);
+  // One hero for the view, and the numbers the reader came for beside it.
+  const tiles = leadTiles(cards);
+  const lead = `<section class="ins-lead">
+    <div class="lead-hero ${flagged ? 'warn' : 'ok'}">
+      <b>${esc(int(flagged))}</b>
+      <span>${flagged === 1 ? 'thing to look at' : 'things to look at'}</span>
+    </div>
+    <div class="lead-tiles">${tiles.map(t =>
+      `<button class="lead-tile ${t.tone || ''}" data-jump="${esc(t.card)}">
+        <span class="k">${esc(t.label)}</span>
+        <span class="v">${esc(t.value)}</span>
+        <span class="u">${esc(t.unit)}</span>
+      </button>`).join('')}</div>
+  </section>`;
+
+  const sections = INS_SECTIONS.map(sec => {
+    const mine = cards.filter(c => c.section === sec && !c.profile).sort(bySeverity);
     if (!mine.length) return '';
-    return `<section class="ins-sec"><h4>${esc(sec)}</h4>
+    const n = mine.reduce((t, c) => t + (c.flagged || 0), 0);
+    return `<section class="ins-sec"><h4>${esc(sec)}` +
+      (n ? `<span class="n">${int(n)}</span>` : '') + `</h4>
       <div class="ins-grid">${mine.map(insCard).join('')}</div></section>`;
   }).join('');
+
+  // The statistics, compacted: same information, a quarter of the space, and
+  // nothing here pretending to be a finding.
+  const stats = cards.filter(c => c.profile);
+  const band = stats.length ? `<section class="ins-sec ins-profile">
+    <h4>The workforce in this view</h4>
+    <div class="ins-grid">${stats.map(profilePanel).join('')}</div></section>` : '';
+
+  $('#ins-body').innerHTML = lead + sections + band;
+}
+
+/* A statistic, drawn quietly: the label, the number in line with it, the bar and
+   its keys. No border and no hero-sized figure — it is context, not an item. */
+function profilePanel(c) {
+  const rows = c.rank ? insRank(c.rows, c.rank)
+    : c.rows.map(r =>
+      `<div class="ins-row"${r.attr || ''}><span class="who">${esc(r.who)}</span>` +
+      (r.said ? `<span class="said">${esc(r.said)}</span>` : '') +
+      `<span class="num">${esc(r.num || '')}</span></div>`).join('');
+  return `<article class="prof-panel" data-card="${esc(c.id)}">
+    <div class="prof-top"><h5>${esc(c.title)}</h5>
+      <span class="prof-fig">${esc(c.figure)} <i>${esc(c.unit)}</i></span></div>
+    ${c.chart || ''}${c.bar || ''}
+    ${rows ? `<div class="ins-rows">${rows}</div>` : ''}
+    ${c.more ? `<div class="ins-more">…and ${int(c.more)} more</div>` : ''}
+    ${c.rank && c.rank.refNote ? `<div class="ins-refnote">${esc(c.rank.refNote)}</div>` : ''}
+  </article>`;
 }
 
 function insCard(c) {
@@ -6050,6 +6216,18 @@ function wireApp() {
     if (el) showTip(el, e.clientX, e.clientY); else hideTip();
   });
   $('#ins-body').addEventListener('pointerleave', hideTip);
+
+  // A tile is a shortcut to the card it summarises: scroll it up and mark it,
+  // so the reader can see which of eleven cards just answered them.
+  $('#ins-body').addEventListener('click', e => {
+    const jump = e.target.closest('[data-jump]');
+    if (!jump) return;
+    const card = $(`.ins-card[data-card="${CSS.escape(jump.dataset.jump)}"]`);
+    if (!card) return;
+    $$('.ins-card.lit').forEach(c => c.classList.remove('lit'));
+    card.classList.add('lit');
+    card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
   $('#ins-body').addEventListener('scroll', hideTip);
   // Whatever the pointer can reach, the keyboard can too.
   $('#ins-body').addEventListener('focusin', e => {
