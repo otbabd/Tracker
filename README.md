@@ -188,7 +188,12 @@ rather than facts, so they sit on the panel — change one and every card that u
 it re-reads, its sentence included, so a printed page still says what was tested.
 
 Cards flow down the columns rather than tiling across them, so a short card
-beside a tall one leaves no hole and a job title has room to finish. A card whose
+beside a tall one leaves no hole and a job title has room to finish. The columns
+are assigned rather than left to CSS: multi-column balances for equal height and
+would pack the cards into three columns on a 2000px window, leaving eight hundred
+pixels of the page blank. Instead the count comes from what fits, capped at the
+number of cards, and the tallest card goes to the emptiest column — so a section
+reaches both edges at any width, with the sharpest finding still at the top left. A card whose
 column your file does not carry is left out rather than shown empty, and a
 section left with no cards does not appear at all. Saudization reads
 nationality, so it hides with the names in **Presentation** mode.

@@ -484,13 +484,15 @@ svg text { unicode-bidi: plaintext; }
 }
 .ins-sec:first-of-type > h4 { padding-top: 8px; }
 
-/* Cards pack down the columns instead of tiling across them. A grid row is as
-   tall as its tallest card, so one 167px card beside a 560px one left a hole the
-   height of a screen; flowing them fills that space instead. The wider column is
-   the other half of the fix — at four columns a job title had nowhere to go but
-   an ellipsis. */
-.ins-grid { columns: 380px; column-gap: 13px; }
-.ins-card, .prof-panel { break-inside: avoid; margin: 0 0 13px; width: 100%; }
+/* Cards stack down columns rather than tiling across rows, so a short card
+   beside a tall one leaves no hole. The columns themselves are assigned in JS:
+   CSS multi-column balances for equal height rather than for width, and with
+   cards it cannot split it packs them into as few columns as it needs and leaves
+   the rest of the board blank — 788px of it on a 1990px window. See
+   layoutBoard(). */
+.ins-grid { display: flex; align-items: flex-start; gap: 13px; }
+.ins-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 13px; }
+.ins-card, .prof-panel { margin: 0; width: 100%; }
 .ins-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 13px 14px 5px;
@@ -627,7 +629,6 @@ svg text { unicode-bidi: plaintext; }
    Statistics, not findings. No border and no big number, so they read as the
    background the findings sit against.
    ────────────────────────────────────────────────────────────────────────── */
-.ins-profile .ins-grid { columns: 300px; }
 .prof-panel { padding: 0 0 4px; }
 .prof-top {
   display: flex; align-items: baseline; gap: 9px;
@@ -804,7 +805,9 @@ svg text { unicode-bidi: plaintext; }
   .ins-head { border-bottom: 1px solid #d9dde3; padding-left: 0; padding-right: 0; }
   .ins-head .icon-btn, .ins-thresholds { display: none !important; }
   .ins-body { overflow: visible; padding: 0; }
-  .ins-grid { columns: 2; column-gap: 6mm; }
+  .ins-grid { gap: 6mm; }
+  .ins-col { gap: 5mm; }
+  .ins-card, .prof-panel { break-inside: avoid; }
   .ins-lead { padding: 0 0 4mm; gap: 8mm; break-inside: avoid; }
   .lead-hero b { font-size: 22pt; }
   .lead-tile { border: 1px solid #d9dde3; }
@@ -4576,6 +4579,79 @@ function renderInsights() {
     <div class="ins-grid">${stats.map(profilePanel).join('')}</div></section>` : '';
 
   $('#ins-body').innerHTML = lead + sections + band;
+  layoutBoards();
+}
+
+/* ── Laying out a board ─────────────────────────────────────────────────────
+   CSS cannot do this. Multi-column balances for equal height, not for width: it
+   packs unbreakable cards into as few columns as it needs and leaves every
+   remaining column blank, however wide the window is. Forcing column-count does
+   not help either — balancing still decides how many of them to use.
+
+   So the columns are assigned here. Capping the count at the number of cards is
+   what removes the empty trailing column; taking the floor of what fits is what
+   stops a lone card becoming a banner. Each card goes to the shortest column so
+   far, so the bottoms come out close to level.
+   ─────────────────────────────────────────────────────────────────────────── */
+const BOARD_GAP = 13;
+
+function layoutBoard(board, minCol, forceCols) {
+  const items = $$('[data-card]', board);
+  if (!items.length) return;
+  const fit = Math.floor((board.clientWidth + BOARD_GAP) / (minCol + BOARD_GAP));
+  const cols = Math.max(1, Math.min(forceCols || fit, items.length));
+
+  const columns = [];
+  board.textContent = '';
+  for (let i = 0; i < cols; i++) {
+    const el = document.createElement('div');
+    el.className = 'ins-col';
+    columns.push(el);
+    board.appendChild(el);
+  }
+  board.dataset.cols = cols;
+
+  // Measured inside a column already at its final width, so a note that wraps to
+  // three lines at 360px and two at 500px is counted correctly.
+  for (const item of items) columns[0].appendChild(item);
+  const tall = items.map(el => el.offsetHeight);
+
+  // Tallest first into the emptiest column. Placing in source order is fragile —
+  // one 560px card arriving last lands on a column that is already full and the
+  // bottoms come out 595px apart; taking the big ones first halves that.
+  const order = items.map((_, i) => i).sort((a, b) => tall[b] - tall[a]);
+  const heights = new Array(cols).fill(0);
+  const assigned = Array.from({ length: cols }, () => []);
+  for (const i of order) {
+    let k = 0;
+    for (let c = 1; c < cols; c++) if (heights[c] < heights[k]) k = c;
+    assigned[k].push(i);
+    heights[k] += tall[i] + BOARD_GAP;
+  }
+
+  // Balanced by height, but read in the order they were built. Two sorts, both
+  // needed: within a column so it does not open on its least urgent card, and
+  // across the columns so the section does not open on whichever card happened
+  // to be tallest — balancing alone put a card flagging nothing top left.
+  assigned.forEach(list => list.sort((a, b) => a - b));
+  assigned.sort((a, b) => a[0] - b[0]);
+  assigned.forEach((list, c) => {
+    for (const i of list) columns[c].appendChild(items[i]);
+  });
+}
+
+let boardWidth = 0;
+function layoutBoards(forceCols) {
+  const body = $('#ins-body');
+  if (!body) return;
+  boardWidth = body.clientWidth;
+  // 480 is not arbitrary: below it a 1990px window fits four columns, and with a
+  // four-card section beside two three-card ones that means 480px cards sitting
+  // next to 644px ones on the same page. At 480 every window from 1100 to 1990
+  // lands on one column width for the whole page.
+  for (const b of $$('.ins-grid', body)) {
+    layoutBoard(b, b.closest('.ins-profile') ? 380 : 480, forceCols);
+  }
 }
 
 /* A statistic, drawn quietly: the label, the number in line with it, the bar and
@@ -5185,7 +5261,9 @@ function preparePrint() {
     const insPage = $('#print-page') || document.head.appendChild(
       Object.assign(document.createElement('style'), { id: 'print-page' }));
     insPage.textContent = '@page { size: portrait; margin: 12mm; }';
-    return function restore() {};
+    // Five columns on screen would print as five slivers.
+    if (isInsights()) layoutBoards(2);
+    return function restore() { if (isInsights()) layoutBoards(); };
   }
 
   svg.setAttribute('viewBox',
@@ -6216,6 +6294,18 @@ function wireApp() {
     if (el) showTip(el, e.clientX, e.clientY); else hideTip();
   });
   $('#ins-body').addEventListener('pointerleave', hideTip);
+
+  // Dragging the window between one column and six has to re-place the cards.
+  // Only a change in the board's own width matters — relaying out changes the
+  // children's heights, and reacting to that would chase its own tail.
+  if (typeof ResizeObserver !== 'undefined') {
+    let pending = 0;
+    new ResizeObserver(() => {
+      if (!isInsights() || $('#ins-body').clientWidth === boardWidth) return;
+      clearTimeout(pending);
+      pending = setTimeout(() => { if (isInsights()) layoutBoards(); }, 90);
+    }).observe($('#ins-body'));
+  }
 
   // A tile is a shortcut to the card it summarises: scroll it up and mark it,
   // so the reader can see which of eleven cards just answered them.
