@@ -1,0 +1,3020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>2027 Capacity Planning</title>
+<style>
+/* ── Reset & tokens ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:#09090f; --surface:#0f0f1a; --surface2:#14142a; --surface3:#1e1e35;
+  --border:#2a2a45; --border2:#3a3a58;
+  --primary:#6366f1; --primary-bg:rgba(99,102,241,0.12); --primary-hover:#4f46e5;
+  --success:#22c55e; --success-bg:rgba(34,197,94,0.10);
+  --warn:#f59e0b;    --warn-bg:rgba(245,158,11,0.10);
+  --danger:#ef4444;  --danger-bg:rgba(239,68,68,0.10);
+  --info:#38bdf8;    --info-bg:rgba(56,189,248,0.10);
+  --text:#f0f0f8; --text-dim:#94a3b8; --text-muted:#55607a;
+  --radius:10px; --radius-sm:7px;
+  --shadow:0 8px 32px rgba(0,0,0,0.5);
+  --sidebar-w:236px; --topbar-h:56px;
+  /* scenario colours, used by charts and tables alike */
+  --sc-committed:#64748b; --sc-base:#6366f1; --sc-upside:#22c55e;
+  --sc-downside:#f59e0b;  --sc-expected:#a855f7;
+}
+
+html { font-size:15px; scroll-behavior:smooth; }
+body {
+  font-family:system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); min-height:100vh; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+#layout { margin-left:var(--sidebar-w); min-height:100vh; display:flex; flex-direction:column; }
+#content { flex:1; padding:24px 28px; max-width:1360px; width:100%; }
+
+#sidebar {
+  position:fixed; top:0; left:0; width:var(--sidebar-w); height:100vh;
+  background:var(--surface); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; z-index:200; overflow-y:auto;
+  transition:transform .25s ease;
+}
+.sidebar-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 16px 14px; border-bottom:1px solid var(--border);
+}
+.brand { font-size:14.5px; font-weight:700; letter-spacing:-0.02em; }
+.brand small { display:block; font-size:11px; font-weight:500; color:var(--text-muted); letter-spacing:0; }
+.sidebar-close { display:none; background:none; border:none; color:var(--text-dim); font-size:18px; cursor:pointer; }
+
+.nav { padding:10px 8px; display:flex; flex-direction:column; gap:2px; }
+.nav-section { font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); padding:12px 10px 5px; font-weight:600; }
+.nav-item {
+  display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:var(--radius-sm);
+  color:var(--text-dim); text-decoration:none; font-size:13.5px; font-weight:500; transition:background .15s,color .15s;
+}
+.nav-item:hover { background:var(--surface2); color:var(--text); }
+.nav-item.active { background:var(--primary-bg); color:var(--primary); font-weight:600; }
+.nav-icon { width:17px; height:17px; flex-shrink:0; }
+.nav-count { margin-left:auto; font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+
+#topbar {
+  height:var(--topbar-h); border-bottom:1px solid var(--border); background:var(--surface);
+  display:flex; align-items:center; gap:12px; padding:0 28px; position:sticky; top:0; z-index:100;
+}
+.topbar-title { font-size:15px; font-weight:600; }
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+.save-state { font-size:11.5px; color:var(--text-muted); }
+.save-state.saved { color:var(--success); }
+.menu-btn { display:none; background:none; border:none; color:var(--text); cursor:pointer; padding:4px; }
+
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:150; }
+.hidden { display:none !important; }
+
+/* ── Typography & helpers ─────────────────────────────────────────────────── */
+.page-header { font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px; }
+.page-sub { font-size:13px; color:var(--text-dim); margin-bottom:20px; max-width:76ch; }
+.section { margin-bottom:26px; }
+.section-header { display:flex; align-items:center; gap:12px; margin-bottom:11px; flex-wrap:wrap; }
+.section-title { font-size:14.5px; font-weight:650; }
+.section-note { font-size:12px; color:var(--text-muted); }
+.spacer { margin-left:auto; }
+.mb-6 { margin-bottom:24px; } .mb-3 { margin-bottom:12px; } .mt-4 { margin-top:16px; }
+.flex { display:flex; } .gap-2 { gap:8px; } .gap-3 { gap:12px; } .flex-wrap { flex-wrap:wrap; }
+.items-center { align-items:center; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.text-green { color:var(--success); } .text-red { color:var(--danger); }
+.text-warn { color:var(--warn); } .text-muted { color:var(--text-muted); }
+.text-dim { color:var(--text-dim); }
+.fw-600 { font-weight:600; } .fw-700 { font-weight:700; }
+.nums { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.right { text-align:right; }
+.small { font-size:12px; }
+
+/* ── Cards & KPIs ─────────────────────────────────────────────────────────── */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(178px,1fr)); gap:12px; }
+.kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 15px; }
+.kpi-label { font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+.kpi-value { font-size:23px; font-weight:700; margin-top:5px; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
+.kpi-sub { font-size:11.5px; color:var(--text-dim); margin-top:3px; }
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
+.table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th {
+  text-align:left; padding:10px 13px; font-size:11px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border); white-space:nowrap;
+  background:var(--surface);
+}
+th.right, td.right { text-align:right; }
+td { padding:10px 13px; border-bottom:1px solid var(--surface3); vertical-align:middle; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover { background:var(--surface2); }
+tr.clickable { cursor:pointer; }
+tfoot td { padding:10px 13px; border-top:1px solid var(--border2); font-weight:700; background:var(--surface2); }
+.cell-actions { display:flex; gap:6px; justify-content:flex-end; }
+.empty-state { padding:34px 20px; text-align:center; color:var(--text-muted); font-size:13px; }
+.empty-state a { color:var(--primary); }
+
+/* ── Badges ───────────────────────────────────────────────────────────────── */
+.badge {
+  display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px;
+  font-weight:600; white-space:nowrap; line-height:1.5;
+}
+.badge-increase { background:var(--success-bg); color:var(--success); }
+.badge-decrease { background:var(--warn-bg);    color:var(--warn); }
+.badge-committed{ background:var(--primary-bg); color:var(--primary); }
+.badge-contingent{background:var(--info-bg);    color:var(--info); }
+.badge-internal { background:var(--surface3);   color:var(--text-dim); }
+.badge-vendor   { background:rgba(168,85,247,.12); color:#c084fc; }
+.badge-neutral  { background:var(--surface3);   color:var(--text-dim); }
+.badge-delivered{ background:var(--success-bg); color:var(--success); }
+.badge-progress { background:var(--info-bg);    color:var(--info); }
+.badge-planned  { background:var(--surface3);   color:var(--text-dim); }
+.badge-risk     { background:var(--warn-bg);    color:var(--warn); }
+.badge-cancelled{ background:var(--danger-bg);  color:var(--danger); }
+
+/* ── Forms ────────────────────────────────────────────────────────────────── */
+.form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+.field { display:flex; flex-direction:column; gap:5px; }
+.field.full { grid-column:1/-1; }
+label { font-size:12px; font-weight:600; color:var(--text-dim); }
+label .hint { font-weight:400; color:var(--text-muted); }
+input, select, textarea {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  padding:9px 11px; border-radius:var(--radius-sm); font-size:13.5px; font-family:inherit; width:100%;
+}
+input:focus, select:focus, textarea:focus { outline:none; border-color:var(--primary); }
+textarea { resize:vertical; min-height:62px; }
+input[type=range] { padding:0; background:transparent; border:none; accent-color:var(--primary); }
+.field-error { font-size:11.5px; color:var(--danger); }
+
+.btn {
+  padding:8px 15px; border-radius:var(--radius-sm); border:1px solid transparent; cursor:pointer;
+  font-size:13px; font-weight:600; font-family:inherit; transition:background .15s,border-color .15s;
+  display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+}
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-hover); }
+.btn-ghost { background:transparent; color:var(--text-dim); border-color:var(--border2); }
+.btn-ghost:hover { background:var(--surface2); color:var(--text); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-sm { padding:5px 10px; font-size:12px; }
+.btn-icon { padding:5px 8px; font-size:12px; background:transparent; border-color:var(--border2); color:var(--text-dim); }
+.btn-icon:hover { background:var(--surface2); color:var(--text); }
+
+.toggle-group { display:inline-flex; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.toggle-btn { background:none; border:none; color:var(--text-dim); padding:6px 13px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit; }
+.toggle-btn.active { background:var(--primary); color:#fff; }
+
+.alert { padding:11px 14px; border-radius:var(--radius-sm); font-size:13px; margin-bottom:14px; border:1px solid; }
+.alert-error { background:var(--danger-bg); border-color:rgba(239,68,68,.35); color:#fca5a5; }
+.alert-ok    { background:var(--success-bg); border-color:rgba(34,197,94,.35); color:#86efac; }
+.alert-warn  { background:var(--warn-bg); border-color:rgba(245,158,11,.35); color:#fcd34d; }
+.alert-info  { background:var(--primary-bg); border-color:rgba(99,102,241,.35); color:#a5b4fc; }
+.alert ul { margin:6px 0 0 18px; }
+
+/* ── Modal ────────────────────────────────────────────────────────────────── */
+.modal { position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:300; display:flex; align-items:center; justify-content:center; padding:20px; }
+.modal-box { background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius); padding:22px; max-width:460px; width:100%; box-shadow:var(--shadow); }
+.modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+
+/* ── Charts & meters ──────────────────────────────────────────────────────── */
+.chart-wrap { width:100%; overflow-x:auto; }
+.chart-wrap svg { display:block; max-width:100%; height:auto; }
+.legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--text-dim); margin-top:10px; }
+.legend-item { display:flex; align-items:center; gap:6px; }
+.legend-swatch { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
+
+.meter { height:6px; background:var(--surface3); border-radius:4px; overflow:hidden; min-width:64px; }
+.meter-fill { height:100%; border-radius:4px; }
+
+.linkchip {
+  display:inline-flex; align-items:center; gap:5px; background:var(--surface3); color:var(--text-dim);
+  padding:2px 8px; border-radius:20px; font-size:11px; margin:2px 3px 2px 0;
+}
+.linkchip.unlock { background:var(--success-bg); color:var(--success); }
+.linkchip.release{ background:var(--warn-bg); color:var(--warn); }
+.linkchip button { background:none; border:none; color:inherit; cursor:pointer; font-size:12px; padding:0 0 0 2px; line-height:1; }
+
+.footnote { font-size:11.5px; color:var(--text-muted); margin-top:9px; max-width:82ch; }
+.check-row { display:flex; gap:9px; align-items:flex-start; font-size:12.5px; padding:5px 0; border-bottom:1px solid var(--surface3); }
+.check-row:last-child { border-bottom:none; }
+.check-mark { flex-shrink:0; font-weight:700; width:16px; }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width:900px) {
+  #sidebar { transform:translateX(-100%); }
+  #sidebar.open { transform:translateX(0); }
+  .sidebar-close, .menu-btn { display:block; }
+  #layout { margin-left:0; }
+  #content { padding:18px 16px; }
+  #topbar { padding:0 16px; }
+  .grid-2, .grid-3 { grid-template-columns:1fr; }
+}
+@media (min-width:901px) { .overlay { display:none !important; } }
+
+/* ── Print: board pack ────────────────────────────────────────────────────── */
+@media print {
+  :root { --bg:#fff; --surface:#fff; --surface2:#fff; --surface3:#eee;
+          --border:#ccc; --border2:#999; --text:#000; --text-dim:#333; --text-muted:#666; }
+  body { background:#fff; color:#000; }
+  #sidebar, #topbar, .overlay, .modal, .no-print, .btn, .toggle-group, .cell-actions { display:none !important; }
+  #layout { margin-left:0; }
+  #content { padding:0; max-width:none; }
+  .section { break-inside:avoid; page-break-inside:avoid; margin-bottom:18px; }
+  .card, .table-wrap, .kpi-card { border:1px solid #ccc; box-shadow:none; }
+  .page-break { break-before:page; page-break-before:always; }
+  table { font-size:10px; } th, td { padding:5px 7px; }
+  .kpi-value { font-size:18px; }
+  a { text-decoration:none; color:#000; }
+}
+</style>
+</head>
+<body>
+<div id="overlay" class="overlay hidden"></div>
+
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <span class="brand">Capacity Planning<small id="brand-year">2027 cycle</small></span>
+    <button class="sidebar-close" id="sidebar-close" aria-label="Close menu">&#10005;</button>
+  </div>
+  <nav class="nav" id="nav">
+    <div class="nav-section">Overview</div>
+    <a class="nav-item" href="#dashboard" data-page="dashboard">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 8a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4zm8-8a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zm0 8a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" href="#scenarios" data-page="scenarios">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+      Scenarios
+    </a>
+    <a class="nav-item" href="#impact" data-page="impact">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.05A1 1 0 0112 2v5h4a1 1 0 01.82 1.57l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.57l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+      Deliverable Impact
+    </a>
+
+    <div class="nav-section">Inputs</div>
+    <a class="nav-item" href="#requests" data-page="requests">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 000 2h14a1 1 0 100-2H3zm0 4a1 1 0 000 2h14a1 1 0 100-2H3zm0 4a1 1 0 000 2h9a1 1 0 100-2H3z" clip-rule="evenodd"/></svg>
+      Demand Requests <span class="nav-count" id="count-requests"></span>
+    </a>
+    <a class="nav-item" href="#baseline" data-page="baseline">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.97 5.97 0 00-.75-2.906A3 3 0 0119 15v3h-3zM4.75 12.094A5.97 5.97 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
+      Current Capacity <span class="nav-count" id="count-baseline"></span>
+    </a>
+    <a class="nav-item" href="#deliverables" data-page="deliverables">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6.267 3.455a3.07 3.07 0 001.745-.723 3.07 3.07 0 013.976 0 3.07 3.07 0 001.745.723 3.07 3.07 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.07 3.07 0 010 3.976 3.07 3.07 0 00-.723 1.745 3.07 3.07 0 01-2.812 2.812 3.07 3.07 0 00-1.745.723 3.07 3.07 0 01-3.976 0 3.07 3.07 0 00-1.745-.723 3.07 3.07 0 01-2.812-2.812 3.07 3.07 0 00-.723-1.745 3.07 3.07 0 010-3.976 3.07 3.07 0 00.723-1.745 3.07 3.07 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+      Strategy Deliveries <span class="nav-count" id="count-deliverables"></span>
+    </a>
+    <a class="nav-item" href="#lines" data-page="lines">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"/></svg>
+      Business Lines <span class="nav-count" id="count-lines"></span>
+    </a>
+    <a class="nav-item" href="#roles" data-page="roles">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.95 22.95 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd"/><path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z"/></svg>
+      Role Catalogue <span class="nav-count" id="count-roles"></span>
+    </a>
+
+    <div class="nav-section">System</div>
+    <a class="nav-item" href="#settings" data-page="settings">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+      Data &amp; Settings
+    </a>
+  </nav>
+</aside>
+
+<div id="layout">
+  <header id="topbar">
+    <button id="menu-btn" class="menu-btn" aria-label="Open menu">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="22" height="22"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+    </button>
+    <span class="topbar-title" id="page-title">Dashboard</span>
+    <div class="topbar-right no-print">
+      <span class="save-state" id="save-state"></span>
+      <button class="btn btn-ghost btn-sm" id="print-btn">Print / PDF</button>
+    </div>
+  </header>
+  <main id="content"></main>
+</div>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <p id="modal-msg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="application/json,.json" class="hidden">
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+const QUARTERS      = ['Q1', 'Q2', 'Q3', 'Q4'];
+const CATEGORIES    = ['Sales', 'Technology', 'Regulatory', 'Process'];
+const DLV_STATUSES  = ['Planned', 'In Progress', 'Delivered', 'At Risk', 'Cancelled'];
+const REQ_STATUSES  = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Deferred'];
+const CHANGE_TYPES  = ['Increase', 'Decrease'];
+const COMMITMENTS   = ['Committed', 'Contingent'];
+const SOURCINGS     = ['Internal', 'Vendor'];
+const SCENARIOS     = ['Committed', 'Base', 'Upside', 'Downside', 'Expected'];
+
+const SCENARIO_COLOR = {
+  Committed: '#64748b', Base: '#6366f1', Upside: '#22c55e',
+  Downside: '#f59e0b',  Expected: '#a855f7',
+};
+
+const SCENARIO_BLURB = {
+  Committed: 'Only asks with no strategic condition attached. The floor — what you need even if nothing on the 2027 roadmap lands.',
+  Base:      'Committed, plus every conditional ask whose triggers clear the likelihood threshold. The planning number.',
+  Upside:    'Every increase lands; only redundancies already banked are counted. Maximum capacity need.',
+  Downside:  'Only increases already banked; every redundancy lands. Minimum capacity need.',
+  Expected:  'Each conditional ask weighted by the probability of its triggers. Not a world that happens — the average across all of them.',
+};
+
+const STORAGE_KEY = 'capacityPlanner.v1';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STORE  —  state, persistence, JSON import/export
+   ═══════════════════════════════════════════════════════════════════════════ */
+function uid(prefix) {
+  return prefix + '_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+}
+
+const DEFAULT_META = {
+  planningYear: 2027,
+  currency: 'SAR',
+  hoursPerFteYear: 1800,
+  baseThresholdPct: 70,
+  vendorUpliftPct: 0,
+};
+
+function emptyState() {
+  return {
+    meta: Object.assign({}, DEFAULT_META),
+    businessLines: [], roles: [], deliverables: [], baseline: [], requests: [],
+  };
+}
+
+const Store = {
+  state: emptyState(),
+  _saveTimer: null,
+
+  load() {
+    let raw = null;
+    try { raw = localStorage.getItem(STORAGE_KEY); }
+    catch (e) { console.warn('localStorage unavailable — running in memory only', e); }
+
+    if (raw) {
+      try {
+        this.state = this.normalise(JSON.parse(raw));
+        return 'restored';
+      } catch (e) {
+        console.error('Stored data was corrupt; starting from the demo set.', e);
+      }
+    }
+    this.state = this.normalise(buildSeed());
+    this.save();
+    return 'seeded';
+  },
+
+  /* Fills in anything a hand-edited or older JSON file might be missing, so a
+     partial import cannot leave the app in a half-broken state. */
+  normalise(raw) {
+    const s = emptyState();
+    if (!raw || typeof raw !== 'object') return s;
+    s.meta = Object.assign({}, DEFAULT_META, raw.meta || {});
+    ['businessLines', 'roles', 'deliverables', 'baseline', 'requests'].forEach(k => {
+      s[k] = Array.isArray(raw[k]) ? raw[k] : [];
+    });
+    s.requests.forEach(r => {
+      if (!Array.isArray(r.links)) r.links = [];
+      r.fte = Math.abs(Number(r.fte) || 0);
+    });
+    s.baseline.forEach(b => {
+      b.fte = Number(b.fte) || 0;
+      b.fteOptimizable = Number(b.fteOptimizable) || 0;
+      if (b.utilizationPct == null) b.utilizationPct = 100;
+    });
+    s.deliverables.forEach(d => {
+      d.likelihoodPct = Math.max(0, Math.min(100, Number(d.likelihoodPct) || 0));
+    });
+    return s;
+  },
+
+  save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+      flashSaved();
+    } catch (e) {
+      console.warn('Could not persist to localStorage', e);
+      setSaveState('Not saved — storage blocked', false);
+    }
+  },
+
+  /* Debounced so typing in a form does not hammer localStorage. */
+  touch() {
+    clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => this.save(), 250);
+  },
+
+  reset(seeded) {
+    this.state = this.normalise(seeded ? buildSeed() : emptyState());
+    this.save();
+  },
+
+  /* ── collection helpers ── */
+  all(k)      { return this.state[k]; },
+  byId(k, id) { return this.state[k].find(x => x.id === id) || null; },
+
+  add(k, obj) {
+    obj.id = obj.id || uid(k.slice(0, 3));
+    this.state[k].push(obj);
+    this.save();
+    return obj;
+  },
+
+  update(k, id, patch) {
+    const item = this.byId(k, id);
+    if (!item) return null;
+    Object.assign(item, patch);
+    this.save();
+    return item;
+  },
+
+  /* Removing a record prunes anything that pointed at it, so the model can
+     never hold a dangling reference. */
+  remove(k, id) {
+    this.state[k] = this.state[k].filter(x => x.id !== id);
+
+    if (k === 'deliverables') {
+      this.state.requests.forEach(r => {
+        r.links = r.links.filter(l => l.deliverableId !== id);
+      });
+    }
+    if (k === 'businessLines') {
+      this.state.baseline = this.state.baseline.filter(b => b.lineId !== id);
+      this.state.requests = this.state.requests.filter(r => r.lineId !== id);
+    }
+    if (k === 'roles') {
+      this.state.baseline.forEach(b => { if (b.roleId === id) b.roleId = null; });
+      this.state.requests.forEach(r => { if (r.roleId === id) r.roleId = null; });
+    }
+    this.save();
+  },
+
+  /* ── file I/O ── */
+  toJSON() {
+    return JSON.stringify({
+      _format: 'capacity-planner',
+      _version: 1,
+      _exportedAt: new Date().toISOString(),
+      meta: this.state.meta,
+      businessLines: this.state.businessLines,
+      roles: this.state.roles,
+      deliverables: this.state.deliverables,
+      baseline: this.state.baseline,
+      requests: this.state.requests,
+    }, null, 2);
+  },
+
+  fromJSON(text) {
+    const parsed = JSON.parse(text);
+    this.state = this.normalise(parsed);
+    this.save();
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FORMATTERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Fmt = {
+  fte(v, sign) {
+    if (v == null || isNaN(v)) return '—';
+    const n = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    if (sign) return (v > 0 ? '+' : v < 0 ? '−' : '') + n;
+    return (v < 0 ? '−' : '') + n;
+  },
+
+  money(v, sign) {
+    if (v == null || isNaN(v)) return '—';
+    const cur = Store.state.meta.currency;
+    const abs = Math.abs(v);
+    /* Big planning numbers are unreadable in full; compact them above 1M. */
+    let n;
+    if (abs >= 1e6)      n = (abs / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M';
+    else if (abs >= 1e4) n = (abs / 1e3).toLocaleString('en-US', { maximumFractionDigits: 0 }) + 'k';
+    else                 n = abs.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    const prefix = sign ? (v > 0 ? '+' : v < 0 ? '−' : '') : (v < 0 ? '−' : '');
+    return prefix + cur + ' ' + n;
+  },
+
+  moneyFull(v) {
+    if (v == null || isNaN(v)) return '—';
+    return Store.state.meta.currency + ' ' +
+      Math.round(v).toLocaleString('en-US');
+  },
+
+  hours(v) {
+    if (v == null || isNaN(v)) return '—';
+    const abs = Math.abs(v);
+    const n = abs >= 1000 ? (abs / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + 'k'
+                          : abs.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    return (v < 0 ? '−' : '') + n + ' h';
+  },
+
+  pct(v, digits)  { return v == null || isNaN(v) ? '—' : v.toFixed(digits == null ? 0 : digits) + '%'; },
+  num(v, d)       { return v == null || isNaN(v) ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); },
+  cls(v)          { return v > 0 ? 'text-green' : v < 0 ? 'text-red' : ''; },
+  quarter(q)      { return Store.state.meta.planningYear + ' ' + q; },
+
+  /* Name lookups — records reference each other by id only. */
+  lineName(id) { const l = Store.byId('businessLines', id); return l ? l.name : '—'; },
+  lineCode(id) { const l = Store.byId('businessLines', id); return l ? l.code : '—'; },
+  roleName(id) { const r = Store.byId('roles', id); return r ? r.title : '—'; },
+  dlvName(id)  { const d = Store.byId('deliverables', id); return d ? d.name : '(deleted)'; },
+
+  badge(text, kind) {
+    return '<span class="badge badge-' + (kind || 'neutral') + '">' + esc(text) + '</span>';
+  },
+
+  statusBadge(status) {
+    const map = {
+      'Delivered': 'delivered', 'In Progress': 'progress', 'Planned': 'planned',
+      'At Risk': 'risk', 'Cancelled': 'cancelled',
+      'Approved': 'delivered', 'Submitted': 'progress', 'Under Review': 'progress',
+      'Draft': 'planned', 'Rejected': 'cancelled', 'Deferred': 'risk',
+    };
+    return Fmt.badge(status, map[status] || 'neutral');
+  },
+};
+
+/* Every value that reaches innerHTML goes through this — free-text fields like
+   justification and notes would otherwise be able to inject markup. */
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLANNING ENGINE
+
+   Pure functions over Store.state — no DOM, no side effects. Everything the
+   tool asserts about 2027 is computed here, so this is the part to read if you
+   want to check the numbers rather than trust them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Planning = {
+
+  /* ── Probability ──────────────────────────────────────────────────────── */
+
+  /* A delivery that has landed is certain; one that is cancelled is impossible.
+     Everything else is the planner's own estimate. */
+  effectiveProbability(dlv) {
+    if (!dlv) return 0;                       // link to a deleted delivery
+    if (dlv.status === 'Delivered') return 1;
+    if (dlv.status === 'Cancelled') return 0;
+    return Math.max(0, Math.min(1, (Number(dlv.likelihoodPct) || 0) / 100));
+  },
+
+  /* Combined probability of every trigger on a request holding.
+
+     Marking a request Committed is an explicit override: the planner is saying
+     it happens regardless of the roadmap, so any links it carries are ignored
+     (and flagged as a data-quality warning). Without this override, a request
+     could sit inside the Committed scenario but fall out of Base, which would
+     make the two incomparable. */
+  combinedProbability(req) {
+    if (req.commitment === 'Committed') return 1;
+    if (!req.links || !req.links.length) return 1;
+    return req.links.reduce(
+      (p, l) => p * this.effectiveProbability(Store.byId('deliverables', l.deliverableId)),
+      1
+    );
+  },
+
+  /* ── Scenario inclusion ───────────────────────────────────────────────── */
+
+  /* How much of a request each scenario counts, from 0 to 1.
+
+     Note the asymmetry between increases and decreases: "Upside" means the
+     world where you need the MOST people, so it takes every plausible increase
+     but only the redundancies already banked. Downside is its exact mirror.
+
+     "Plausible" is doing real work there: a request whose trigger has been
+     cancelled has p = 0 and drops out of every scenario, including the two
+     cells that otherwise take everything. A dead deliverable cannot unlock
+     headcount, and it cannot make anyone redundant either. */
+  inclusionFactor(req, scenario, thresholdPct) {
+    const p = this.combinedProbability(req);
+    const t = (thresholdPct == null ? Store.state.meta.baseThresholdPct : thresholdPct) / 100;
+    const isIncrease = req.changeType !== 'Decrease';
+    const possible = p > 0 ? 1 : 0;
+    const banked   = p >= 1 ? 1 : 0;
+
+    switch (scenario) {
+      case 'Committed': return req.commitment === 'Committed' ? 1 : 0;
+      case 'Base':      return p >= t ? 1 : 0;
+      case 'Upside':    return isIncrease ? possible : banked;
+      case 'Downside':  return isIncrease ? banked   : possible;
+      case 'Expected':  return p;
+      default:          return 0;
+    }
+  },
+
+  /* ── Timing ───────────────────────────────────────────────────────────── */
+
+  quarterIndex(q) {
+    const i = QUARTERS.indexOf(q);
+    return i < 0 ? 1 : i + 1;                 // unknown / missing → start of year
+  },
+
+  /* A request starting in Q3 is only live for half the year, so it costs half
+     an annual salary even though it adds full FTE to the Q4 run-rate. */
+  quartersActive(q) { return 5 - this.quarterIndex(q); },
+
+  /* ── Unit conversion ──────────────────────────────────────────────────── */
+
+  roleCost(roleId, sourcing) {
+    const role = Store.byId('roles', roleId);
+    if (!role) return 0;                      // flagged by coverageWarnings
+    const base = Number(role.annualCost) || 0;
+    const uplift = sourcing === 'Vendor'
+      ? 1 + (Number(Store.state.meta.vendorUpliftPct) || 0) / 100
+      : 1;
+    return base * uplift;
+  },
+
+  /* ── Resolving one request under one scenario ─────────────────────────── */
+
+  resolveRequest(req, scenario, thresholdPct) {
+    const probability = this.combinedProbability(req);
+    const factor      = this.inclusionFactor(req, scenario, thresholdPct);
+    const sign        = req.changeType === 'Decrease' ? -1 : 1;
+    const magnitude   = Math.abs(Number(req.fte) || 0);
+    const signedFte   = sign * magnitude * factor;
+
+    const qActive = this.quartersActive(req.startQuarter);
+    const startIx = this.quarterIndex(req.startQuarter);
+    const hoursPerFte = Number(Store.state.meta.hoursPerFteYear) || 0;
+
+    return {
+      request: req,
+      probability,
+      factor,
+      signedFte,
+      quartersActive: qActive,
+      annualCost:  signedFte * this.roleCost(req.roleId, req.sourcing) * qActive / 4,
+      annualHours: signedFte * hoursPerFte * qActive / 4,
+      /* Headcount present in each quarter — a request is live from its start
+         quarter through year end, at full FTE. */
+      fteByQuarter: QUARTERS.map((_, i) => (i + 1) >= startIx ? signedFte : 0),
+    };
+  },
+
+  resolveBaselineRow(row) {
+    const cost  = this.roleCost(row.roleId, row.sourcing);
+    const hours = Number(Store.state.meta.hoursPerFteYear) || 0;
+    const fte   = Number(row.fte) || 0;
+    const opt   = Math.min(Number(row.fteOptimizable) || 0, fte);   // cannot release more than exists
+    return {
+      row, fte, optimizable: opt,
+      cost: fte * cost,   optimizableCost: opt * cost,
+      hours: fte * hours, optimizableHours: opt * hours,
+    };
+  },
+
+  /* ── Rollup ───────────────────────────────────────────────────────────── */
+
+  /* The whole 2027 position under one scenario, sliced every way the UI needs.
+     opts.thresholdPct overrides the saved Base threshold (used by the slider);
+     opts.lineId narrows everything to a single business line. */
+  scenarioRollup(scenario, opts) {
+    opts = opts || {};
+    const threshold = opts.thresholdPct;
+
+    let baseline = Store.all('baseline');
+    let requests = Store.all('requests');
+    if (opts.lineId) {
+      baseline = baseline.filter(b => b.lineId === opts.lineId);
+      requests = requests.filter(r => r.lineId === opts.lineId);
+    }
+
+    const blank = () => ({
+      baselineFte: 0, optimizableFte: 0, increaseFte: 0, decreaseFte: 0,
+      baselineCost: 0, optimizableCost: 0, deltaCost: 0,
+      baselineHours: 0, optimizableHours: 0, deltaHours: 0,
+    });
+
+    const total   = blank();
+    const byLine  = new Map();
+    const byRole  = new Map();
+    const bySrc   = { Internal: blank(), Vendor: blank() };
+    const quarterDelta = [0, 0, 0, 0];
+
+    const bucket = (map, key) => {
+      if (!map.has(key)) map.set(key, Object.assign({ key: key }, blank()));
+      return map.get(key);
+    };
+    const addBaseline = (t, r) => {
+      t.baselineFte += r.fte;            t.optimizableFte   += r.optimizable;
+      t.baselineCost += r.cost;          t.optimizableCost  += r.optimizableCost;
+      t.baselineHours += r.hours;        t.optimizableHours += r.optimizableHours;
+    };
+    const addDelta = (t, r) => {
+      if (r.signedFte >= 0) t.increaseFte += r.signedFte;
+      else                  t.decreaseFte += r.signedFte;   // stays negative
+      t.deltaCost  += r.annualCost;
+      t.deltaHours += r.annualHours;
+    };
+
+    baseline.forEach(row => {
+      const r = this.resolveBaselineRow(row);
+      addBaseline(total, r);
+      addBaseline(bucket(byLine, row.lineId), r);
+      addBaseline(bucket(byRole, row.roleId), r);
+      addBaseline(bySrc[row.sourcing === 'Vendor' ? 'Vendor' : 'Internal'], r);
+    });
+
+    const resolved = requests.map(req => this.resolveRequest(req, scenario, threshold));
+    resolved.forEach(r => {
+      addDelta(total, r);
+      addDelta(bucket(byLine, r.request.lineId), r);
+      addDelta(bucket(byRole, r.request.roleId), r);
+      addDelta(bySrc[r.request.sourcing === 'Vendor' ? 'Vendor' : 'Internal'], r);
+      r.fteByQuarter.forEach((v, i) => { quarterDelta[i] += v; });
+    });
+
+    /* Derived figures, applied identically to the total and every slice. */
+    const finish = (t) => {
+      t.netDeltaFte        = t.increaseFte + t.decreaseFte;
+      t.optimizedBaselineFte = t.baselineFte - t.optimizableFte;
+      t.requirementFte     = t.optimizedBaselineFte + t.netDeltaFte;
+      t.gapFte             = t.requirementFte - t.baselineFte;
+
+      t.optimizedBaselineCost = t.baselineCost - t.optimizableCost;
+      t.requirementCost       = t.optimizedBaselineCost + t.deltaCost;
+      t.optimizedBaselineHours = t.baselineHours - t.optimizableHours;
+      t.requirementHours       = t.optimizedBaselineHours + t.deltaHours;
+      return t;
+    };
+
+    finish(total);
+    byLine.forEach(finish);
+    byRole.forEach(finish);
+    finish(bySrc.Internal);
+    finish(bySrc.Vendor);
+
+    /* Optimization is treated as realised from the start of the year — it is a
+       decision about existing capacity, not something the roadmap gates. */
+    const byQuarter = QUARTERS.map((q, i) => ({
+      quarter: q,
+      fte: total.optimizedBaselineFte + quarterDelta[i],
+      delta: quarterDelta[i],
+    }));
+
+    return Object.assign(total, {
+      scenario: scenario,
+      byLine:   Array.from(byLine.values()).sort((a, b) => b.requirementFte - a.requirementFte),
+      byRole:   Array.from(byRole.values()).sort((a, b) => b.requirementFte - a.requirementFte),
+      bySourcing: bySrc,
+      byQuarter: byQuarter,
+      resolved: resolved,
+      /* Gross magnitudes, ignoring sign — used by the self-check to compare
+         scenarios that are not comparable on net alone. */
+      grossIncreaseFte: total.increaseFte,
+      grossDecreaseFte: Math.abs(total.decreaseFte),
+    });
+  },
+
+  allScenarios(opts) {
+    return SCENARIOS.map(s => this.scenarioRollup(s, opts));
+  },
+
+  /* ── Deliverable impact ───────────────────────────────────────────────── */
+
+  /* Per strategy delivery: how much headcount is riding on it, in both
+     directions. A request with several triggers appears under each of them, so
+     these columns describe exposure, not an additive total. */
+  deliverableImpact() {
+    return Store.all('deliverables').map(dlv => {
+      const linked = Store.all('requests').filter(
+        r => (r.links || []).some(l => l.deliverableId === dlv.id)
+      );
+      const p = this.effectiveProbability(dlv);
+
+      let unlockFte = 0, releaseFte = 0, expectedFte = 0, atStakeCost = 0;
+      const lines = new Set();
+
+      linked.forEach(r => {
+        const mag  = Math.abs(Number(r.fte) || 0);
+        const sign = r.changeType === 'Decrease' ? -1 : 1;
+        if (sign > 0) unlockFte += mag; else releaseFte += mag;
+        expectedFte += sign * mag * this.combinedProbability(r);
+        atStakeCost += sign * mag * this.roleCost(r.roleId, r.sourcing)
+                     * this.quartersActive(r.startQuarter) / 4;
+        if (r.lineId) lines.add(r.lineId);
+      });
+
+      return {
+        deliverable: dlv,
+        probability: p,
+        requestCount: linked.length,
+        unlockFte, releaseFte,
+        netFte: unlockFte - releaseFte,
+        expectedFte,
+        atStakeCost,
+        lineIds: Array.from(lines),
+        /* Ignoring sign: the total headcount whose fate this delivery decides. */
+        exposureFte: unlockFte + releaseFte,
+      };
+    }).sort((a, b) => b.exposureFte - a.exposureFte);
+  },
+
+  /* ── Optimization view ────────────────────────────────────────────────── */
+
+  optimizationSummary() {
+    const map = new Map();
+    Store.all('baseline').forEach(row => {
+      const k = row.lineId;
+      if (!map.has(k)) map.set(k, { lineId: k, fte: 0, optimizable: 0, cost: 0,
+                                    optimizableCost: 0, weightedUtil: 0, rows: 0, underUtilised: 0 });
+      const t = map.get(k);
+      const r = this.resolveBaselineRow(row);
+      const util = Number(row.utilizationPct) || 0;
+      t.fte += r.fte;
+      t.optimizable += r.optimizable;
+      t.cost += r.cost;
+      t.optimizableCost += r.optimizableCost;
+      t.weightedUtil += util * r.fte;         // weight by FTE, not by row count
+      t.rows += 1;
+      if (util < 80) t.underUtilised += 1;
+    });
+
+    return Array.from(map.values()).map(t => Object.assign(t, {
+      avgUtilization: t.fte > 0 ? t.weightedUtil / t.fte : 0,
+      optimizablePct: t.fte > 0 ? (t.optimizable / t.fte) * 100 : 0,
+    })).sort((a, b) => b.optimizable - a.optimizable);
+  },
+
+  /* ── Data quality ─────────────────────────────────────────────────────── */
+
+  /* Things that will quietly distort the numbers if left alone. Surfaced on the
+     dashboard rather than buried, because every one of them is a silent zero
+     somewhere in a rollup. */
+  coverageWarnings() {
+    const w = [];
+    const requests = Store.all('requests');
+    const push = (level, text) => w.push({ level, text });
+
+    const contingentNoLink = requests.filter(
+      r => r.commitment === 'Contingent' && (!r.links || !r.links.length)
+    );
+    if (contingentNoLink.length) {
+      push('warn', contingentNoLink.length + ' contingent request(s) have no strategy delivery attached, '
+        + 'so nothing gates them — they currently behave as committed in every scenario except Committed.');
+    }
+
+    const committedWithLinks = requests.filter(
+      r => r.commitment === 'Committed' && r.links && r.links.length
+    );
+    if (committedWithLinks.length) {
+      push('info', committedWithLinks.length + ' request(s) are marked Committed but still carry triggers. '
+        + 'Committed overrides the condition, so those links are ignored in every scenario.');
+    }
+
+    const noRole = requests.filter(r => !r.roleId || !Store.byId('roles', r.roleId));
+    if (noRole.length) {
+      push('warn', noRole.length + ' request(s) have no role, so they contribute FTE but '
+        + Store.state.meta.currency + ' 0 to every cost figure.');
+    }
+
+    const baselineNoRole = Store.all('baseline').filter(b => !b.roleId || !Store.byId('roles', b.roleId));
+    if (baselineNoRole.length) {
+      push('warn', baselineNoRole.length + ' existing-capacity row(s) have no role and cost nothing in the rollups.');
+    }
+
+    const zeroFte = requests.filter(r => !(Math.abs(Number(r.fte) || 0) > 0));
+    if (zeroFte.length) push('info', zeroFte.length + ' request(s) are recorded at 0 FTE.');
+
+    const orphanDlv = Store.all('deliverables').filter(
+      d => !requests.some(r => (r.links || []).some(l => l.deliverableId === d.id))
+    );
+    if (orphanDlv.length) {
+      push('info', orphanDlv.length + ' strategy delivery(ies) have no capacity riding on them. '
+        + 'Fine if true — worth a second look if not.');
+    }
+
+    const overOptimised = Store.all('baseline').filter(
+      b => (Number(b.fteOptimizable) || 0) > (Number(b.fte) || 0)
+    );
+    if (overOptimised.length) {
+      push('warn', overOptimised.length + ' capacity row(s) claim more optimisable FTE than they hold. '
+        + 'The excess is capped in the rollups.');
+    }
+
+    const stalled = Store.all('deliverables').filter(
+      d => d.status !== 'Cancelled' && (Number(d.likelihoodPct) || 0) === 0
+    );
+    if (stalled.length) {
+      push('info', stalled.length + ' delivery(ies) sit at 0% likelihood without being cancelled. '
+        + 'Anything depending on them is excluded from Base, Upside and Expected.');
+    }
+
+    return w;
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DEMO DATA
+
+   A plausible 2027 cycle, so the tool is legible on first open and you can
+   judge the model against how you actually run the exercise. Clear it from
+   Data & Settings once your own numbers go in.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function buildSeed() {
+  const L = {
+    rtl: 'ln_retail', cor: 'ln_corp', ops: 'ln_ops', tec: 'ln_tech', rsk: 'ln_risk',
+  };
+  const R = {
+    rm: 'rl_rm', oo: 'rl_ops', se: 'rl_eng', da: 'rl_data',
+    co: 'rl_comp', cc: 'rl_agent', pm: 'rl_prod', sa: 'rl_arch',
+  };
+  const D = {
+    wealth: 'dl_wealth', sme: 'dl_sme', stp: 'dl_stp', onboard: 'dl_onboard',
+    fx: 'dl_fx', openbank: 'dl_openbank', core: 'dl_core', aicc: 'dl_aicc',
+    banca: 'dl_banca', branch: 'dl_branch',
+  };
+
+  const businessLines = [
+    { id: L.rtl, name: 'Retail Banking',        code: 'RTL', owner: 'Head of Retail',      notes: 'Branch, digital and contact centre channels.' },
+    { id: L.cor, name: 'Corporate Banking',     code: 'COR', owner: 'Head of Corporate',   notes: 'Large corporate and SME relationship coverage.' },
+    { id: L.ops, name: 'Operations & Processing', code: 'OPS', owner: 'COO',               notes: 'Payments, trade and account servicing back office.' },
+    { id: L.tec, name: 'Technology',            code: 'TEC', owner: 'CTO',                 notes: 'Engineering, architecture and platform delivery.' },
+    { id: L.rsk, name: 'Risk & Compliance',     code: 'RSK', owner: 'CRO',                 notes: 'Second line, regulatory and financial crime.' },
+  ];
+
+  const roles = [
+    { id: R.rm, title: 'Relationship Manager',  level: 'Senior',  annualCost: 320000, defaultSourcing: 'Internal' },
+    { id: R.oo, title: 'Operations Officer',    level: 'Mid',     annualCost: 180000, defaultSourcing: 'Internal' },
+    { id: R.se, title: 'Software Engineer',     level: 'Mid',     annualCost: 420000, defaultSourcing: 'Internal' },
+    { id: R.da, title: 'Data Analyst',          level: 'Mid',     annualCost: 300000, defaultSourcing: 'Internal' },
+    { id: R.co, title: 'Compliance Officer',    level: 'Senior',  annualCost: 260000, defaultSourcing: 'Internal' },
+    { id: R.cc, title: 'Contact Centre Agent',  level: 'Junior',  annualCost: 120000, defaultSourcing: 'Internal' },
+    { id: R.pm, title: 'Product Manager',       level: 'Senior',  annualCost: 380000, defaultSourcing: 'Internal' },
+    { id: R.sa, title: 'Solution Architect',    level: 'Lead',    annualCost: 600000, defaultSourcing: 'Vendor'   },
+  ];
+
+  const deliverables = [
+    { id: D.openbank, name: 'Open Banking regulatory compliance', category: 'Regulatory', owner: 'CRO',
+      targetQuarter: 'Q1', status: 'Delivered', likelihoodPct: 100,
+      metricName: 'Mandated scope live', metricTarget: 100, metricActual: 100, metricUnit: '%' },
+
+    { id: D.sme, name: 'SME lending platform go-live', category: 'Technology', owner: 'CTO',
+      targetQuarter: 'Q1', status: 'In Progress', likelihoodPct: 85,
+      metricName: 'Platform in production', metricTarget: 100, metricActual: 60, metricUnit: '%' },
+
+    { id: D.onboard, name: 'Digital onboarding — 60% self-service', category: 'Technology', owner: 'Head of Retail',
+      targetQuarter: 'Q2', status: 'In Progress', likelihoodPct: 75,
+      metricName: 'Self-service onboarding share', metricTarget: 60, metricActual: 34, metricUnit: '%' },
+
+    { id: D.wealth, name: 'Wealth product launch — 250M AUM', category: 'Sales', owner: 'Head of Retail',
+      targetQuarter: 'Q2', status: 'In Progress', likelihoodPct: 65,
+      metricName: 'Assets under management', metricTarget: 250, metricActual: 40, metricUnit: 'M SAR' },
+
+    { id: D.stp, name: 'Payments automation — straight-through processing', category: 'Technology', owner: 'COO',
+      targetQuarter: 'Q3', status: 'Planned', likelihoodPct: 60,
+      metricName: 'STP rate', metricTarget: 85, metricActual: 41, metricUnit: '%' },
+
+    { id: D.aicc, name: 'Contact centre AI deflection — 40%', category: 'Technology', owner: 'Head of Retail',
+      targetQuarter: 'Q3', status: 'Planned', likelihoodPct: 55,
+      metricName: 'Contacts deflected', metricTarget: 40, metricActual: 8, metricUnit: '%' },
+
+    { id: D.banca, name: 'Bancassurance partnership — 120M premium', category: 'Sales', owner: 'Head of Retail',
+      targetQuarter: 'Q3', status: 'Planned', likelihoodPct: 50,
+      metricName: 'Gross written premium', metricTarget: 120, metricActual: 0, metricUnit: 'M SAR' },
+
+    { id: D.fx, name: 'Corporate FX desk — 90M revenue', category: 'Sales', owner: 'Head of Corporate',
+      targetQuarter: 'Q4', status: 'Planned', likelihoodPct: 45,
+      metricName: 'FX revenue', metricTarget: 90, metricActual: 0, metricUnit: 'M SAR' },
+
+    { id: D.core, name: 'Core banking migration — wave 2', category: 'Technology', owner: 'CTO',
+      targetQuarter: 'Q4', status: 'At Risk', likelihoodPct: 35,
+      metricName: 'Accounts migrated', metricTarget: 100, metricActual: 12, metricUnit: '%' },
+
+    { id: D.branch, name: 'Branch network optimisation', category: 'Process', owner: 'COO',
+      targetQuarter: 'Q2', status: 'Cancelled', likelihoodPct: 0,
+      metricName: 'Branches consolidated', metricTarget: 18, metricActual: 0, metricUnit: 'branches' },
+  ];
+
+  /* ── Existing capacity, with what each line believes is optimisable ── */
+  const b = (lineId, roleId, fte, sourcing, utilizationPct, fteOptimizable, optimizationNote) =>
+    ({ id: uid('bas'), lineId, roleId, fte, sourcing, utilizationPct, fteOptimizable, optimizationNote: optimizationNote || '' });
+
+  const baseline = [
+    b(L.rtl, R.rm,  48, 'Internal',  92,  2, 'Two RMs carrying sub-scale portfolios.'),
+    b(L.rtl, R.cc,  86, 'Internal',  78, 10, 'Idle capacity outside peak windows; shift pattern under review.'),
+    b(L.rtl, R.pm,   9, 'Internal',  95,  0, ''),
+    b(L.rtl, R.oo,  22, 'Internal',  84,  3, 'Manual account maintenance partially automatable today.'),
+
+    b(L.cor, R.rm,  31, 'Internal',  96,  0, ''),
+    b(L.cor, R.da,   7, 'Internal',  88,  1, 'Reporting overlap with the central data team.'),
+    b(L.cor, R.oo,  12, 'Internal',  81,  2, 'Trade documentation checks duplicated with OPS.'),
+
+    b(L.ops, R.oo, 134, 'Internal',  87, 14, 'Payment repair and exception handling — the largest single pool.'),
+    b(L.ops, R.da,   9, 'Internal',  90,  0, ''),
+    b(L.ops, R.oo,  26, 'Vendor',    93,  6, 'Outsourced reconciliation scope renegotiable at renewal.'),
+
+    b(L.tec, R.se,  74, 'Internal',  91,  3, 'Legacy maintenance squads shrinking as platforms retire.'),
+    b(L.tec, R.sa,  11, 'Vendor',    89,  2, 'Architecture retainer above steady-state need.'),
+    b(L.tec, R.da,  13, 'Internal',  86,  1, ''),
+    b(L.tec, R.pm,   8, 'Internal',  94,  0, ''),
+    b(L.tec, R.se,  18, 'Vendor',    97,  4, 'Contractor-heavy squad; convert or release after wave 1.'),
+
+    b(L.rsk, R.co,  38, 'Internal',  93,  2, 'Manual KYC review partly addressable by screening tooling.'),
+    b(L.rsk, R.da,   6, 'Internal',  85,  1, ''),
+    b(L.rsk, R.oo,   9, 'Internal',  82,  2, 'Case administration overlapping with OPS servicing.'),
+  ];
+
+  /* ── The asks, and the redundancies ── */
+  const rq = (o) => Object.assign({
+    id: uid('req'), status: 'Submitted', requestedBy: '', justification: '',
+    sourcing: 'Internal', links: [],
+  }, o);
+
+  const link = (deliverableId, conditionNote) => ({ deliverableId, conditionNote: conditionNote || '' });
+
+  const requests = [
+    /* ── Retail Banking ── */
+    rq({ lineId: L.rtl, roleId: R.rm, title: 'Wealth relationship managers', changeType: 'Increase',
+         fte: 6, startQuarter: 'Q2', commitment: 'Contingent', requestedBy: 'Head of Retail',
+         justification: 'Coverage for the new wealth book. Only needed if the product actually gathers assets.',
+         links: [link(D.wealth, 'AUM reaches 250M SAR')] }),
+
+    rq({ lineId: L.rtl, roleId: R.cc, title: 'Contact centre volume growth', changeType: 'Increase',
+         fte: 4, startQuarter: 'Q1', commitment: 'Committed', requestedBy: 'Head of Retail',
+         justification: 'Book growth already contracted; volumes land regardless of the roadmap.' }),
+
+    rq({ lineId: L.rtl, roleId: R.cc, title: 'AI deflection releases agent capacity', changeType: 'Decrease',
+         fte: 12, startQuarter: 'Q3', commitment: 'Contingent', requestedBy: 'Head of Retail',
+         justification: 'At 40% deflection roughly a seventh of the agent pool is freed. Redeployment before exit.',
+         links: [link(D.aicc, 'Deflection sustained at 40% for one quarter')] }),
+
+    rq({ lineId: L.rtl, roleId: R.pm, title: 'Bancassurance product management', changeType: 'Increase',
+         fte: 3, startQuarter: 'Q3', commitment: 'Contingent', requestedBy: 'Head of Retail',
+         justification: 'Product ownership for the insurance partnership.',
+         links: [link(D.banca, 'Partnership signed and first premium written')] }),
+
+    rq({ lineId: L.rtl, roleId: R.oo, title: 'Servicing effort released by digital onboarding', changeType: 'Decrease',
+         fte: 5, startQuarter: 'Q3', commitment: 'Contingent', requestedBy: 'Head of Retail',
+         justification: 'Manual onboarding checks fall away once self-service carries the majority of applications.',
+         links: [link(D.onboard, 'Self-service share sustained above 60%')] }),
+
+    rq({ lineId: L.rtl, roleId: R.rm, title: 'Branch consolidation release', changeType: 'Decrease',
+         fte: 4, startQuarter: 'Q3', commitment: 'Contingent', requestedBy: 'COO',
+         justification: 'Written against the branch programme. That programme has since been cancelled — kept here to show how a dead trigger behaves.',
+         links: [link(D.branch, '18 branches consolidated')] }),
+
+    /* ── Corporate Banking ── */
+    rq({ lineId: L.cor, roleId: R.rm, title: 'SME coverage expansion', changeType: 'Increase',
+         fte: 4, startQuarter: 'Q1', commitment: 'Committed', requestedBy: 'Head of Corporate',
+         justification: 'Approved in the 2026 cycle and carried forward; funding already held.' }),
+
+    rq({ lineId: L.cor, roleId: R.rm, title: 'FX desk coverage', changeType: 'Increase',
+         fte: 2, startQuarter: 'Q4', commitment: 'Contingent', requestedBy: 'Head of Corporate',
+         justification: 'Desk build-out contingent on the revenue case proving out.',
+         links: [link(D.fx, 'FX revenue run-rate reaches 90M SAR')] }),
+
+    rq({ lineId: L.cor, roleId: R.da, title: 'SME credit analytics', changeType: 'Increase',
+         fte: 2, startQuarter: 'Q2', commitment: 'Contingent', requestedBy: 'Head of Corporate',
+         justification: 'Portfolio monitoring on the new platform.',
+         links: [link(D.sme, 'Platform live and carrying production volume')] }),
+
+    /* ── Operations & Processing ── */
+    rq({ lineId: L.ops, roleId: R.oo, title: 'STP removes payment repair effort', changeType: 'Decrease',
+         fte: 18, startQuarter: 'Q3', commitment: 'Contingent', requestedBy: 'COO',
+         justification: 'The single largest capacity release in the plan. Exceptions fall from ~15% to ~4% of volume.',
+         links: [link(D.stp, 'STP rate sustained above 85%')] }),
+
+    rq({ lineId: L.ops, roleId: R.oo, title: 'Core migration retires manual reconciliation', changeType: 'Decrease',
+         fte: 6, startQuarter: 'Q4', commitment: 'Contingent', requestedBy: 'COO',
+         justification: 'Only lands if wave 2 completes — currently at risk.',
+         links: [link(D.core, 'Wave 2 accounts fully migrated')] }),
+
+    rq({ lineId: L.ops, roleId: R.oo, title: 'Attrition backfill', changeType: 'Increase',
+         fte: 3, startQuarter: 'Q1', commitment: 'Committed', requestedBy: 'COO',
+         justification: 'Run-rate replacement, unrelated to the strategy portfolio.' }),
+
+    rq({ lineId: L.ops, roleId: R.da, title: 'Operational reporting analyst', changeType: 'Increase',
+         fte: 2, startQuarter: 'Q2', commitment: 'Committed', requestedBy: 'COO',
+         justification: 'Regulatory operational reporting expanded in 2026; effort already absorbed unfunded.' }),
+
+    rq({ lineId: L.ops, roleId: R.oo, title: 'Vendor reconciliation scope reduction', changeType: 'Decrease',
+         fte: 6, startQuarter: 'Q2', commitment: 'Contingent', sourcing: 'Vendor', requestedBy: 'COO',
+         justification: 'Renegotiate outsourced scope at renewal once automation is proven.',
+         links: [link(D.stp, 'Automation stable ahead of contract renewal')] }),
+
+    /* ── Technology ── */
+    rq({ lineId: L.tec, roleId: R.se, title: 'Platform engineering baseline', changeType: 'Increase',
+         fte: 8, startQuarter: 'Q1', commitment: 'Committed', requestedBy: 'CTO',
+         justification: 'Standing roadmap capacity independent of any single delivery.' }),
+
+    rq({ lineId: L.tec, roleId: R.se, title: 'Core migration wave 2 squad', changeType: 'Increase',
+         fte: 6, startQuarter: 'Q2', commitment: 'Contingent', requestedBy: 'CTO',
+         justification: 'Only mobilised if wave 2 is greenlit.',
+         links: [link(D.core, 'Wave 2 approved and funded')] }),
+
+    rq({ lineId: L.tec, roleId: R.se, title: 'SME platform run team', changeType: 'Increase',
+         fte: 4, startQuarter: 'Q1', commitment: 'Contingent', requestedBy: 'CTO',
+         justification: 'Production support once the platform carries live volume.',
+         links: [link(D.sme, 'Platform in production')] }),
+
+    rq({ lineId: L.tec, roleId: R.sa, title: 'Migration architecture retainer', changeType: 'Increase',
+         fte: 3, startQuarter: 'Q1', commitment: 'Contingent', sourcing: 'Vendor', requestedBy: 'CTO',
+         justification: 'Vendor architects for the migration window only.',
+         links: [link(D.core, 'Wave 2 approved and funded')] }),
+
+    rq({ lineId: L.tec, roleId: R.se, title: 'Integration engineers — automation and onboarding', changeType: 'Increase',
+         fte: 2, startQuarter: 'Q3', commitment: 'Contingent', requestedBy: 'CTO',
+         justification: 'Needed only where both programmes land together. Two triggers, so the combined likelihood is the product of the two.',
+         links: [link(D.stp, 'STP live'), link(D.onboard, 'Onboarding target met')] }),
+
+    rq({ lineId: L.tec, roleId: R.sa, title: 'Vendor architect ramp-down after go-live', changeType: 'Decrease',
+         fte: 4, startQuarter: 'Q4', commitment: 'Contingent', sourcing: 'Vendor', requestedBy: 'CTO',
+         justification: 'Retainer released once migration completes.',
+         links: [link(D.core, 'Wave 2 complete')] }),
+
+    rq({ lineId: L.tec, roleId: R.se, title: 'Contractor conversion — release vendor seats', changeType: 'Decrease',
+         fte: 5, startQuarter: 'Q3', commitment: 'Committed', sourcing: 'Vendor', requestedBy: 'CTO',
+         justification: 'Board-approved reduction in contractor reliance; proceeds regardless of the roadmap.' }),
+
+    /* ── Risk & Compliance ── */
+    rq({ lineId: L.rsk, roleId: R.co, title: 'Open Banking supervisory capacity', changeType: 'Increase',
+         fte: 3, startQuarter: 'Q1', commitment: 'Contingent', requestedBy: 'CRO',
+         justification: 'Written as contingent, but the delivery has already landed — so it now counts in every scenario.',
+         links: [link(D.openbank, 'Mandated scope live')] }),
+
+    rq({ lineId: L.rsk, roleId: R.co, title: 'SME lending credit risk review', changeType: 'Increase',
+         fte: 2, startQuarter: 'Q2', commitment: 'Contingent', requestedBy: 'CRO',
+         justification: 'Second-line review of the new lending book.',
+         links: [link(D.sme, 'Platform live')] }),
+
+    rq({ lineId: L.rsk, roleId: R.da, title: 'Financial crime analytics', changeType: 'Increase',
+         fte: 1, startQuarter: 'Q3', commitment: 'Committed', requestedBy: 'CRO',
+         justification: 'Standing supervisory expectation.' }),
+
+    rq({ lineId: L.rsk, roleId: R.co, title: 'Screening automation releases review effort', changeType: 'Decrease',
+         fte: 2, startQuarter: 'Q4', commitment: 'Contingent', requestedBy: 'CRO',
+         justification: 'Manual KYC review reduced once onboarding is largely digital.',
+         links: [link(D.onboard, 'Self-service share above 60%')] }),
+  ];
+
+  return {
+    meta: { planningYear: 2027, currency: 'SAR', hoursPerFteYear: 1800,
+            baseThresholdPct: 70, vendorUpliftPct: 0 },
+    businessLines, roles, deliverables, baseline, requests,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELF-CHECK
+
+   A single HTML file cannot host a test runner, so the invariants that a unit
+   suite would guard are asserted here against whatever data is loaded, and run
+   from Data & Settings. If one of these fails, a number on the dashboard is
+   wrong — not merely surprising.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const EPS = 1e-6;
+const near = (a, b) => Math.abs(a - b) < Math.max(EPS, Math.abs(a) * 1e-9);
+const lte  = (a, b) => a - b < EPS;
+
+function runSelfCheck() {
+  const results = [];
+  const check = (name, pass, detail) => results.push({ name, pass: !!pass, detail: detail || '' });
+
+  let sc;
+  try {
+    sc = {};
+    SCENARIOS.forEach(s => { sc[s] = Planning.scenarioRollup(s); });
+  } catch (e) {
+    check('Scenario engine runs without error', false, e.message);
+    return results;
+  }
+  check('Scenario engine runs without error', true);
+
+  /* ── 1. Ordering ──────────────────────────────────────────────────────────
+     Downside is the world needing fewest people, Upside the most, and the
+     probability-weighted Expected case must sit between them. This is the
+     invariant most likely to break if the inclusion table is edited. */
+  const ordered = lte(sc.Downside.requirementFte, sc.Expected.requirementFte)
+               && lte(sc.Expected.requirementFte, sc.Upside.requirementFte);
+  check('Downside ≤ Expected ≤ Upside (total FTE)', ordered,
+    Fmt.fte(sc.Downside.requirementFte) + ' ≤ ' + Fmt.fte(sc.Expected.requirementFte)
+    + ' ≤ ' + Fmt.fte(sc.Upside.requirementFte));
+
+  const badLines = [];
+  Store.all('businessLines').forEach(line => {
+    const d = Planning.scenarioRollup('Downside', { lineId: line.id }).requirementFte;
+    const e = Planning.scenarioRollup('Expected', { lineId: line.id }).requirementFte;
+    const u = Planning.scenarioRollup('Upside',   { lineId: line.id }).requirementFte;
+    if (!(lte(d, e) && lte(e, u))) badLines.push(line.code);
+  });
+  check('Downside ≤ Expected ≤ Upside (every business line)', badLines.length === 0,
+    badLines.length ? 'Violated in: ' + badLines.join(', ') : Store.all('businessLines').length + ' lines checked');
+
+  /* ── 2. Committed ⊆ Base ──────────────────────────────────────────────────
+     Deliberately NOT asserted on net FTE. Base also picks up likely
+     redundancies, so its net can legitimately fall below Committed. What must
+     hold is set containment: everything Committed counts, Base counts too. */
+  check('Committed increases are all inside Base',
+    lte(sc.Committed.grossIncreaseFte, sc.Base.grossIncreaseFte),
+    Fmt.fte(sc.Committed.grossIncreaseFte) + ' ≤ ' + Fmt.fte(sc.Base.grossIncreaseFte));
+  check('Committed decreases are all inside Base',
+    lte(sc.Committed.grossDecreaseFte, sc.Base.grossDecreaseFte),
+    Fmt.fte(sc.Committed.grossDecreaseFte) + ' ≤ ' + Fmt.fte(sc.Base.grossDecreaseFte));
+
+  /* ── 3. Breakdowns reconcile with their totals ── */
+  const sumOf = (arr, key) => arr.reduce((n, x) => n + x[key], 0);
+  SCENARIOS.forEach(s => {
+    const r = sc[s];
+    check(s + ': by-line breakdown sums to the total',
+      near(sumOf(r.byLine, 'requirementFte'), r.requirementFte),
+      Fmt.fte(sumOf(r.byLine, 'requirementFte')) + ' vs ' + Fmt.fte(r.requirementFte));
+    check(s + ': by-role breakdown sums to the total',
+      near(sumOf(r.byRole, 'requirementFte'), r.requirementFte),
+      Fmt.fte(sumOf(r.byRole, 'requirementFte')) + ' vs ' + Fmt.fte(r.requirementFte));
+    check(s + ': Internal + Vendor sums to the total',
+      near(r.bySourcing.Internal.requirementFte + r.bySourcing.Vendor.requirementFte, r.requirementFte));
+    check(s + ': cost breakdown sums to the total',
+      near(sumOf(r.byLine, 'requirementCost'), r.requirementCost),
+      Fmt.money(sumOf(r.byLine, 'requirementCost')) + ' vs ' + Fmt.money(r.requirementCost));
+  });
+
+  /* ── 4. Quarterly phasing lands on the annual figure ──────────────────────
+     Every request is live by Q4, so the Q4 run-rate is the year-end
+     requirement. If these diverge, phasing is dropping or double-counting. */
+  SCENARIOS.forEach(s => {
+    const q4 = sc[s].byQuarter[3].fte;
+    check(s + ': Q4 run-rate equals the annual requirement', near(q4, sc[s].requirementFte),
+      Fmt.fte(q4) + ' vs ' + Fmt.fte(sc[s].requirementFte));
+  });
+
+  /* ── 5. Bounds ── */
+  let factorOk = true, probOk = true;
+  Store.all('requests').forEach(req => {
+    const p = Planning.combinedProbability(req);
+    if (!(p >= -EPS && p <= 1 + EPS)) probOk = false;
+    SCENARIOS.forEach(s => {
+      const f = Planning.inclusionFactor(req, s);
+      if (!(f >= -EPS && f <= 1 + EPS)) factorOk = false;
+    });
+  });
+  check('Every trigger probability is between 0 and 1', probOk);
+  check('Every inclusion factor is between 0 and 1', factorOk);
+
+  /* ── 6. A cancelled trigger kills its request everywhere ── */
+  const deadTriggered = Store.all('requests').filter(
+    r => r.commitment !== 'Committed' && Planning.combinedProbability(r) === 0
+  );
+  let deadOk = true;
+  deadTriggered.forEach(r => {
+    SCENARIOS.forEach(s => {
+      if (Planning.inclusionFactor(r, s) !== 0) deadOk = false;
+    });
+  });
+  check('Requests on a cancelled or 0% trigger are excluded from all five scenarios', deadOk,
+    deadTriggered.length + ' such request(s) found');
+
+  /* ── 7. You cannot optimise away capacity you do not have ── */
+  const capped = Store.all('baseline').every(row => {
+    const r = Planning.resolveBaselineRow(row);
+    return lte(r.optimizable, r.fte);
+  });
+  check('Optimisable FTE never exceeds the capacity it sits in', capped);
+
+  /* ── 8. Committed carries nothing conditional ── */
+  const committedClean = sc.Committed.resolved
+    .filter(r => r.factor > 0)
+    .every(r => r.request.commitment === 'Committed');
+  check('The Committed scenario contains only committed requests', committedClean);
+
+  return results;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHARTS
+
+   Hand-rolled inline SVG. A charting library would be one CDN link, but that
+   link is also the one thing that can stop this file working offline or in
+   five years' time — so the few chart types actually needed are drawn here.
+
+   Text uses currentColor so it inverts correctly under the print stylesheet.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Gridlines and connectors inherit currentColor at low opacity rather than a
+   fixed hex, so they stay subtle in the dark UI and print as light grey on
+   paper instead of heavy black rules. */
+const GRID_OPACITY = 0.17;
+
+function svgEl(w, h, body, extra) {
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" height="' + h
+    + '" preserveAspectRatio="xMidYMid meet" role="img" ' + (extra || '') + '>' + body + '</svg>';
+}
+function txt(x, y, s, opts) {
+  opts = opts || {};
+  return '<text x="' + x + '" y="' + y + '" fill="currentColor"'
+    + ' font-size="' + (opts.size || 11) + '"'
+    + ' font-weight="' + (opts.weight || 400) + '"'
+    + ' text-anchor="' + (opts.anchor || 'middle') + '"'
+    + ' opacity="' + (opts.opacity == null ? 0.62 : opts.opacity) + '"'
+    + (opts.transform ? ' transform="' + opts.transform + '"' : '')
+    + '>' + esc(s) + '</text>';
+}
+function rect(x, y, w, h, fill, r) {
+  return '<rect x="' + x + '" y="' + y + '" width="' + Math.max(0, w) + '" height="' + Math.max(0, h)
+    + '" fill="' + fill + '" rx="' + (r == null ? 3 : r) + '"/>';
+}
+function gridline(x1, y1, x2, y2, dash) {
+  return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2
+    + '" stroke="currentColor" stroke-opacity="' + GRID_OPACITY + '" stroke-width="1"'
+    + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>';
+}
+
+/* Chooses a rounded axis maximum so gridlines land on readable numbers. */
+function niceMax(v) {
+  if (v <= 0) return 10;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / mag;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+  return step * mag;
+}
+
+const Svg = {
+
+  /* Vertical bars with an optional dashed reference line — used for the
+     scenario comparison, where the reference is today's headcount. */
+  bars(items, opts) {
+    opts = opts || {};
+    if (!items.length) return emptyChart();
+    const W = 780, H = opts.height || 260;
+    const padL = 52, padR = 16, padT = 26, padB = 46;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+
+    const vals = items.map(i => i.value);
+    const refs = opts.reference != null ? [opts.reference] : [];
+    const lo = Math.min(0, ...vals, ...refs);
+    const hi = Math.max(0, ...vals, ...refs);
+    const top = niceMax(hi), bottom = lo < 0 ? -niceMax(-lo) : 0;
+    const span = (top - bottom) || 1;
+    const y = v => padT + plotH - ((v - bottom) / span) * plotH;
+
+    let s = '';
+    const ticks = 4;
+    for (let i = 0; i <= ticks; i++) {
+      const v = bottom + (span * i / ticks);
+      s += gridline(padL, y(v), W - padR, y(v));
+      s += txt(padL - 8, y(v) + 4, opts.fmtTick ? opts.fmtTick(v) : Math.round(v), { anchor: 'end', size: 10, opacity: 0.45 });
+    }
+
+    const slot = plotW / items.length;
+    const bw = Math.min(opts.barWidth || 62, slot * 0.62);
+    items.forEach((it, i) => {
+      const cx = padL + slot * i + slot / 2;
+      const y0 = y(0), y1 = y(it.value);
+      s += rect(cx - bw / 2, Math.min(y0, y1), bw, Math.abs(y1 - y0), it.color || '#6366f1');
+      s += txt(cx, Math.min(y0, y1) - 7, it.label != null ? it.label : Math.round(it.value), { size: 11.5, weight: 700, opacity: 0.95 });
+      s += txt(cx, H - 26, it.name, { size: 11.5, weight: 600, opacity: 0.8 });
+      if (it.sub) s += txt(cx, H - 11, it.sub, { size: 10, opacity: 0.5 });
+    });
+
+    if (opts.reference != null) {
+      const ry = y(opts.reference);
+      s += '<line x1="' + padL + '" y1="' + ry + '" x2="' + (W - padR) + '" y2="' + ry
+        + '" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>';
+      s += txt(W - padR, ry - 6, opts.referenceLabel || 'today', { anchor: 'end', size: 10, opacity: 0.65 });
+    }
+    return svgEl(W, H, s);
+  },
+
+  /* Quarterly build-up: area + line, with a dashed baseline reference. */
+  line(points, opts) {
+    opts = opts || {};
+    if (!points.length) return emptyChart();
+    const W = 780, H = opts.height || 240;
+    const padL = 56, padR = 20, padT = 24, padB = 38;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+
+    const vals = points.map(p => p.value);
+    const refs = opts.reference != null ? [opts.reference] : [];
+    const rawLo = Math.min(...vals, ...refs), rawHi = Math.max(...vals, ...refs);
+    /* Headcount series barely move relative to their absolute size, so a
+       zero-based axis would flatten them into a straight line. Pad instead. */
+    const pad = Math.max((rawHi - rawLo) * 0.35, Math.max(rawHi, 1) * 0.02);
+    const lo = rawLo - pad, hi = rawHi + pad;
+    const span = (hi - lo) || 1;
+    const x = i => padL + (points.length === 1 ? plotW / 2 : (plotW * i) / (points.length - 1));
+    const y = v => padT + plotH - ((v - lo) / span) * plotH;
+
+    let s = '';
+    for (let i = 0; i <= 4; i++) {
+      const v = lo + (span * i / 4);
+      s += gridline(padL, y(v), W - padR, y(v));
+      s += txt(padL - 8, y(v) + 4, opts.fmtTick ? opts.fmtTick(v) : Math.round(v), { anchor: 'end', size: 10, opacity: 0.45 });
+    }
+
+    const path = points.map((p, i) => (i ? 'L' : 'M') + x(i) + ' ' + y(p.value)).join(' ');
+    const color = opts.color || '#6366f1';
+    s += '<path d="' + path + ' L' + x(points.length - 1) + ' ' + (padT + plotH)
+       + ' L' + x(0) + ' ' + (padT + plotH) + ' Z" fill="' + color + '" opacity="0.10"/>';
+    s += '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-linejoin="round"/>';
+
+    if (opts.reference != null) {
+      s += '<line x1="' + padL + '" y1="' + y(opts.reference) + '" x2="' + (W - padR) + '" y2="' + y(opts.reference)
+        + '" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>';
+      s += txt(W - padR, y(opts.reference) - 6, opts.referenceLabel || '', { anchor: 'end', size: 10, opacity: 0.65 });
+    }
+
+    points.forEach((p, i) => {
+      s += '<circle cx="' + x(i) + '" cy="' + y(p.value) + '" r="4" fill="' + color
+         + '" stroke="var(--surface)" stroke-width="2"/>';
+      s += txt(x(i), y(p.value) - 12, p.label != null ? p.label : Math.round(p.value), { size: 11, weight: 700, opacity: 0.9 });
+      s += txt(x(i), H - 12, p.name, { size: 11, opacity: 0.6 });
+    });
+    return svgEl(W, H, s);
+  },
+
+  /* Waterfall from today's headcount to the 2027 requirement. Steps carry a
+     running total; the first and last are absolute totals, not deltas. */
+  waterfall(steps, opts) {
+    opts = opts || {};
+    if (!steps.length) return emptyChart();
+    const W = 780, H = opts.height || 280;
+    const padL = 56, padR = 16, padT = 28, padB = 56;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+
+    let running = 0;
+    const bars = steps.map(st => {
+      const start = st.total ? 0 : running;
+      const end = st.total ? st.value : running + st.value;
+      running = end;
+      return { name: st.name, start, end, value: st.value, total: !!st.total, color: st.color };
+    });
+
+    const hi = niceMax(Math.max(...bars.map(b => Math.max(b.start, b.end))));
+    const y = v => padT + plotH - (v / (hi || 1)) * plotH;
+
+    let s = '';
+    for (let i = 0; i <= 4; i++) {
+      const v = hi * i / 4;
+      s += gridline(padL, y(v), W - padR, y(v));
+      s += txt(padL - 8, y(v) + 4, Math.round(v), { anchor: 'end', size: 10, opacity: 0.45 });
+    }
+
+    const slot = plotW / bars.length;
+    const bw = Math.min(58, slot * 0.6);
+    bars.forEach((b, i) => {
+      const cx = padL + slot * i + slot / 2;
+      const yTop = Math.min(y(b.start), y(b.end));
+      const hgt = Math.max(Math.abs(y(b.end) - y(b.start)), 1.5);
+      const color = b.color || (b.total ? '#64748b' : b.value >= 0 ? '#22c55e' : '#f59e0b');
+      s += rect(cx - bw / 2, yTop, bw, hgt, color);
+
+      const label = b.total ? Fmt.fte(b.end) : Fmt.fte(b.value, true);
+      s += txt(cx, yTop - 7, label, { size: 11.5, weight: 700, opacity: 0.95 });
+
+      /* Connector to the next bar, so the eye follows the running total. */
+      if (i < bars.length - 1 && !bars[i + 1].total) {
+        s += '<line x1="' + (cx + bw / 2) + '" y1="' + y(b.end) + '" x2="' + (cx + slot - bw / 2)
+          + '" y2="' + y(b.end) + '" stroke="currentColor" stroke-opacity="0.3" stroke-width="1" stroke-dasharray="3 3"/>';
+      }
+      wrapLabel(b.name, Math.max(9, Math.floor(slot / 6.4))).forEach((ln, k) => {
+        s += txt(cx, H - 34 + k * 12, ln, { size: 10.5, weight: b.total ? 700 : 500, opacity: b.total ? 0.85 : 0.6 });
+      });
+    });
+    return svgEl(W, H, s);
+  },
+
+  /* Horizontal bars — business lines and roles, where names need room. */
+  hbars(items, opts) {
+    opts = opts || {};
+    if (!items.length) return emptyChart();
+    const rowH = 30, padT = 10, padB = 26, padL = opts.labelWidth || 150, padR = 62;
+    const W = 780, H = padT + padB + items.length * rowH;
+    const plotW = W - padL - padR;
+
+    const maxAbs = Math.max(...items.map(i => Math.abs(i.value)), 1);
+    const hasNeg = items.some(i => i.value < 0);
+    const zeroX = hasNeg ? padL + plotW / 2 : padL;
+    const scale = hasNeg ? (plotW / 2) / maxAbs : plotW / maxAbs;
+
+    let s = '';
+    items.forEach((it, i) => {
+      const cy = padT + i * rowH + rowH / 2;
+      const w = Math.abs(it.value) * scale;
+      const x = it.value >= 0 ? zeroX : zeroX - w;
+      s += rect(x, cy - 9, w, 18, it.color || '#6366f1');
+      s += txt(8, cy + 4, fitText(it.name, padL - 20, 11.5), { anchor: 'start', size: 11.5, weight: 600, opacity: 0.82 });
+      const lx = it.value >= 0 ? x + w + 7 : x - 7;
+      s += txt(lx, cy + 4, it.label != null ? it.label : Fmt.fte(it.value, true),
+               { anchor: it.value >= 0 ? 'start' : 'end', size: 11, weight: 700, opacity: 0.9 });
+    });
+    if (hasNeg) s += gridline(zeroX, padT, zeroX, H - padB);
+    return svgEl(W, H, s);
+  },
+
+  /* Two-series horizontal bars, mirrored around zero: unlocks to the right,
+     releases to the left. Built for the Deliverable Impact page. */
+  tornado(items, opts) {
+    opts = opts || {};
+    if (!items.length) return emptyChart();
+    const rowH = 32, padT = 22, padB = 26, padL = opts.labelWidth || 230, padR = 56;
+    const W = 780, H = padT + padB + items.length * rowH;
+    const plotW = W - padL - padR;
+    const maxAbs = Math.max(...items.map(i => Math.max(i.pos, i.neg)), 1);
+    const zeroX = padL + plotW / 2;
+    const scale = (plotW / 2) / maxAbs;
+
+    let s = txt(zeroX + plotW / 4, padT - 8, 'unlocks →', { size: 10, opacity: 0.5 })
+          + txt(zeroX - plotW / 4, padT - 8, '← releases', { size: 10, opacity: 0.5 });
+
+    items.forEach((it, i) => {
+      const cy = padT + i * rowH + rowH / 2;
+      const wPos = it.pos * scale, wNeg = it.neg * scale;
+      if (it.pos) s += rect(zeroX, cy - 9, wPos, 18, '#22c55e');
+      if (it.neg) s += rect(zeroX - wNeg, cy - 9, wNeg, 18, '#f59e0b');
+      /* Anchored left, not right: if the width estimate is ever short, the label
+         loses its tail rather than the first characters that identify it. */
+      s += txt(8, cy + 4, fitText(it.name, padL - 20, 11), { anchor: 'start', size: 11, weight: 600, opacity: 0.82 });
+
+      /* Value sits inside the bar when there is room, so a long bar can never
+         push its own label back into the name gutter. */
+      if (it.pos) {
+        const inside = wPos > 34;
+        s += txt(zeroX + wPos + (inside ? -6 : 6), cy + 4, Fmt.fte(it.pos),
+          { anchor: inside ? 'end' : 'start', size: 10.5, weight: 700, opacity: inside ? 1 : 0.85 });
+      }
+      if (it.neg) {
+        const inside = wNeg > 34;
+        s += txt(zeroX - wNeg + (inside ? 6 : -6), cy + 4, Fmt.fte(it.neg),
+          { anchor: inside ? 'start' : 'end', size: 10.5, weight: 700, opacity: inside ? 1 : 0.85 });
+      }
+      if (it.sub) s += txt(W - 8, cy + 4, it.sub, { anchor: 'end', size: 10, opacity: 0.5 });
+    });
+    s += gridline(zeroX, padT - 4, zeroX, H - padB);
+    return svgEl(W, H, s);
+  },
+
+  legend(items) {
+    return '<div class="legend">' + items.map(i =>
+      '<span class="legend-item"><span class="legend-swatch" style="background:' + i.color + '"></span>'
+      + esc(i.name) + '</span>').join('') + '</div>';
+  },
+};
+
+function emptyChart() {
+  return '<div class="empty-state">Nothing to chart yet.</div>';
+}
+
+/* SVG has no text overflow, so a label longer than its gutter simply runs off
+   the left edge of the viewBox and loses its first characters. Truncate by
+   estimated width instead, and let the caller stay out of it. */
+function fitText(s, maxPx, fontPx) {
+  const str = String(s == null ? '' : s);
+  const perChar = (fontPx || 11) * 0.63;      // wide enough for caps, digits and em-dashes
+  const max = Math.max(4, Math.floor(maxPx / perChar));
+  return str.length <= max ? str : str.slice(0, max - 1).trimEnd() + '…';
+}
+
+/* Greedy word wrap for axis labels, which have no text-wrapping in SVG. */
+function wrapLabel(s, maxChars) {
+  const words = String(s).split(/\s+/);
+  const lines = [];
+  let cur = '';
+  words.forEach(w => {
+    if (!cur) { cur = w; }
+    else if ((cur + ' ' + w).length <= maxChars) { cur += ' ' + w; }
+    else { lines.push(cur); cur = w; }
+  });
+  if (cur) lines.push(cur);
+  return lines.slice(0, 2);
+}
+
+/* A slim inline meter for utilisation cells. */
+function meter(pct, color) {
+  const p = Math.max(0, Math.min(100, pct || 0));
+  return '<div class="meter"><div class="meter-fill" style="width:' + p + '%;background:'
+    + (color || (p < 80 ? 'var(--warn)' : p > 97 ? 'var(--danger)' : 'var(--success)')) + '"></div></div>';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UI CORE — router, chrome, and shared widgets
+   ═══════════════════════════════════════════════════════════════════════════ */
+const pages = {};
+function registerPage(id, mod) { pages[id] = mod; }
+
+const PAGE_TITLES = {
+  dashboard: 'Dashboard', scenarios: 'Scenarios', impact: 'Deliverable Impact',
+  requests: 'Demand Requests', baseline: 'Current Capacity',
+  deliverables: 'Strategy Deliveries', lines: 'Business Lines',
+  roles: 'Role Catalogue', settings: 'Data & Settings',
+};
+
+function navigate(raw) {
+  const id = (raw || 'dashboard').replace(/^#/, '');
+  loadPage(pages[id] ? id : 'dashboard');
+}
+
+function loadPage(id) {
+  document.querySelectorAll('.nav-item').forEach(a =>
+    a.classList.toggle('active', a.dataset.page === id));
+  document.getElementById('page-title').textContent = PAGE_TITLES[id] || id;
+
+  const content = document.getElementById('content');
+  const mod = pages[id];
+  try {
+    content.innerHTML = mod.render ? mod.render() : '';
+    if (mod.init) mod.init();
+  } catch (e) {
+    console.error(e);
+    content.innerHTML = '<div class="alert alert-error"><strong>This page failed to render.</strong><br>'
+      + esc(e.message) + '<br><span class="small">The underlying data is untouched — the browser console has the detail.</span></div>';
+  }
+  updateNavCounts();
+  closeSidebar();
+  window.scrollTo(0, 0);
+}
+
+function refresh() { navigate(window.location.hash.slice(1)); }
+
+function updateNavCounts() {
+  const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n || ''; };
+  set('count-requests', Store.all('requests').length);
+  set('count-baseline', Store.all('baseline').length);
+  set('count-deliverables', Store.all('deliverables').length);
+  set('count-lines', Store.all('businessLines').length);
+  set('count-roles', Store.all('roles').length);
+  const y = document.getElementById('brand-year');
+  if (y) y.textContent = Store.state.meta.planningYear + ' cycle';
+}
+
+/* ── Chrome ───────────────────────────────────────────────────────────────── */
+function openSidebar()  { document.getElementById('sidebar').classList.add('open');    document.getElementById('overlay').classList.remove('hidden'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.add('hidden'); }
+
+let _saveTimer = null;
+function setSaveState(text, ok) {
+  const el = document.getElementById('save-state');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('saved', !!ok);
+}
+function flashSaved() {
+  setSaveState('Saved', true);
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => setSaveState(''), 1600);
+}
+
+function showModal(msg, onConfirm, confirmLabel) {
+  const modal = document.getElementById('modal');
+  document.getElementById('modal-msg').innerHTML = msg;
+  modal.classList.remove('hidden');
+
+  const ok = document.getElementById('modal-confirm');
+  const no = document.getElementById('modal-cancel');
+  ok.textContent = confirmLabel || 'Delete';
+
+  const cleanup = () => {
+    modal.classList.add('hidden');
+    ok.replaceWith(ok.cloneNode(true));
+    no.replaceWith(no.cloneNode(true));
+  };
+  document.getElementById('modal-confirm').addEventListener('click', () => { cleanup(); onConfirm(); });
+  document.getElementById('modal-cancel').addEventListener('click', cleanup);
+}
+
+/* ── File download ────────────────────────────────────────────────────────
+   Blob + object URL, which works from a file:// page. Revoked on the next
+   tick so the browser has taken the data but nothing leaks. */
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function toCSV(rows) {
+  return rows.map(r => r.map(cell => {
+    const s = cell == null ? '' : String(cell);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\r\n');
+}
+
+function exportCSV(name, rows) {
+  downloadFile(name + '-' + Store.state.meta.planningYear + '.csv',
+    '﻿' + toCSV(rows), 'text/csv;charset=utf-8');
+}
+
+/* ── Form widgets ─────────────────────────────────────────────────────────── */
+function optionList(values, selected) {
+  return values.map(v => '<option value="' + esc(v) + '"' + (v === selected ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
+}
+function optionRecords(records, selected, labelFn, placeholder) {
+  return (placeholder ? '<option value="">' + esc(placeholder) + '</option>' : '')
+    + records.map(r => '<option value="' + esc(r.id) + '"' + (r.id === selected ? ' selected' : '') + '>'
+      + esc(labelFn(r)) + '</option>').join('');
+}
+
+function fieldHtml(f, value) {
+  const id = 'f_' + f.name;
+  const hint = typeof f.hint === 'function' ? f.hint() : f.hint;
+  let input;
+  if (f.type === 'select') {
+    input = '<select id="' + id + '">' + f.options(value) + '</select>';
+  } else if (f.type === 'textarea') {
+    input = '<textarea id="' + id + '" rows="' + (f.rows || 2) + '" placeholder="' + esc(f.placeholder || '') + '">' + esc(value == null ? '' : value) + '</textarea>';
+  } else if (f.type === 'number') {
+    input = '<input id="' + id + '" type="number" step="' + (f.step || 'any') + '"'
+      + (f.min != null ? ' min="' + f.min + '"' : '') + (f.max != null ? ' max="' + f.max + '"' : '')
+      + ' value="' + (value == null ? '' : esc(value)) + '">';
+  } else {
+    input = '<input id="' + id + '" type="text" placeholder="' + esc(f.placeholder || '') + '" value="' + esc(value == null ? '' : value) + '">';
+  }
+  return '<div class="field' + (f.full ? ' full' : '') + '">'
+    + '<label for="' + id + '">' + esc(f.label)
+    + (hint ? ' <span class="hint">' + esc(hint) + '</span>' : '') + '</label>'
+    + input + '</div>';
+}
+
+function readField(f) {
+  const el = document.getElementById('f_' + f.name);
+  if (!el) return null;
+  if (f.type === 'number') {
+    const raw = el.value.trim();
+    return raw === '' ? null : Number(raw);
+  }
+  return el.value;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CRUD PAGE FACTORY
+
+   Business lines, roles, deliverables, capacity rows and requests are all the
+   same page: a table, an add/edit form, and a delete confirm. Written once.
+
+   Hooks let a page add anything the generic shape cannot express — the
+   requests page uses them for the strategy-delivery linking UI.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function makeCrudPage(cfg) {
+  let editingId = null;
+  let formOpen = false;
+  let extraState = null;
+
+  const blank = () => (typeof cfg.defaults === 'function' ? cfg.defaults() : Object.assign({}, cfg.defaults));
+  const current = () => (editingId ? Store.byId(cfg.key, editingId) : null) || blank();
+
+  const page = {
+    render() {
+      return '<div class="page-header">' + esc(cfg.title) + '</div>'
+        + '<div class="page-sub">' + cfg.subtitle + '</div>'
+        + '<div id="crud-form-slot"></div>'
+        + '<div class="section">'
+        +   '<div class="section-header">'
+        +     '<span class="section-title">' + esc(cfg.tableTitle || cfg.title) + '</span>'
+        +     '<span class="section-note" id="crud-count"></span>'
+        +     '<div class="spacer"></div>'
+        +     (cfg.filters ? '<div id="crud-filters" class="flex gap-2 flex-wrap no-print"></div>' : '')
+        +     '<button class="btn btn-ghost btn-sm no-print" id="crud-export">Export CSV</button>'
+        +     '<button class="btn btn-primary btn-sm no-print" id="crud-add">+ Add</button>'
+        +   '</div>'
+        +   '<div class="table-wrap" id="crud-table"></div>'
+        +   (cfg.footnote ? '<div class="footnote">'
+              + (typeof cfg.footnote === 'function' ? cfg.footnote() : cfg.footnote) + '</div>' : '')
+        + '</div>';
+    },
+
+    init() {
+      if (cfg.filters) renderFilters();
+      renderTable();
+      document.getElementById('crud-add').addEventListener('click', () => {
+        editingId = null; formOpen = true; extraState = null; renderForm();
+      });
+      document.getElementById('crud-export').addEventListener('click', () => {
+        exportCSV(cfg.key, cfg.csv(rows()));
+      });
+    },
+  };
+
+  function filterValues() {
+    const out = {};
+    (cfg.filters || []).forEach(f => {
+      const el = document.getElementById('flt_' + f.name);
+      out[f.name] = el ? el.value : '';
+    });
+    return out;
+  }
+
+  function rows() {
+    let list = Store.all(cfg.key).slice();
+    if (cfg.filters) {
+      const v = filterValues();
+      list = list.filter(item => (cfg.filters || []).every(f => !v[f.name] || f.test(item, v[f.name])));
+    }
+    return cfg.sort ? list.sort(cfg.sort) : list;
+  }
+
+  function renderFilters() {
+    document.getElementById('crud-filters').innerHTML = (cfg.filters || []).map(f =>
+      '<select id="flt_' + f.name + '" style="width:auto;font-size:12.5px;padding:6px 9px">'
+      + '<option value="">' + esc(f.label) + '</option>' + f.options() + '</select>').join('');
+    (cfg.filters || []).forEach(f => {
+      document.getElementById('flt_' + f.name).addEventListener('change', renderTable);
+    });
+  }
+
+  function renderTable() {
+    const list = rows();
+    const countEl = document.getElementById('crud-count');
+    const total = Store.all(cfg.key).length;
+    if (countEl) countEl.textContent = list.length === total
+      ? total + ' record' + (total === 1 ? '' : 's')
+      : list.length + ' of ' + total;
+
+    const wrap = document.getElementById('crud-table');
+    if (!list.length) {
+      wrap.innerHTML = '<div class="empty-state">' + (total ? 'Nothing matches these filters.' : esc(cfg.emptyText || 'Nothing here yet.')) + '</div>';
+      return;
+    }
+
+    const head = '<tr>' + cfg.columns.map(c => '<th' + (c.right ? ' class="right"' : '') + '>' + esc(c.head) + '</th>').join('')
+      + '<th class="right no-print"></th></tr>';
+    const body = list.map(item => '<tr data-id="' + esc(item.id) + '">'
+      + cfg.columns.map(c => '<td' + (c.right ? ' class="right"' : '') + (c.cls ? ' class="' + c.cls(item) + '"' : '') + '>' + c.cell(item) + '</td>').join('')
+      + '<td class="right no-print"><div class="cell-actions">'
+      + '<button class="btn btn-icon" data-act="edit">Edit</button>'
+      + '<button class="btn btn-icon" data-act="del">Delete</button>'
+      + '</div></td></tr>').join('');
+
+    const foot = cfg.footRow ? '<tfoot>' + cfg.footRow(list) + '</tfoot>' : '';
+    wrap.innerHTML = '<table><thead>' + head + '</thead><tbody>' + body + '</tbody>' + foot + '</table>';
+
+    wrap.querySelectorAll('button[data-act]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = btn.closest('tr').dataset.id;
+        if (btn.dataset.act === 'edit') {
+          editingId = id; formOpen = true; extraState = null; renderForm();
+        } else {
+          const item = Store.byId(cfg.key, id);
+          showModal(cfg.deletePrompt ? cfg.deletePrompt(item) : 'Delete this record?', () => {
+            Store.remove(cfg.key, id);
+            if (editingId === id) { editingId = null; formOpen = false; }
+            renderForm(); renderTable(); updateNavCounts();
+          });
+        }
+      });
+    });
+  }
+
+  function renderForm() {
+    const slot = document.getElementById('crud-form-slot');
+    if (!formOpen) { slot.innerHTML = ''; return; }
+
+    const item = current();
+    if (extraState == null && cfg.extraInit) extraState = cfg.extraInit(item);
+
+    slot.innerHTML = '<div class="section no-print"><div class="card">'
+      + '<div class="section-header"><span class="section-title">'
+      + (editingId ? 'Edit' : 'New') + ' ' + esc(cfg.singular) + '</span></div>'
+      + '<div id="form-errors"></div>'
+      + '<div class="form-grid">' + cfg.fields.map(f => fieldHtml(f, item[f.name])).join('') + '</div>'
+      + (cfg.extraForm ? cfg.extraForm(item, extraState) : '')
+      + '<div class="modal-actions" style="justify-content:flex-start;margin-top:16px">'
+      +   '<button class="btn btn-primary" id="form-save">' + (editingId ? 'Save changes' : 'Add ' + esc(cfg.singular)) + '</button>'
+      +   '<button class="btn btn-ghost" id="form-cancel">Cancel</button>'
+      + '</div></div></div>';
+
+    if (cfg.extraBind) cfg.extraBind(extraState, () => renderForm(), item);
+
+    document.getElementById('form-cancel').addEventListener('click', () => {
+      formOpen = false; editingId = null; extraState = null; renderForm();
+    });
+    document.getElementById('form-save').addEventListener('click', save);
+  }
+
+  function save() {
+    const values = {};
+    cfg.fields.forEach(f => { values[f.name] = readField(f); });
+    if (cfg.extraCollect) cfg.extraCollect(values, extraState);
+    if (cfg.transform) cfg.transform(values);
+
+    const errors = cfg.validate ? cfg.validate(values) : [];
+    const box = document.getElementById('form-errors');
+    if (errors.length) {
+      box.innerHTML = '<div class="alert alert-error"><strong>Fix these first:</strong><ul>'
+        + errors.map(e => '<li>' + esc(e) + '</li>').join('') + '</ul></div>';
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    box.innerHTML = '';
+
+    if (editingId) Store.update(cfg.key, editingId, values);
+    else Store.add(cfg.key, Object.assign(blank(), values));
+
+    formOpen = false; editingId = null; extraState = null;
+    renderForm(); renderTable(); updateNavCounts();
+  }
+
+  return page;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INPUT PAGES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Business lines ───────────────────────────────────────────────────────── */
+registerPage('lines', makeCrudPage({
+  key: 'businessLines', singular: 'business line', title: 'Business Lines',
+  subtitle: 'The units you approach for asks. Everything else in the plan hangs off these, '
+    + 'so deleting one also removes its capacity rows and requests.',
+  emptyText: 'No business lines yet. Add one to start capturing asks.',
+  defaults: { name: '', code: '', owner: '', notes: '' },
+  sort: (a, b) => a.name.localeCompare(b.name),
+  fields: [
+    { name: 'name',  label: 'Name', placeholder: 'Retail Banking' },
+    { name: 'code',  label: 'Code', hint: '3 letters', placeholder: 'RTL' },
+    { name: 'owner', label: 'Owner', placeholder: 'Head of Retail' },
+    { name: 'notes', label: 'Notes', type: 'textarea', full: true },
+  ],
+  transform: (v) => { v.code = (v.code || '').toUpperCase().trim(); v.name = (v.name || '').trim(); },
+  validate: (v) => {
+    const e = [];
+    if (!v.name) e.push('Name cannot be empty.');
+    if (!v.code) e.push('Code cannot be empty.');
+    return e;
+  },
+  columns: [
+    { head: 'Code',  cell: i => '<span class="fw-700">' + esc(i.code) + '</span>' },
+    { head: 'Name',  cell: i => esc(i.name) },
+    { head: 'Owner', cell: i => '<span class="text-dim">' + esc(i.owner || '—') + '</span>' },
+    { head: 'Current FTE', right: true, cell: i => {
+        const t = Planning.scenarioRollup('Base', { lineId: i.id });
+        return '<span class="nums">' + Fmt.fte(t.baselineFte) + '</span>'; } },
+    { head: 'Requests', right: true, cell: i =>
+        '<span class="nums">' + Store.all('requests').filter(r => r.lineId === i.id).length + '</span>' },
+    { head: 'Notes', cell: i => '<span class="small text-muted">' + esc(i.notes || '') + '</span>' },
+  ],
+  deletePrompt: (i) => 'Delete <strong>' + esc(i.name) + '</strong>?<br><span class="small text-dim">Its '
+    + Store.all('baseline').filter(b => b.lineId === i.id).length + ' capacity row(s) and '
+    + Store.all('requests').filter(r => r.lineId === i.id).length + ' request(s) go with it.</span>',
+  csv: (list) => [['Code', 'Name', 'Owner', 'Notes']].concat(
+    list.map(i => [i.code, i.name, i.owner, i.notes])),
+}));
+
+/* ── Role catalogue ───────────────────────────────────────────────────────── */
+registerPage('roles', makeCrudPage({
+  key: 'roles', singular: 'role', title: 'Role Catalogue',
+  subtitle: 'The bridge between headcount and money. Cost and hours in every scenario are derived '
+    + 'from these rates, so a request with no role contributes FTE but zero cost.',
+  emptyText: 'No roles yet. Without them, every cost figure reads zero.',
+  defaults: { title: '', level: '', annualCost: 0, defaultSourcing: 'Internal' },
+  sort: (a, b) => b.annualCost - a.annualCost,
+  fields: [
+    { name: 'title', label: 'Title', placeholder: 'Software Engineer' },
+    { name: 'level', label: 'Level', placeholder: 'Mid' },
+    { name: 'annualCost', label: 'Fully-loaded annual cost', type: 'number', min: 0, step: 1000,
+      hint: () => 'per year, in ' + Store.state.meta.currency },
+    { name: 'defaultSourcing', label: 'Default sourcing', type: 'select',
+      options: (v) => optionList(SOURCINGS, v || 'Internal') },
+  ],
+  validate: (v) => {
+    const e = [];
+    if (!v.title || !v.title.trim()) e.push('Title cannot be empty.');
+    if (v.annualCost == null || v.annualCost < 0) e.push('Annual cost must be zero or more.');
+    return e;
+  },
+  columns: [
+    { head: 'Role',  cell: i => '<span class="fw-600">' + esc(i.title) + '</span>' },
+    { head: 'Level', cell: i => Fmt.badge(i.level || '—', 'neutral') },
+    { head: 'Default sourcing', cell: i => Fmt.badge(i.defaultSourcing || 'Internal',
+        (i.defaultSourcing === 'Vendor' ? 'vendor' : 'internal')) },
+    { head: 'Annual cost', right: true, cell: i => '<span class="nums">' + Fmt.moneyFull(i.annualCost) + '</span>' },
+    { head: 'Cost / hour', right: true, cell: i => {
+        const h = Number(Store.state.meta.hoursPerFteYear) || 0;
+        return '<span class="nums text-dim">' + (h ? Fmt.moneyFull(i.annualCost / h) : '—') + '</span>'; } },
+    { head: 'In use', right: true, cell: i => {
+        const n = Store.all('baseline').filter(b => b.roleId === i.id).length
+                + Store.all('requests').filter(r => r.roleId === i.id).length;
+        return '<span class="nums">' + n + '</span>'; } },
+  ],
+  deletePrompt: (i) => 'Delete role <strong>' + esc(i.title) + '</strong>?<br>'
+    + '<span class="small text-dim">Rows using it keep their FTE but lose their cost.</span>',
+  csv: (list) => [['Role', 'Level', 'Sourcing', 'Annual cost']].concat(
+    list.map(i => [i.title, i.level, i.defaultSourcing, i.annualCost])),
+  footnote: 'Vendor rows can carry an uplift on top of these rates — set it in Data &amp; Settings.',
+}));
+
+/* ── Strategy deliveries ──────────────────────────────────────────────────── */
+registerPage('deliverables', makeCrudPage({
+  key: 'deliverables', singular: 'strategy delivery', title: 'Strategy Deliveries',
+  subtitle: 'The 2027 commitments that gate capacity. Each one carries a likelihood; '
+    + 'marking a delivery <em>Delivered</em> makes it certain and <em>Cancelled</em> makes it impossible, '
+    + 'which overrides whatever likelihood is typed here.',
+  emptyText: 'No strategy deliveries yet. Without them every ask is unconditional.',
+  defaults: () => ({ name: '', category: 'Technology', owner: '', targetQuarter: 'Q2',
+    status: 'Planned', likelihoodPct: 50, metricName: '', metricTarget: null, metricActual: null, metricUnit: '' }),
+  sort: (a, b) => QUARTERS.indexOf(a.targetQuarter) - QUARTERS.indexOf(b.targetQuarter),
+  filters: [
+    { name: 'category', label: 'All categories', options: () => optionList(CATEGORIES),
+      test: (i, v) => i.category === v },
+    { name: 'status', label: 'All statuses', options: () => optionList(DLV_STATUSES),
+      test: (i, v) => i.status === v },
+  ],
+  fields: [
+    { name: 'name', label: 'Delivery', full: true, placeholder: 'Payments automation — straight-through processing' },
+    { name: 'category', label: 'Category', type: 'select', options: (v) => optionList(CATEGORIES, v || 'Technology') },
+    { name: 'owner', label: 'Owner', placeholder: 'COO' },
+    { name: 'targetQuarter', label: 'Target quarter', type: 'select', options: (v) => optionList(QUARTERS, v || 'Q2') },
+    { name: 'status', label: 'Status', type: 'select', options: (v) => optionList(DLV_STATUSES, v || 'Planned') },
+    { name: 'likelihoodPct', label: 'Likelihood %', type: 'number', min: 0, max: 100, step: 5,
+      hint: 'ignored when delivered or cancelled' },
+    { name: 'metricName', label: 'Success metric', placeholder: 'STP rate' },
+    { name: 'metricTarget', label: 'Target', type: 'number' },
+    { name: 'metricActual', label: 'Actual so far', type: 'number' },
+    { name: 'metricUnit', label: 'Unit', placeholder: '% / M SAR' },
+  ],
+  /* Keep the stored likelihood consistent with a terminal status, so the number
+     on screen matches the one the engine uses. */
+  transform: (v) => {
+    if (v.status === 'Delivered') v.likelihoodPct = 100;
+    if (v.status === 'Cancelled') v.likelihoodPct = 0;
+    v.likelihoodPct = Math.max(0, Math.min(100, Number(v.likelihoodPct) || 0));
+  },
+  validate: (v) => {
+    const e = [];
+    if (!v.name || !v.name.trim()) e.push('The delivery needs a name.');
+    return e;
+  },
+  columns: [
+    { head: 'Qtr', cell: i => '<span class="nums text-dim">' + esc(i.targetQuarter) + '</span>' },
+    { head: 'Delivery', cell: i => '<span class="fw-600">' + esc(i.name) + '</span>'
+        + (i.metricName ? '<div class="small text-muted">' + esc(i.metricName)
+            + (i.metricTarget != null ? ': ' + esc(i.metricActual == null ? '?' : i.metricActual) + ' / ' + esc(i.metricTarget) + ' ' + esc(i.metricUnit || '') : '')
+            + '</div>' : '') },
+    { head: 'Category', cell: i => Fmt.badge(i.category, 'neutral') },
+    { head: 'Status', cell: i => Fmt.statusBadge(i.status) },
+    { head: 'Likelihood', right: true, cell: i => {
+        const p = Planning.effectiveProbability(i) * 100;
+        return '<span class="nums fw-600">' + Fmt.pct(p) + '</span>'
+          + meter(p, p >= 70 ? 'var(--success)' : p >= 40 ? 'var(--warn)' : 'var(--danger)'); } },
+    { head: 'FTE riding on it', right: true, cell: i => {
+        const im = Planning.deliverableImpact().find(d => d.deliverable.id === i.id);
+        if (!im || !im.requestCount) return '<span class="text-muted">—</span>';
+        const parts = [];
+        if (im.unlockFte)  parts.push('<span class="text-green">+' + Fmt.fte(im.unlockFte) + '</span>');
+        if (im.releaseFte) parts.push('<span class="text-warn">−' + Fmt.fte(im.releaseFte) + '</span>');
+        return '<span class="nums">' + parts.join(' / ') + '</span>'
+          + '<div class="small text-muted">' + im.requestCount + ' request' + (im.requestCount === 1 ? '' : 's') + '</div>'; } },
+  ],
+  deletePrompt: (i) => {
+    const n = Store.all('requests').filter(r => (r.links || []).some(l => l.deliverableId === i.id)).length;
+    return 'Delete <strong>' + esc(i.name) + '</strong>?'
+      + (n ? '<br><span class="small text-dim">' + n + ' request(s) depend on it. They will be kept but '
+             + 'lose this trigger, which makes them unconditional.</span>' : '');
+  },
+  csv: (list) => [['Quarter', 'Delivery', 'Category', 'Owner', 'Status', 'Likelihood %', 'Metric', 'Target', 'Actual', 'Unit']].concat(
+    list.map(i => [i.targetQuarter, i.name, i.category, i.owner, i.status,
+      Planning.effectiveProbability(i) * 100, i.metricName, i.metricTarget, i.metricActual, i.metricUnit])),
+}));
+
+/* ── Current capacity ─────────────────────────────────────────────────────── */
+registerPage('baseline', makeCrudPage({
+  key: 'baseline', singular: 'capacity row', title: 'Current Capacity',
+  subtitle: 'What you already have, and how much of it you believe is optimisable. '
+    + 'Optimisable FTE is released <em>independently</em> of the roadmap — capacity you could recover anyway. '
+    + 'Anything a strategy delivery frees up belongs in Demand Requests as a decrease, not here.',
+  emptyText: 'No existing capacity recorded yet.',
+  defaults: () => ({ lineId: (Store.all('businessLines')[0] || {}).id || null,
+    roleId: (Store.all('roles')[0] || {}).id || null, fte: 0, sourcing: 'Internal',
+    utilizationPct: 90, fteOptimizable: 0, optimizationNote: '' }),
+  sort: (a, b) => (Fmt.lineCode(a.lineId) + Fmt.roleName(a.roleId)).localeCompare(Fmt.lineCode(b.lineId) + Fmt.roleName(b.roleId)),
+  filters: [
+    { name: 'lineId', label: 'All business lines',
+      options: () => optionRecords(Store.all('businessLines'), null, r => r.name),
+      test: (i, v) => i.lineId === v },
+    { name: 'sourcing', label: 'All sourcing', options: () => optionList(SOURCINGS),
+      test: (i, v) => (i.sourcing || 'Internal') === v },
+  ],
+  fields: [
+    { name: 'lineId', label: 'Business line', type: 'select',
+      options: (v) => optionRecords(Store.all('businessLines'), v, r => r.name, '— none —') },
+    { name: 'roleId', label: 'Role', type: 'select',
+      options: (v) => optionRecords(Store.all('roles'), v, r => r.title, '— none —') },
+    { name: 'fte', label: 'Current FTE', type: 'number', min: 0, step: 0.5 },
+    { name: 'sourcing', label: 'Sourcing', type: 'select', options: (v) => optionList(SOURCINGS, v || 'Internal') },
+    { name: 'utilizationPct', label: 'Utilisation %', type: 'number', min: 0, max: 200, step: 1,
+      hint: 'below 80% flags as slack' },
+    { name: 'fteOptimizable', label: 'Optimisable FTE', type: 'number', min: 0, step: 0.5,
+      hint: 'recoverable without the roadmap' },
+    { name: 'optimizationNote', label: 'Where the slack is', type: 'textarea', full: true,
+      placeholder: 'Payment repair and exception handling — largely manual today.' },
+  ],
+  validate: (v) => {
+    const e = [];
+    if (!v.lineId) e.push('Pick a business line.');
+    if (v.fte == null || v.fte < 0) e.push('Current FTE must be zero or more.');
+    if (v.fteOptimizable != null && v.fteOptimizable > v.fte) e.push('Optimisable FTE cannot exceed the FTE in the row.');
+    return e;
+  },
+  columns: [
+    { head: 'Line', cell: i => '<span class="fw-600">' + esc(Fmt.lineCode(i.lineId)) + '</span>' },
+    { head: 'Role', cell: i => esc(Fmt.roleName(i.roleId)) },
+    { head: 'Src',  cell: i => Fmt.badge(i.sourcing || 'Internal', (i.sourcing === 'Vendor' ? 'vendor' : 'internal')) },
+    { head: 'FTE', right: true, cell: i => '<span class="nums fw-600">' + Fmt.fte(i.fte) + '</span>' },
+    { head: 'Utilisation', right: true, cell: i => '<span class="nums">' + Fmt.pct(i.utilizationPct) + '</span>' + meter(i.utilizationPct) },
+    { head: 'Optimisable', right: true, cell: i => i.fteOptimizable
+        ? '<span class="nums text-warn fw-600">' + Fmt.fte(i.fteOptimizable) + '</span>'
+        : '<span class="text-muted">—</span>' },
+    { head: 'Annual cost', right: true, cell: i =>
+        '<span class="nums text-dim">' + Fmt.money((Number(i.fte) || 0) * Planning.roleCost(i.roleId, i.sourcing)) + '</span>' },
+    { head: 'Note', cell: i => '<span class="small text-muted">' + esc(i.optimizationNote || '') + '</span>' },
+  ],
+  footRow: (list) => {
+    const fte = list.reduce((n, i) => n + (Number(i.fte) || 0), 0);
+    const opt = list.reduce((n, i) => n + Math.min(Number(i.fteOptimizable) || 0, Number(i.fte) || 0), 0);
+    const cost = list.reduce((n, i) => n + (Number(i.fte) || 0) * Planning.roleCost(i.roleId, i.sourcing), 0);
+    return '<tr><td colspan="3">Total</td>'
+      + '<td class="right nums">' + Fmt.fte(fte) + '</td><td></td>'
+      + '<td class="right nums text-warn">' + Fmt.fte(opt) + '</td>'
+      + '<td class="right nums">' + Fmt.money(cost) + '</td><td></td></tr>';
+  },
+  deletePrompt: () => 'Delete this capacity row?',
+  csv: (list) => [['Line', 'Role', 'Sourcing', 'FTE', 'Utilisation %', 'Optimisable FTE', 'Annual cost', 'Note']].concat(
+    list.map(i => [Fmt.lineName(i.lineId), Fmt.roleName(i.roleId), i.sourcing, i.fte,
+      i.utilizationPct, i.fteOptimizable, Math.round((Number(i.fte) || 0) * Planning.roleCost(i.roleId, i.sourcing)), i.optimizationNote])),
+}));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DEMAND REQUESTS
+
+   The register. An ask and a redundancy are the same record with opposite
+   signs, which is why one page and one form covers both.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function renderLinkChips(st) {
+  if (!st.links.length) {
+    return '<div class="small text-muted">No strategy delivery attached — this ask is unconditional.</div>';
+  }
+  return st.links.map((l, i) => {
+    const d = Store.byId('deliverables', l.deliverableId);
+    const p = Planning.effectiveProbability(d);
+    return '<span class="linkchip ' + (st.changeType === 'Decrease' ? 'release' : 'unlock') + '">'
+      + esc(d ? d.name : '(deleted delivery)') + ' · ' + Fmt.pct(p * 100)
+      + '<button type="button" data-rm="' + i + '" title="Remove">&#10005;</button></span>';
+  }).join('');
+}
+
+/* Shows, at data-entry time, exactly what each scenario will do with this ask.
+   The contingency model is the whole point of the tool and is easy to get
+   wrong in the abstract, so it is made concrete here rather than discovered
+   later on the Scenarios page. */
+function renderRequestPreview(st) {
+  const probe = {
+    changeType: st.changeType, commitment: st.commitment,
+    fte: st.fte || 0, links: st.links,
+  };
+  const p = Planning.combinedProbability(probe);
+  const sign = st.changeType === 'Decrease' ? -1 : 1;
+
+  const cells = SCENARIOS.map(s => {
+    const f = Planning.inclusionFactor(probe, s);
+    const eff = sign * (Math.abs(st.fte) || 0) * f;
+    const dim = f === 0 ? ' style="opacity:.4"' : '';
+    return '<td class="right nums"' + dim + '>' + (f === 0 ? '—' : Fmt.fte(eff, true)) + '</td>';
+  }).join('');
+
+  let note;
+  if (st.commitment === 'Committed' && st.links.length) {
+    note = 'Marked <strong>Committed</strong>, so the attached trigger'
+      + (st.links.length > 1 ? 's are' : ' is') + ' ignored — it counts in full everywhere.';
+  } else if (!st.links.length && st.commitment === 'Contingent') {
+    note = 'Marked <strong>Contingent</strong> but nothing gates it, so it behaves as certain in every scenario except Committed.';
+  } else if (st.links.length > 1) {
+    note = 'Combined likelihood is the product of ' + st.links.length + ' triggers ('
+      + st.links.map(l => Fmt.pct(Planning.effectiveProbability(Store.byId('deliverables', l.deliverableId)) * 100)).join(' × ')
+      + ' = <strong>' + Fmt.pct(p * 100) + '</strong>), assuming they are independent.';
+  } else {
+    note = 'Combined likelihood <strong>' + Fmt.pct(p * 100) + '</strong>.';
+  }
+
+  return '<div class="card" style="background:var(--surface2)">'
+    + '<div class="small fw-600 mb-3">How each scenario will count this ask</div>'
+    + '<div class="table-wrap" style="background:transparent;border:none"><table>'
+    + '<thead><tr>' + SCENARIOS.map(s => '<th class="right">' + s + '</th>').join('') + '</tr></thead>'
+    + '<tbody><tr>' + cells + '</tr></tbody></table></div>'
+    + '<div class="small text-dim" style="margin-top:9px">' + note + '</div></div>';
+}
+
+registerPage('requests', makeCrudPage({
+  key: 'requests', singular: 'request', title: 'Demand Requests',
+  subtitle: 'Every ask and every redundancy, as a signed change against current capacity. '
+    + 'An <em>Increase</em> adds people; a <em>Decrease</em> releases them. Attach a strategy delivery '
+    + 'to make the change conditional on that delivery landing.',
+  emptyText: 'No requests captured yet.',
+  tableTitle: 'Request register',
+
+  defaults: () => ({
+    lineId: (Store.all('businessLines')[0] || {}).id || null,
+    roleId: (Store.all('roles')[0] || {}).id || null,
+    title: '', justification: '', changeType: 'Increase', fte: 1,
+    sourcing: 'Internal', startQuarter: 'Q1', commitment: 'Contingent',
+    status: 'Submitted', requestedBy: '', links: [],
+  }),
+
+  sort: (a, b) => Math.abs(b.fte) - Math.abs(a.fte),
+
+  filters: [
+    { name: 'lineId', label: 'All business lines',
+      options: () => optionRecords(Store.all('businessLines'), null, r => r.name),
+      test: (i, v) => i.lineId === v },
+    { name: 'changeType', label: 'Increase & decrease', options: () => optionList(CHANGE_TYPES),
+      test: (i, v) => i.changeType === v },
+    { name: 'commitment', label: 'All commitments', options: () => optionList(COMMITMENTS),
+      test: (i, v) => i.commitment === v },
+    { name: 'status', label: 'All statuses', options: () => optionList(REQ_STATUSES),
+      test: (i, v) => i.status === v },
+    { name: 'startQuarter', label: 'All quarters', options: () => optionList(QUARTERS),
+      test: (i, v) => i.startQuarter === v },
+  ],
+
+  fields: [
+    { name: 'title', label: 'Request', full: true, placeholder: 'Wealth relationship managers' },
+    { name: 'lineId', label: 'Business line', type: 'select',
+      options: (v) => optionRecords(Store.all('businessLines'), v, r => r.name, '— none —') },
+    { name: 'roleId', label: 'Role', type: 'select',
+      options: (v) => optionRecords(Store.all('roles'), v, r => r.title, '— none —') },
+    { name: 'changeType', label: 'Direction', type: 'select',
+      options: (v) => optionList(CHANGE_TYPES, v || 'Increase') },
+    { name: 'fte', label: 'FTE', type: 'number', min: 0, step: 0.5, hint: 'always positive' },
+    { name: 'sourcing', label: 'Sourcing', type: 'select', options: (v) => optionList(SOURCINGS, v || 'Internal') },
+    { name: 'startQuarter', label: 'Effective from', type: 'select', options: (v) => optionList(QUARTERS, v || 'Q1') },
+    { name: 'commitment', label: 'Commitment', type: 'select',
+      options: (v) => optionList(COMMITMENTS, v || 'Contingent'),
+      hint: 'Committed ignores triggers' },
+    { name: 'status', label: 'Status', type: 'select', options: (v) => optionList(REQ_STATUSES, v || 'Submitted') },
+    { name: 'requestedBy', label: 'Requested by', placeholder: 'Head of Retail' },
+    { name: 'justification', label: 'Justification', type: 'textarea', rows: 3, full: true,
+      placeholder: 'Why this capacity is needed, and what happens without it.' },
+  ],
+
+  /* ── Trigger linking ── */
+  extraInit: (item) => ({
+    links: JSON.parse(JSON.stringify(item.links || [])),
+    changeType: item.changeType || 'Increase',
+    commitment: item.commitment || 'Contingent',
+    fte: Math.abs(Number(item.fte) || 0),
+  }),
+
+  extraForm: (item, st) => '<div class="section" style="margin:20px 0 0">'
+    + '<div class="section-header"><span class="section-title">Strategy triggers</span>'
+    + '<span class="section-note">what has to land for this to happen</span></div>'
+    + '<div class="card">'
+    +   '<div id="link-chips">' + renderLinkChips(st) + '</div>'
+    +   '<div class="flex gap-2 flex-wrap items-center" style="margin-top:12px">'
+    +     '<select id="link-pick" style="flex:1;min-width:220px">'
+    +       '<option value="">Attach a strategy delivery…</option>'
+    +       optionRecords(Store.all('deliverables'), null,
+            d => d.name + '  (' + d.targetQuarter + ', ' + Math.round(Planning.effectiveProbability(d) * 100) + '%)')
+    +     '</select>'
+    +     '<input id="link-note" type="text" placeholder="Condition, e.g. AUM reaches 250M" style="flex:1;min-width:200px">'
+    +     '<button type="button" class="btn btn-ghost btn-sm" id="link-add">Attach</button>'
+    +   '</div>'
+    + '</div></div>'
+    + '<div style="margin-top:16px" id="req-preview">' + renderRequestPreview(st) + '</div>',
+
+  extraBind: (st) => {
+    const chips = () => {
+      document.getElementById('link-chips').innerHTML = renderLinkChips(st);
+      document.getElementById('req-preview').innerHTML = renderRequestPreview(st);
+      bindRemove();
+    };
+    const bindRemove = () => {
+      document.querySelectorAll('#link-chips button[data-rm]').forEach(b => {
+        b.addEventListener('click', () => { st.links.splice(Number(b.dataset.rm), 1); chips(); });
+      });
+    };
+    bindRemove();
+
+    document.getElementById('link-add').addEventListener('click', () => {
+      const sel = document.getElementById('link-pick');
+      const id = sel.value;
+      if (!id) return;
+      if (st.links.some(l => l.deliverableId === id)) { sel.value = ''; return; }
+      st.links.push({ deliverableId: id, conditionNote: document.getElementById('link-note').value.trim() });
+      sel.value = '';
+      document.getElementById('link-note').value = '';
+      chips();
+    });
+
+    /* The preview has to track the fields it depends on, or it would show the
+       behaviour of the ask as it was loaded rather than as it is being typed. */
+    ['changeType', 'commitment', 'fte'].forEach(name => {
+      const el = document.getElementById('f_' + name);
+      if (!el) return;
+      el.addEventListener('input', () => {
+        st.changeType = document.getElementById('f_changeType').value;
+        st.commitment = document.getElementById('f_commitment').value;
+        st.fte = Math.abs(Number(document.getElementById('f_fte').value) || 0);
+        document.getElementById('link-chips').innerHTML = renderLinkChips(st);
+        document.getElementById('req-preview').innerHTML = renderRequestPreview(st);
+        bindRemove();
+      });
+    });
+  },
+
+  extraCollect: (values, st) => { values.links = st.links; },
+
+  transform: (v) => {
+    v.fte = Math.abs(Number(v.fte) || 0);       // direction lives in changeType, never in the sign
+    v.title = (v.title || '').trim();
+  },
+
+  validate: (v) => {
+    const e = [];
+    if (!v.title) e.push('Give the request a short title.');
+    if (!v.lineId) e.push('Pick a business line.');
+    if (!(v.fte > 0)) e.push('FTE must be greater than zero.');
+    if (v.commitment === 'Contingent' && (!v.links || !v.links.length)) {
+      e.push('A contingent request needs at least one strategy trigger — otherwise mark it Committed.');
+    }
+    return e;
+  },
+
+  columns: [
+    { head: 'Request', cell: i => '<span class="fw-600">' + esc(i.title) + '</span>'
+        + '<div class="small text-muted">' + esc(Fmt.lineCode(i.lineId)) + ' · ' + esc(Fmt.roleName(i.roleId))
+        + (i.requestedBy ? ' · ' + esc(i.requestedBy) : '') + '</div>' },
+    { head: 'Dir', cell: i => Fmt.badge(i.changeType === 'Decrease' ? 'Release' : 'Add',
+        i.changeType === 'Decrease' ? 'decrease' : 'increase') },
+    { head: 'FTE', right: true, cell: i => '<span class="nums fw-700 ' + (i.changeType === 'Decrease' ? 'text-warn' : 'text-green') + '">'
+        + (i.changeType === 'Decrease' ? '−' : '+') + Fmt.fte(i.fte) + '</span>' },
+    { head: 'From', cell: i => '<span class="nums text-dim">' + esc(i.startQuarter) + '</span>' },
+    { head: 'Src', cell: i => Fmt.badge(i.sourcing || 'Internal', i.sourcing === 'Vendor' ? 'vendor' : 'internal') },
+    { head: 'Commitment', cell: i => Fmt.badge(i.commitment, i.commitment === 'Committed' ? 'committed' : 'contingent') },
+    { head: 'Triggers', cell: i => {
+        if (i.commitment === 'Committed') return '<span class="small text-muted">unconditional</span>';
+        if (!i.links || !i.links.length) return '<span class="small text-warn">none attached</span>';
+        return i.links.map(l => '<div class="small text-dim">' + esc(Fmt.dlvName(l.deliverableId)) + '</div>').join(''); } },
+    { head: 'Likelihood', right: true, cell: i => {
+        const p = Planning.combinedProbability(i) * 100;
+        return '<span class="nums">' + Fmt.pct(p) + '</span>'; } },
+    { head: 'Base', right: true, cell: i => {
+        const r = Planning.resolveRequest(i, 'Base');
+        return r.factor === 0 ? '<span class="text-muted">out</span>'
+          : '<span class="nums fw-600">' + Fmt.fte(r.signedFte, true) + '</span>'; } },
+    { head: 'Status', cell: i => Fmt.statusBadge(i.status) },
+  ],
+
+  footRow: (list) => {
+    const inc = list.filter(i => i.changeType !== 'Decrease').reduce((n, i) => n + Math.abs(i.fte), 0);
+    const dec = list.filter(i => i.changeType === 'Decrease').reduce((n, i) => n + Math.abs(i.fte), 0);
+    const base = list.reduce((n, i) => n + Planning.resolveRequest(i, 'Base').signedFte, 0);
+    return '<tr><td>Total of the ' + list.length + ' shown</td><td></td>'
+      + '<td class="right nums"><span class="text-green">+' + Fmt.fte(inc) + '</span> / <span class="text-warn">−' + Fmt.fte(dec) + '</span></td>'
+      + '<td colspan="5"></td>'
+      + '<td class="right nums">' + Fmt.fte(base, true) + '</td><td></td></tr>';
+  },
+
+  deletePrompt: (i) => 'Delete <strong>' + esc(i.title) + '</strong>?',
+
+  csv: (list) => [['Request', 'Line', 'Role', 'Direction', 'FTE', 'From', 'Sourcing', 'Commitment',
+                   'Triggers', 'Likelihood %', 'Base FTE', 'Status', 'Requested by', 'Justification']].concat(
+    list.map(i => [i.title, Fmt.lineName(i.lineId), Fmt.roleName(i.roleId), i.changeType, i.fte,
+      i.startQuarter, i.sourcing, i.commitment,
+      (i.links || []).map(l => Fmt.dlvName(l.deliverableId)).join(' + '),
+      Math.round(Planning.combinedProbability(i) * 100),
+      Planning.resolveRequest(i, 'Base').signedFte, i.status, i.requestedBy, i.justification])),
+
+  footnote: () => 'The <strong>Base</strong> column shows what this request contributes at the current likelihood '
+    + 'threshold of <strong>' + Store.state.meta.baseThresholdPct + '%</strong>. Change it in Data &amp; Settings, '
+    + 'or drag the slider on Scenarios to see where the number tips.',
+}));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD
+   ═══════════════════════════════════════════════════════════════════════════ */
+registerPage('dashboard', {
+  render() {
+    const yr = Store.state.meta.planningYear;
+    return '<div class="page-header">' + yr + ' Capacity Position</div>'
+      + '<div class="page-sub">Where the plan stands today, at the <strong>Base</strong> scenario — committed asks plus '
+      + 'every conditional one whose triggers clear ' + Store.state.meta.baseThresholdPct + '% likelihood. '
+      + 'Headline FTE is the Q4 exit run-rate.</div>'
+      + '<div id="dash-warnings"></div>'
+      + '<div id="dash-kpis" class="kpi-grid mb-6"></div>'
+      + '<div class="section"><div class="section-header">'
+      +   '<span class="section-title">Scenario comparison</span>'
+      +   '<span class="section-note">required FTE at year end</span></div>'
+      +   '<div class="card"><div class="chart-wrap" id="chart-scenarios"></div>'
+      +   '<div id="legend-scenarios"></div></div></div>'
+      + '<div class="section"><div class="section-header"><span class="section-title">Quarterly build-up</span>'
+      +   '<span class="section-note">Base · headcount present in each quarter</span></div>'
+      +   '<div class="card"><div class="chart-wrap" id="chart-quarterly"></div></div></div>'
+      + '<div class="section"><div class="section-header"><span class="section-title">From today to ' + yr + '</span>'
+      +   '<span class="section-note">Base</span></div>'
+      +   '<div class="card"><div class="chart-wrap" id="chart-waterfall"></div>'
+      +   '<div class="footnote">The axis starts at zero, so the adjustments read small against the size of the '
+      +   'existing organisation — which is the point: a year of strategy moves this base by single-digit percent.</div>'
+      +   '</div></div>'
+      + '<div class="section"><div class="section-header">'
+      +   '<span class="section-title">By business line</span>'
+      +   '<span class="section-note">Base scenario</span>'
+      +   '<div class="spacer"></div>'
+      +   '<button class="btn btn-ghost btn-sm no-print" id="dash-export">Export CSV</button></div>'
+      +   '<div class="table-wrap" id="dash-lines"></div></div>'
+      + '<div class="section"><div class="section-header">'
+      +   '<span class="section-title">Where the strategy bites hardest</span>'
+      +   '<span class="section-note">headcount whose fate each delivery decides</span></div>'
+      +   '<div class="card"><div class="chart-wrap" id="chart-impact"></div>'
+      +   '<div class="footnote">A request with more than one trigger appears under each of them, so these bars '
+      +   'describe exposure rather than adding up to a total. Full detail on '
+      +   '<a href="#impact" style="color:var(--primary)">Deliverable Impact</a>.</div></div></div>';
+  },
+
+  init() {
+    const base = Planning.scenarioRollup('Base');
+    const all = Planning.allScenarios();
+
+    /* ── Data-quality banner ── */
+    const warns = Planning.coverageWarnings();
+    document.getElementById('dash-warnings').innerHTML = warns.length
+      ? '<div class="alert alert-' + (warns.some(w => w.level === 'warn') ? 'warn' : 'info') + '">'
+        + '<strong>Worth a look before you circulate this:</strong><ul>'
+        + warns.map(w => '<li>' + w.text + '</li>').join('') + '</ul></div>'
+      : '';
+
+    /* ── KPIs ── */
+    const opt = Planning.optimizationSummary().reduce((n, o) => n + o.optimizable, 0);
+    const grossAsk = Store.all('requests').filter(r => r.changeType !== 'Decrease')
+      .reduce((n, r) => n + Math.abs(Number(r.fte) || 0), 0);
+    const grossRelease = Store.all('requests').filter(r => r.changeType === 'Decrease')
+      .reduce((n, r) => n + Math.abs(Number(r.fte) || 0), 0);
+
+    const cards = [
+      { label: 'Capacity today', value: Fmt.fte(base.baselineFte),
+        sub: Fmt.money(base.baselineCost) + ' a year' },
+      { label: 'Optimisable now', value: '−' + Fmt.fte(opt), cls: 'text-warn',
+        sub: Fmt.pct(base.baselineFte ? opt / base.baselineFte * 100 : 0, 1) + ' of current capacity' },
+      { label: 'Total asks on the table', value: '+' + Fmt.fte(grossAsk), cls: 'text-green',
+        sub: 'across ' + Store.all('requests').filter(r => r.changeType !== 'Decrease').length + ' requests' },
+      { label: 'Strategy-driven release', value: '−' + Fmt.fte(grossRelease), cls: 'text-warn',
+        sub: 'across ' + Store.all('requests').filter(r => r.changeType === 'Decrease').length + ' requests' },
+      { label: 'Required at Q4 · Base', value: Fmt.fte(base.requirementFte), cls: 'fw-700',
+        sub: Fmt.fte(base.gapFte, true) + ' against today' },
+      { label: 'Annual cost · Base', value: Fmt.money(base.requirementCost),
+        sub: Fmt.money(base.requirementCost - base.baselineCost, true) + ' vs today' },
+    ];
+    document.getElementById('dash-kpis').innerHTML = cards.map(c =>
+      '<div class="kpi-card"><div class="kpi-label">' + esc(c.label) + '</div>'
+      + '<div class="kpi-value ' + (c.cls || '') + '">' + c.value + '</div>'
+      + '<div class="kpi-sub">' + c.sub + '</div></div>').join('');
+
+    /* ── Scenario comparison ── */
+    document.getElementById('chart-scenarios').innerHTML = Svg.bars(
+      all.map(r => ({
+        name: r.scenario, value: r.requirementFte, color: SCENARIO_COLOR[r.scenario],
+        label: Fmt.fte(r.requirementFte),
+        sub: Fmt.fte(r.gapFte, true) + ' vs today',
+      })),
+      { reference: base.baselineFte, referenceLabel: 'capacity today', height: 270 }
+    );
+    document.getElementById('legend-scenarios').innerHTML =
+      '<div class="footnote">' + SCENARIOS.map(s =>
+        '<div style="margin-top:4px"><strong style="color:' + SCENARIO_COLOR[s] + '">' + s + '</strong> — '
+        + SCENARIO_BLURB[s] + '</div>').join('') + '</div>';
+
+    /* ── Quarterly ── */
+    document.getElementById('chart-quarterly').innerHTML = Svg.line(
+      base.byQuarter.map(q => ({ name: Store.state.meta.planningYear + ' ' + q.quarter, value: q.fte, label: Fmt.fte(q.fte) })),
+      { reference: base.baselineFte, referenceLabel: 'today', height: 230 }
+    );
+
+    /* ── Waterfall ── */
+    document.getElementById('chart-waterfall').innerHTML = Svg.waterfall([
+      { name: 'Capacity today', value: base.baselineFte, total: true },
+      { name: 'Optimisation', value: -base.optimizableFte, color: '#f59e0b' },
+      { name: 'Asks', value: base.increaseFte, color: '#22c55e' },
+      { name: 'Strategy release', value: base.decreaseFte, color: '#f59e0b' },
+      { name: 'Required ' + Store.state.meta.planningYear, value: base.requirementFte, total: true, color: '#6366f1' },
+    ], { height: 270 });
+
+    /* ── By line ── */
+    const rowsFor = (r) => {
+      const line = Store.byId('businessLines', r.key);
+      return { name: line ? line.name : '(unassigned)', code: line ? line.code : '—', r };
+    };
+    const lineRows = base.byLine.map(rowsFor);
+    document.getElementById('dash-lines').innerHTML =
+      '<table><thead><tr><th>Business line</th><th class="right">Today</th>'
+      + '<th class="right">Optimise</th><th class="right">Asks</th><th class="right">Release</th>'
+      + '<th class="right">Required</th><th class="right">Gap</th><th class="right">Annual cost</th></tr></thead><tbody>'
+      + lineRows.map(x =>
+        '<tr><td class="fw-600">' + esc(x.name) + '</td>'
+        + '<td class="right nums">' + Fmt.fte(x.r.baselineFte) + '</td>'
+        + '<td class="right nums ' + (x.r.optimizableFte ? 'text-warn' : 'text-muted') + '">' + (x.r.optimizableFte ? '−' + Fmt.fte(x.r.optimizableFte) : '—') + '</td>'
+        + '<td class="right nums ' + (x.r.increaseFte ? 'text-green' : 'text-muted') + '">' + (x.r.increaseFte ? '+' + Fmt.fte(x.r.increaseFte) : '—') + '</td>'
+        + '<td class="right nums ' + (x.r.decreaseFte ? 'text-warn' : 'text-muted') + '">' + (x.r.decreaseFte ? Fmt.fte(x.r.decreaseFte, true) : '—') + '</td>'
+        + '<td class="right nums fw-700">' + Fmt.fte(x.r.requirementFte) + '</td>'
+        + '<td class="right nums ' + Fmt.cls(x.r.gapFte) + '">' + Fmt.fte(x.r.gapFte, true) + '</td>'
+        + '<td class="right nums">' + Fmt.money(x.r.requirementCost) + '</td></tr>').join('')
+      + '</tbody><tfoot><tr><td>Total</td>'
+      + '<td class="right nums">' + Fmt.fte(base.baselineFte) + '</td>'
+      + '<td class="right nums text-warn">−' + Fmt.fte(base.optimizableFte) + '</td>'
+      + '<td class="right nums text-green">+' + Fmt.fte(base.increaseFte) + '</td>'
+      + '<td class="right nums text-warn">' + Fmt.fte(base.decreaseFte, true) + '</td>'
+      + '<td class="right nums">' + Fmt.fte(base.requirementFte) + '</td>'
+      + '<td class="right nums ' + Fmt.cls(base.gapFte) + '">' + Fmt.fte(base.gapFte, true) + '</td>'
+      + '<td class="right nums">' + Fmt.money(base.requirementCost) + '</td></tr></tfoot></table>';
+
+    document.getElementById('dash-export').addEventListener('click', () => {
+      exportCSV('capacity-by-line', [['Business line', 'Today FTE', 'Optimisable FTE', 'Asks FTE',
+        'Release FTE', 'Required FTE', 'Gap FTE', 'Annual cost ' + Store.state.meta.currency]]
+        .concat(lineRows.map(x => [x.name, x.r.baselineFte, x.r.optimizableFte, x.r.increaseFte,
+          x.r.decreaseFte, x.r.requirementFte, x.r.gapFte, Math.round(x.r.requirementCost)])));
+    });
+
+    /* ── Impact tornado ── */
+    const impact = Planning.deliverableImpact().filter(d => d.requestCount > 0).slice(0, 8);
+    document.getElementById('chart-impact').innerHTML = impact.length
+      ? Svg.tornado(impact.map(d => ({
+          name: d.deliverable.name, pos: d.unlockFte, neg: d.releaseFte,
+          sub: Fmt.pct(d.probability * 100),
+        })), { labelWidth: 240 })
+      : '<div class="empty-state">No requests are linked to a strategy delivery yet.</div>';
+  },
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCENARIOS
+   ═══════════════════════════════════════════════════════════════════════════ */
+registerPage('scenarios', {
+  render() {
+    return '<div class="page-header">Scenario Workbench</div>'
+      + '<div class="page-sub">The same plan under five assumptions about what the 2027 roadmap actually delivers. '
+      + 'The threshold slider only moves the <strong>Base</strong> case — drag it to find the point where a '
+      + 'delivery starts counting.</div>'
+      + '<div class="section no-print"><div class="card">'
+      +   '<div class="flex gap-3 flex-wrap items-center">'
+      +     '<div class="field" style="flex:2;min-width:280px">'
+      +       '<label for="thr">Base-case likelihood threshold — <strong id="thr-val"></strong></label>'
+      +       '<input type="range" id="thr" min="0" max="100" step="5">'
+      +     '</div>'
+      +     '<div class="field" style="flex:1;min-width:200px">'
+      +       '<label for="scn-line">Business line</label>'
+      +       '<select id="scn-line"></select>'
+      +     '</div>'
+      +     '<div class="field" style="flex:1;min-width:170px">'
+      +       '<label for="scn-unit">Measure in</label>'
+      +       '<select id="scn-unit"><option value="fte">FTE</option><option value="cost">Cost</option><option value="hours">Hours</option></select>'
+      +     '</div>'
+      +   '</div>'
+      +   '<div class="small text-muted" id="thr-note" style="margin-top:8px"></div>'
+      + '</div></div>'
+      + '<div id="scn-body"></div>';
+  },
+
+  init() {
+    const thr = document.getElementById('thr');
+    const lineSel = document.getElementById('scn-line');
+    const unitSel = document.getElementById('scn-unit');
+
+    thr.value = Store.state.meta.baseThresholdPct;
+    lineSel.innerHTML = '<option value="">All business lines</option>'
+      + optionRecords(Store.all('businessLines'), null, r => r.name);
+
+    const draw = () => {
+      const threshold = Number(thr.value);
+      const lineId = lineSel.value || null;
+      const unit = unitSel.value;
+      document.getElementById('thr-val').textContent = threshold + '%';
+
+      const opts = { thresholdPct: threshold, lineId: lineId };
+      const all = SCENARIOS.map(s => Planning.scenarioRollup(s, opts));
+      const base = all[1];
+
+      /* How many requests the current threshold actually admits — the slider is
+         meaningless without knowing whether it changed anything. */
+      const pool = Store.all('requests').filter(r => !lineId || r.lineId === lineId);
+      const inBase = pool.filter(r => Planning.inclusionFactor(r, 'Base', threshold) > 0).length;
+      document.getElementById('thr-note').innerHTML =
+        '<strong>' + inBase + '</strong> of ' + pool.length + ' requests clear ' + threshold + '% and count in Base'
+        + (threshold !== Store.state.meta.baseThresholdPct
+          ? ' · <span class="text-warn">exploring — the saved threshold is still '
+            + Store.state.meta.baseThresholdPct + '%</span>'
+          : ' · this is the saved threshold');
+
+      const pick = (r) => unit === 'cost' ? r.requirementCost : unit === 'hours' ? r.requirementHours : r.requirementFte;
+      const fmt = (v) => unit === 'cost' ? Fmt.money(v) : unit === 'hours' ? Fmt.hours(v) : Fmt.fte(v);
+      const fmtS = (v) => unit === 'cost' ? Fmt.money(v, true) : unit === 'hours' ? Fmt.hours(v) : Fmt.fte(v, true);
+      const baseVal = (r) => unit === 'cost' ? r.baselineCost : unit === 'hours' ? r.baselineHours : r.baselineFte;
+
+      let h = '<div class="section"><div class="section-header"><span class="section-title">Five scenarios side by side</span>'
+        + '<span class="section-note">' + (lineId ? esc(Fmt.lineName(lineId)) : 'whole organisation') + '</span></div>'
+        + '<div class="card"><div class="chart-wrap">'
+        + Svg.bars(all.map(r => ({
+            name: r.scenario, value: pick(r), color: SCENARIO_COLOR[r.scenario], label: fmt(pick(r)),
+            sub: fmtS(pick(r) - baseVal(r)) + ' vs today',
+          })), {
+            reference: baseVal(all[0]), referenceLabel: 'today', height: 280,
+            fmtTick: (v) => unit === 'cost' ? Fmt.money(v) : unit === 'hours' ? Fmt.hours(v) : Math.round(v),
+          })
+        + '</div></div></div>';
+
+      /* Full numeric table — the chart shows shape, this settles arguments. */
+      h += '<div class="section"><div class="section-header"><span class="section-title">The numbers</span>'
+        + '<div class="spacer"></div><button class="btn btn-ghost btn-sm no-print" id="scn-export">Export CSV</button></div>'
+        + '<div class="table-wrap"><table><thead><tr><th>Scenario</th>'
+        + '<th class="right">Asks FTE</th><th class="right">Release FTE</th><th class="right">Net Δ</th>'
+        + '<th class="right">Required FTE</th><th class="right">Gap</th>'
+        + '<th class="right">Annual cost</th><th class="right">Hours</th>'
+        + '<th class="right">Internal</th><th class="right">Vendor</th></tr></thead><tbody>'
+        + all.map(r => '<tr><td><span class="fw-700" style="color:' + SCENARIO_COLOR[r.scenario] + '">' + r.scenario + '</span>'
+            + '<div class="small text-muted">' + SCENARIO_BLURB[r.scenario] + '</div></td>'
+          + '<td class="right nums text-green">' + (r.increaseFte ? '+' + Fmt.fte(r.increaseFte) : '—') + '</td>'
+          + '<td class="right nums text-warn">' + (r.decreaseFte ? Fmt.fte(r.decreaseFte, true) : '—') + '</td>'
+          + '<td class="right nums ' + Fmt.cls(r.netDeltaFte) + '">' + Fmt.fte(r.netDeltaFte, true) + '</td>'
+          + '<td class="right nums fw-700">' + Fmt.fte(r.requirementFte) + '</td>'
+          + '<td class="right nums ' + Fmt.cls(r.gapFte) + '">' + Fmt.fte(r.gapFte, true) + '</td>'
+          + '<td class="right nums">' + Fmt.money(r.requirementCost) + '</td>'
+          + '<td class="right nums text-dim">' + Fmt.hours(r.requirementHours) + '</td>'
+          + '<td class="right nums text-dim">' + Fmt.fte(r.bySourcing.Internal.requirementFte) + '</td>'
+          + '<td class="right nums text-dim">' + Fmt.fte(r.bySourcing.Vendor.requirementFte) + '</td></tr>').join('')
+        + '</tbody></table></div></div>';
+
+      /* Per-line spread between the extremes — where the planning risk sits. */
+      if (!lineId) {
+        const lines = Store.all('businessLines').map(l => {
+          const d = Planning.scenarioRollup('Downside', { thresholdPct: threshold, lineId: l.id });
+          const b = Planning.scenarioRollup('Base',     { thresholdPct: threshold, lineId: l.id });
+          const u = Planning.scenarioRollup('Upside',   { thresholdPct: threshold, lineId: l.id });
+          return { line: l, d, b, u, spread: u.requirementFte - d.requirementFte };
+        }).sort((a, b) => b.spread - a.spread);
+
+        h += '<div class="section"><div class="section-header"><span class="section-title">Planning risk by line</span>'
+          + '<span class="section-note">how far the answer can move</span></div>'
+          + '<div class="table-wrap"><table><thead><tr><th>Business line</th><th class="right">Today</th>'
+          + '<th class="right">Downside</th><th class="right">Base</th><th class="right">Upside</th>'
+          + '<th class="right">Spread</th><th style="width:180px">Range</th></tr></thead><tbody>'
+          + lines.map(x => {
+              const maxSpread = Math.max(...lines.map(y => y.spread), 1);
+              return '<tr><td class="fw-600">' + esc(x.line.name) + '</td>'
+                + '<td class="right nums text-dim">' + Fmt.fte(x.b.baselineFte) + '</td>'
+                + '<td class="right nums" style="color:' + SCENARIO_COLOR.Downside + '">' + Fmt.fte(x.d.requirementFte) + '</td>'
+                + '<td class="right nums fw-700">' + Fmt.fte(x.b.requirementFte) + '</td>'
+                + '<td class="right nums" style="color:' + SCENARIO_COLOR.Upside + '">' + Fmt.fte(x.u.requirementFte) + '</td>'
+                + '<td class="right nums fw-600">' + Fmt.fte(x.spread) + '</td>'
+                + '<td>' + meter(x.spread / maxSpread * 100, 'var(--primary)') + '</td></tr>';
+            }).join('')
+          + '</tbody></table></div>'
+          + '<div class="footnote">Spread is Upside minus Downside — the width of the range this line could land in. '
+          + 'A wide spread means the headcount answer depends heavily on delivery, and is worth a contingency plan '
+          + 'rather than a single number.</div></div>';
+      }
+
+      /* By role, Base only. */
+      h += '<div class="section"><div class="section-header"><span class="section-title">By role</span>'
+        + '<span class="section-note">Base at ' + threshold + '%</span></div>'
+        + '<div class="card"><div class="chart-wrap">'
+        + Svg.hbars(base.byRole.filter(r => r.netDeltaFte !== 0).map(r => ({
+            name: Fmt.roleName(r.key), value: r.netDeltaFte,
+            color: r.netDeltaFte >= 0 ? '#22c55e' : '#f59e0b',
+          })), { labelWidth: 170 })
+        + '</div><div class="footnote">Net change by role, after optimisation and strategy-driven release. '
+        + 'Roles with no net movement are hidden.</div></div></div>';
+
+      document.getElementById('scn-body').innerHTML = h;
+
+      document.getElementById('scn-export').addEventListener('click', () => {
+        exportCSV('scenarios', [['Scenario', 'Asks FTE', 'Release FTE', 'Net FTE', 'Required FTE', 'Gap FTE',
+          'Annual cost ' + Store.state.meta.currency, 'Hours', 'Internal FTE', 'Vendor FTE']]
+          .concat(all.map(r => [r.scenario, r.increaseFte, r.decreaseFte, r.netDeltaFte, r.requirementFte,
+            r.gapFte, Math.round(r.requirementCost), Math.round(r.requirementHours),
+            r.bySourcing.Internal.requirementFte, r.bySourcing.Vendor.requirementFte])));
+      });
+    };
+
+    thr.addEventListener('input', draw);
+    lineSel.addEventListener('change', draw);
+    unitSel.addEventListener('change', draw);
+    draw();
+  },
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DELIVERABLE IMPACT
+   ═══════════════════════════════════════════════════════════════════════════ */
+registerPage('impact', {
+  render() {
+    return '<div class="page-header">Deliverable Impact</div>'
+      + '<div class="page-sub">What each 2027 strategy delivery is carrying. Read down the <strong>Exposure</strong> column '
+      + 'to find the deliveries that decide the most headcount — those are the ones whose slippage costs you a plan, '
+      + 'not just a milestone.</div>'
+      + '<div id="impact-body"></div>';
+  },
+
+  init() {
+    const impact = Planning.deliverableImpact();
+    const linked = impact.filter(d => d.requestCount > 0);
+    const body = document.getElementById('impact-body');
+
+    if (!linked.length) {
+      body.innerHTML = '<div class="empty-state">No requests are linked to a strategy delivery yet. '
+        + 'Attach triggers on the <a href="#requests">Demand Requests</a> page and this view fills in.</div>';
+      return;
+    }
+
+    let h = '<div class="section"><div class="card"><div class="chart-wrap">'
+      + Svg.tornado(linked.map(d => ({
+          name: d.deliverable.name, pos: d.unlockFte, neg: d.releaseFte,
+          sub: Fmt.pct(d.probability * 100) + ' · ' + d.deliverable.targetQuarter,
+        })), { labelWidth: 260 })
+      + '</div>' + Svg.legend([
+          { name: 'Unlocks headcount', color: '#22c55e' },
+          { name: 'Releases headcount', color: '#f59e0b' },
+        ]) + '</div></div>';
+
+    h += '<div class="section"><div class="section-header"><span class="section-title">Detail</span>'
+      + '<div class="spacer"></div><button class="btn btn-ghost btn-sm no-print" id="imp-export">Export CSV</button></div>'
+      + '<div class="table-wrap"><table><thead><tr>'
+      + '<th>Strategy delivery</th><th>Qtr</th><th>Status</th><th class="right">Likelihood</th>'
+      + '<th class="right">Unlocks</th><th class="right">Releases</th><th class="right">Net</th>'
+      + '<th class="right">Expected</th><th class="right">Exposure</th><th>Lines affected</th>'
+      + '</tr></thead><tbody>'
+      + linked.map(d => '<tr>'
+        + '<td class="fw-600">' + esc(d.deliverable.name) + '</td>'
+        + '<td class="nums text-dim">' + esc(d.deliverable.targetQuarter) + '</td>'
+        + '<td>' + Fmt.statusBadge(d.deliverable.status) + '</td>'
+        + '<td class="right nums">' + Fmt.pct(d.probability * 100) + '</td>'
+        + '<td class="right nums text-green">' + (d.unlockFte ? '+' + Fmt.fte(d.unlockFte) : '—') + '</td>'
+        + '<td class="right nums text-warn">' + (d.releaseFte ? '−' + Fmt.fte(d.releaseFte) : '—') + '</td>'
+        + '<td class="right nums ' + Fmt.cls(d.netFte) + '">' + Fmt.fte(d.netFte, true) + '</td>'
+        + '<td class="right nums ' + Fmt.cls(d.expectedFte) + '">' + Fmt.fte(d.expectedFte, true) + '</td>'
+        + '<td class="right nums fw-700">' + Fmt.fte(d.exposureFte) + '</td>'
+        + '<td class="small text-dim">' + d.lineIds.map(id => esc(Fmt.lineCode(id))).join(', ') + '</td>'
+        + '</tr>').join('')
+      + '</tbody></table></div>'
+      + '<div class="footnote"><strong>Exposure</strong> ignores direction: it is the total headcount whose fate this '
+      + 'delivery decides, and is the honest measure of how much rides on it. <strong>Expected</strong> weights the net '
+      + 'change by likelihood. A request with several triggers is counted under each of them, so these columns do not '
+      + 'sum to a plan total — use Scenarios for that.</div></div>';
+
+    /* Requests behind each delivery, so a number can always be traced back. */
+    h += '<div class="section page-break"><div class="section-header"><span class="section-title">What sits behind each delivery</span></div>';
+    linked.forEach(d => {
+      const reqs = Store.all('requests').filter(r => (r.links || []).some(l => l.deliverableId === d.deliverable.id));
+      h += '<div class="card mb-3"><div class="flex gap-2 items-center flex-wrap" style="margin-bottom:9px">'
+        + '<span class="fw-700">' + esc(d.deliverable.name) + '</span>'
+        + Fmt.statusBadge(d.deliverable.status)
+        + '<span class="small text-muted">' + Fmt.pct(d.probability * 100) + ' likely · target '
+        + esc(d.deliverable.targetQuarter) + '</span></div>'
+        + '<table><tbody>' + reqs.map(r => {
+            const note = (r.links.find(l => l.deliverableId === d.deliverable.id) || {}).conditionNote;
+            return '<tr><td style="width:44px" class="right nums fw-700 '
+              + (r.changeType === 'Decrease' ? 'text-warn' : 'text-green') + '">'
+              + (r.changeType === 'Decrease' ? '−' : '+') + Fmt.fte(r.fte) + '</td>'
+              + '<td>' + esc(r.title) + '<div class="small text-muted">' + esc(Fmt.lineCode(r.lineId))
+              + ' · ' + esc(Fmt.roleName(r.roleId)) + ' · from ' + esc(r.startQuarter)
+              + (note ? ' · <em>' + esc(note) + '</em>' : '') + '</div></td></tr>';
+          }).join('') + '</tbody></table></div>';
+    });
+    h += '</div>';
+
+    const orphans = impact.filter(d => d.requestCount === 0);
+    if (orphans.length) {
+      h += '<div class="section"><div class="alert alert-info"><strong>'
+        + orphans.length + ' delivery(ies) have no capacity riding on them:</strong> '
+        + orphans.map(d => esc(d.deliverable.name)).join(', ')
+        + '. Fine if they genuinely need no people — worth a second pass if not.</div></div>';
+    }
+
+    body.innerHTML = h;
+
+    document.getElementById('imp-export').addEventListener('click', () => {
+      exportCSV('deliverable-impact', [['Delivery', 'Quarter', 'Status', 'Likelihood %', 'Unlocks FTE',
+        'Releases FTE', 'Net FTE', 'Expected FTE', 'Exposure FTE', 'Requests', 'Lines']]
+        .concat(linked.map(d => [d.deliverable.name, d.deliverable.targetQuarter, d.deliverable.status,
+          Math.round(d.probability * 100), d.unlockFte, d.releaseFte, d.netFte,
+          d.expectedFte.toFixed(2), d.exposureFte, d.requestCount,
+          d.lineIds.map(id => Fmt.lineCode(id)).join(' ')])));
+    });
+  },
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DATA & SETTINGS
+   ═══════════════════════════════════════════════════════════════════════════ */
+registerPage('settings', {
+  render() {
+    const m = Store.state.meta;
+    return '<div class="page-header">Data &amp; Settings</div>'
+      + '<div class="page-sub">Assumptions that apply across the whole plan, and where the data lives.</div>'
+
+      + '<div class="section"><div class="section-header"><span class="section-title">Planning assumptions</span></div>'
+      +   '<div class="card"><div id="set-errors"></div><div class="form-grid">'
+      +     fieldHtml({ name: 'planningYear', label: 'Planning year', type: 'number', min: 2000, max: 2100, step: 1 }, m.planningYear)
+      +     fieldHtml({ name: 'currency', label: 'Currency', hint: 'label only — no conversion' }, m.currency)
+      +     fieldHtml({ name: 'hoursPerFteYear', label: 'Hours per FTE-year', type: 'number', min: 1, step: 10,
+                        hint: 'drives the hours view' }, m.hoursPerFteYear)
+      +     fieldHtml({ name: 'baseThresholdPct', label: 'Base-case likelihood threshold %', type: 'number', min: 0, max: 100, step: 5,
+                        hint: 'a trigger counts in Base at or above this' }, m.baseThresholdPct)
+      +     fieldHtml({ name: 'vendorUpliftPct', label: 'Vendor cost uplift %', type: 'number', min: -100, max: 500, step: 5,
+                        hint: 'applied on top of the role rate' }, m.vendorUpliftPct)
+      +   '</div>'
+      +   '<div class="modal-actions" style="justify-content:flex-start;margin-top:16px">'
+      +     '<button class="btn btn-primary" id="set-save">Save assumptions</button></div>'
+      +   '</div></div>'
+
+      + '<div class="section"><div class="section-header"><span class="section-title">Your data</span>'
+      +   '<span class="section-note">saved in this browser</span></div>'
+      +   '<div class="card">'
+      +     '<div class="alert alert-info" style="margin-bottom:14px">'
+      +       '<strong>This plan lives in this browser, on this computer.</strong> It is saved automatically as you '
+      +       'work, but clearing site data, switching browser, or opening the file on another machine will not carry '
+      +       'it across. <strong>Save to file</strong> is your only real backup — and the only way to move the plan '
+      +       'or hand it to someone else.'
+      +     '</div>'
+      +     '<div class="flex gap-2 flex-wrap">'
+      +       '<button class="btn btn-primary" id="data-save">Save to file</button>'
+      +       '<button class="btn btn-ghost" id="data-load">Load from file</button>'
+      +       '<button class="btn btn-ghost" id="data-demo">Reload demo data</button>'
+      +       '<button class="btn btn-danger" id="data-clear">Clear everything</button>'
+      +     '</div>'
+      +     '<div id="data-stats" class="footnote"></div>'
+      +   '</div></div>'
+
+      + '<div class="section"><div class="section-header"><span class="section-title">Self-check</span>'
+      +   '<span class="section-note">verifies the arithmetic against your data</span>'
+      +   '<div class="spacer"></div>'
+      +   '<button class="btn btn-ghost btn-sm" id="run-check">Run self-check</button></div>'
+      +   '<div class="card"><div id="check-out" class="small text-dim">'
+      +   'A single HTML file cannot carry a test runner, so the properties a test suite would guard are asserted '
+      +   'here instead — scenario ordering, breakdowns reconciling with their totals, quarterly phasing landing on '
+      +   'the annual figure. Run it after editing data in bulk, or any time a number looks wrong.'
+      +   '</div></div></div>'
+
+      + '<div class="section"><div class="section-header"><span class="section-title">How the model works</span></div>'
+      +   '<div class="card small text-dim" style="line-height:1.65">'
+      +     '<p style="margin-bottom:9px"><strong>Every ask is a signed change against current capacity.</strong> '
+      +     'An increase adds FTE, a decrease releases it. Both can be conditional on a 2027 strategy delivery, '
+      +     'which is what lets the plan answer "what if half the roadmap lands".</p>'
+      +     '<p style="margin-bottom:9px"><strong>A delivery marked Delivered is certain; Cancelled is impossible.</strong> '
+      +     'Anything else uses the likelihood you typed. A request with several triggers multiplies them, which '
+      +     'assumes they are independent — if a sales target and the platform enabling it are really the same bet, '
+      +     'the combined figure will read low. Attach the one that actually gates the headcount.</p>'
+      +     '<p style="margin-bottom:9px"><strong>Headline FTE is the Q4 exit run-rate</strong>, not an average. '
+      +     'Cost and hours are prorated by how much of the year a change is live, so an ask starting in Q4 adds '
+      +     'full headcount but only a quarter of its annual cost.</p>'
+      +     '<p><strong>Optimisation is treated as recoverable from Q1</strong> and independently of the roadmap. '
+      +     'Capacity that a strategy delivery frees up belongs in Demand Requests as a decrease, not in the '
+      +     'optimisable column — otherwise it is counted twice.</p>'
+      +   '</div></div>';
+  },
+
+  init() {
+    const fields = [
+      { name: 'planningYear', type: 'number' }, { name: 'currency', type: 'text' },
+      { name: 'hoursPerFteYear', type: 'number' }, { name: 'baseThresholdPct', type: 'number' },
+      { name: 'vendorUpliftPct', type: 'number' },
+    ];
+
+    document.getElementById('set-save').addEventListener('click', () => {
+      const v = {};
+      fields.forEach(f => { v[f.name] = readField(f); });
+      const errors = [];
+      if (!(v.planningYear > 1999 && v.planningYear < 2101)) errors.push('Planning year looks wrong.');
+      if (!v.currency || !String(v.currency).trim()) errors.push('Currency label cannot be empty.');
+      if (!(v.hoursPerFteYear > 0)) errors.push('Hours per FTE-year must be greater than zero.');
+      if (!(v.baseThresholdPct >= 0 && v.baseThresholdPct <= 100)) errors.push('Threshold must be between 0 and 100.');
+      if (v.vendorUpliftPct == null || isNaN(v.vendorUpliftPct)) errors.push('Vendor uplift must be a number.');
+
+      const box = document.getElementById('set-errors');
+      if (errors.length) {
+        box.innerHTML = '<div class="alert alert-error"><ul>' + errors.map(e => '<li>' + esc(e) + '</li>').join('') + '</ul></div>';
+        return;
+      }
+      v.currency = String(v.currency).trim();
+      Object.assign(Store.state.meta, v);
+      Store.save();
+      box.innerHTML = '<div class="alert alert-ok">Saved. Every scenario has been recalculated.</div>';
+      updateNavCounts();
+      stats();
+    });
+
+    /* ── Data management ── */
+    const stats = () => {
+      const s = Store.state;
+      const bytes = new Blob([Store.toJSON()]).size;
+      document.getElementById('data-stats').innerHTML =
+        s.businessLines.length + ' business lines · ' + s.roles.length + ' roles · '
+        + s.deliverables.length + ' strategy deliveries · ' + s.baseline.length + ' capacity rows · '
+        + s.requests.length + ' requests — about ' + (bytes / 1024).toFixed(1) + ' KB.';
+    };
+    stats();
+
+    document.getElementById('data-save').addEventListener('click', () => {
+      downloadFile('capacity-plan-' + Store.state.meta.planningYear + '-'
+        + new Date().toISOString().slice(0, 10) + '.json', Store.toJSON(), 'application/json');
+    });
+
+    const fileInput = document.getElementById('file-input');
+    document.getElementById('data-load').addEventListener('click', () => {
+      fileInput.value = '';
+      fileInput.click();
+    });
+    fileInput.onchange = () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const preview = JSON.parse(reader.result);
+          const n = (preview.requests || []).length;
+          showModal('Load <strong>' + esc(file.name) + '</strong>?<br><span class="small text-dim">'
+            + n + ' request(s) in that file will replace everything currently in this browser. '
+            + 'Save the current plan first if you need it.</span>', () => {
+              try {
+                Store.fromJSON(reader.result);
+                refresh();
+              } catch (e) {
+                alert('That file could not be loaded: ' + e.message);
+              }
+            }, 'Replace');
+        } catch (e) {
+          alert('That does not look like a saved plan: ' + e.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    document.getElementById('data-demo').addEventListener('click', () => {
+      showModal('Replace everything with the demo dataset?', () => { Store.reset(true); refresh(); }, 'Reload demo');
+    });
+
+    document.getElementById('data-clear').addEventListener('click', () => {
+      showModal('Delete the entire plan and start from an empty file?<br>'
+        + '<span class="small text-dim">This cannot be undone unless you saved to file first.</span>',
+        () => { Store.reset(false); refresh(); }, 'Delete everything');
+    });
+
+    /* ── Self-check ── */
+    document.getElementById('run-check').addEventListener('click', () => {
+      const results = runSelfCheck();
+      const failed = results.filter(r => !r.pass);
+      const out = document.getElementById('check-out');
+      out.innerHTML =
+        '<div class="alert alert-' + (failed.length ? 'error' : 'ok') + '">'
+        + (failed.length
+            ? '<strong>' + failed.length + ' of ' + results.length + ' checks failed.</strong> '
+              + 'The figures on the other pages should not be trusted until this is resolved.'
+            : '<strong>All ' + results.length + ' checks passed.</strong> '
+              + 'Scenario ordering, breakdowns, phasing and bounds all hold on your current data.')
+        + '</div>'
+        + results.map(r => '<div class="check-row">'
+            + '<span class="check-mark ' + (r.pass ? 'text-green' : 'text-red') + '">' + (r.pass ? '✓' : '✕') + '</span>'
+            + '<span><span class="' + (r.pass ? '' : 'fw-600 text-red') + '">' + esc(r.name) + '</span>'
+            + (r.detail ? '<span class="text-muted"> — ' + esc(r.detail) + '</span>' : '') + '</span></div>').join('');
+    });
+  },
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOOT
+   ═══════════════════════════════════════════════════════════════════════════ */
+document.getElementById('menu-btn').addEventListener('click', openSidebar);
+document.getElementById('sidebar-close').addEventListener('click', closeSidebar);
+document.getElementById('overlay').addEventListener('click', closeSidebar);
+document.getElementById('print-btn').addEventListener('click', () => window.print());
+window.addEventListener('hashchange', () => navigate(window.location.hash.slice(1)));
+
+const loadResult = Store.load();
+updateNavCounts();
+navigate(window.location.hash.slice(1));
+if (loadResult === 'seeded') setSaveState('Demo data loaded', true);
+
+</script>
+</body>
+</html>
