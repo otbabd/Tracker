@@ -273,7 +273,13 @@ def loaded_cost(grade: str, saudi: bool = True) -> float:
 
 
 def one_off(grade: str) -> int:
-    return ONE_OFF_SENIOR if grade >= SENIOR_FROM else ONE_OFF_JUNIOR
+    """Grades are ordered by the table, not alphabetically: "G9" sorts after
+    "G14" as text, which is the wrong answer and an easy one to ship."""
+    order = list(GRADE_COST)
+    if grade not in order:
+        return ONE_OFF_JUNIOR
+    return ONE_OFF_SENIOR if order.index(grade) >= order.index(SENIOR_FROM) \
+        else ONE_OFF_JUNIOR
 
 
 def rank_of(category: str) -> int:

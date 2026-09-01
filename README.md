@@ -454,3 +454,67 @@ along with the other personal fields; the mandate text stays visible.
 structure it generates lives in one `STRUCTURE` table at the top of that file —
 group, then division, then departments. Everything else lives in
 `org-chart.html`, whose built-in demo mirrors the same shape in miniature.
+
+# The 2027 capacity exercise
+
+`capacity/` is the other half of the tool. The org chart describes the
+organisation as it is; this asks what it should be in 2027, what that costs, and
+whether the bank can afford it. It feeds the manpower budget and the workforce
+plan from one submission.
+
+Three kinds of file, all in `capacity/dist/`, all formulas and no macros:
+
+| File | For | Job |
+|---|---|---|
+| `templates/2027-Capacity-<Group>.xlsx` | each of the twelve groups | Their own structure and 2026 baseline, their asks, priced live, tested against their envelopes, with a check sheet that blocks submission until it is complete |
+| `2027-Capacity-Example-RiskGroup.xlsx` | the kickoff pack | The same template, filled in properly |
+| `2027-Capacity-Consolidator.xlsx` | the central team | Twelve paste bands, central pricing, line-by-line challenge, four scenarios, dashboard and outputs |
+
+`capacity/FACILITATOR.md` is the note for whoever runs it: the calendar, what to
+set before sending anything, how to paste a return, how to run the challenge and
+scenario meetings, and what to change to run it again next year.
+
+## How the numbers work
+
+**Cost.** A grade table of basic, housing, transport and target bonus, plus
+employer GOSI at the Saudi or non-Saudi rate, in SAR thousands. Every component
+is a separate column so a rate can be challenged without rebuilding the model.
+The rates ship illustrative and are the first thing Finance should replace.
+
+**Phasing.** A position starting in Q1 is paid for four quarters, one starting in
+Q4 for one. Full-year run-rate is carried separately, so the cost walking into
+2028 is visible while the in-year number is being argued about.
+
+**Ranking.** Every ask carries a driver, and drivers carry a priority:
+regulatory, risk, revenue, replacement, efficiency, other. A sort key of
+`priority × 10⁶ + row` gives every line a unique place in the queue; running
+totals decide what fits the envelope. Regulatory is funded first and "other"
+falls out first.
+
+**Scenarios.** Four cases over six levers — demand, share of envelope released,
+timing, attrition, salary inflation and productivity — computed for every line
+in parallel rather than through a switch, so the four are live side by side.
+
+**The bridge.** Opening 2026 establishment, less lapsed vacancies, less closures
+and merges, plus approved growth, equals the closing 2027 establishment. Seats,
+not people: replacements and conversions keep a seat that already exists.
+
+## Rebuilding and testing
+
+```
+python3 capacity/build/make.py     # rebuild all fourteen files, recalculate each
+python3 capacity/tests/run_all.py  # ~3,300 checks against an independent model
+```
+
+Both need LibreOffice: a workbook of formulas that has never been recalculated is
+a guess. The test suite builds each file, recalculates it, and then recomputes
+every figure — loaded cost, part-year phasing, the ranked cut under all four
+scenarios, the bridge, the envelope verdicts — in Python from the same inputs,
+so a wrong formula and a wrong expectation cannot agree with each other. It also
+pushes a full twelve-group exercise through the consolidator, with Risk Group's
+band pasted from the worked example exactly as the central team would paste it.
+
+`capacity/build/` holds the generators: `refdata.py` (the bank, the rates and the
+catalogues, read from the org tool's own sample export so the two cannot drift),
+`tables.py` (the lookup tables both workbooks share), `style.py`, `template.py`,
+`example.py`, `consolidator.py` and `make.py`.

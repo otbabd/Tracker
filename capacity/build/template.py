@@ -18,6 +18,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 import refdata as R
 import style as S
+import tables as TB
 
 ASK_ROWS = 300          # generous headroom; no group will reach it
 CHANGE_ROWS = 40
@@ -43,121 +44,32 @@ def build_ref(wb: Workbook, bank: R.Bank, group: str) -> None:
     ws.sheet_state = "hidden"
     row = S.sheet_title(ws, "Reference data", "Do not edit. Maintained centrally.")
 
-    ws.cell(row=row, column=1, value="Settings").font = S.H1
-    row += 1
-    settings = [
-        ("Plan year", R.PLAN_YEAR, None),
-        ("Base year", R.BASE_YEAR, None),
-        ("Group", group, None),
-        ("Attrition rate (bank default)", R.DEFAULT_ATTRITION, S.PCT),
-        ("Productivity uplift (bank default)", R.DEFAULT_PRODUCTIVITY, S.PCT),
-        ("Salary inflation", R.DEFAULT_SALARY_INFLATION, S.PCT),
-        ("Employer GOSI - Saudi", R.GOSI_SAUDI, S.PCT),
-        ("Employer GOSI - non-Saudi", R.GOSI_NON_SAUDI, S.PCT),
-        ("One-off cost - grade below " + R.SENIOR_FROM, R.ONE_OFF_JUNIOR, S.MONEY),
-        ("One-off cost - grade " + R.SENIOR_FROM + " and above", R.ONE_OFF_SENIOR, S.MONEY),
-    ]
-    first_setting = row
-    for label, value, fmt in settings:
-        c = S.label_value(ws, row, label, value, fmt)
-        c.font = S.INPUT
-        row += 1
-    names = {
-        "PlanYear": first_setting, "BaseYear": first_setting + 1, "GroupName": first_setting + 2,
-        "AttritionDefault": first_setting + 3, "ProductivityDefault": first_setting + 4,
-        "SalaryInflation": first_setting + 5, "GosiSaudi": first_setting + 6,
-        "GosiOther": first_setting + 7, "OneOffJunior": first_setting + 8,
-        "OneOffSenior": first_setting + 9,
-    }
-    for name, r in names.items():
-        wb.defined_names.add(DefinedName(name, attr_text=f"'{SH_REF}'!$B${r}"))
+    row = TB.write_settings(wb, ws, SH_REF, row,
+                            extras=[("GroupName", "Group", group, None)])
 
     # Envelopes — the group's ceilings, set centrally.
-    row += 1
     ws.cell(row=row, column=1, value="Envelope for this group").font = S.H1
     row += 1
     tot = bank.group_totals(group)
     base_saudi = tot["saudi"] / tot["filled"] if tot["filled"] else 0
     env = [
-        ("Cost envelope (SAR '000)", round(tot["cost"] * 0.06, 0), S.MONEY),
-        ("Headcount envelope (net adds)", max(5, round(tot["approved"] * 0.05)), S.COUNT),
-        ("Saudization target", round(base_saudi + 0.02, 2), S.PCT),
+        ("CostEnvelope", "Cost envelope (SAR '000)", round(tot["cost"] * 0.06, 0), S.MONEY,
+         "Illustrative: six per cent of the group's current pay bill."),
+        ("HeadEnvelope", "Headcount envelope (net adds)",
+         max(5, round(tot["approved"] * 0.05)), S.COUNT,
+         "Illustrative: five per cent of the group's current establishment."),
+        ("SaudiTarget", "Saudization target", round(base_saudi + 0.02, 2), S.PCT,
+         "Illustrative: two points above where the group stands today."),
     ]
-    first_env = row
-    notes = [
-        "Illustrative: six per cent of the group's current pay bill.",
-        "Illustrative: five per cent of the group's current establishment.",
-        "Illustrative: two points above where the group stands today.",
-    ]
-    for (label, value, fmt), why in zip(env, notes):
+    for name, label, value, fmt, why in env:
         S.label_value(ws, row, label, value, fmt, note=why).font = S.INPUT
+        wb.defined_names.add(DefinedName(name, attr_text=f"'{SH_REF}'!$B${row}"))
         row += 1
-    for i, name in enumerate(["CostEnvelope", "HeadEnvelope", "SaudiTarget"]):
-        wb.defined_names.add(DefinedName(name, attr_text=f"'{SH_REF}'!$B${first_env + i}"))
-
-    # Grade cost table.
     row += 1
-    ws.cell(row=row, column=1, value="Grade cost table (SAR '000 per annum)").font = S.H1
-    ws.cell(row=row, column=6,
-            value="Illustrative rates — replace with Finance's own before use.").font = S.NOTE
-    row += 1
-    S.header_row(ws, row, ["Grade", "Basic", "Housing", "Transport", "Bonus %", "Rank"],
-                 [12, 12, 12, 12, 12, 8])
-    ws.freeze_panes = None
-    grade_first = row + 1
-    for i, (g, (b, h, t, bo)) in enumerate(R.GRADE_COST.items()):
-        r = grade_first + i
-        ws.cell(row=r, column=1, value=g)
-        ws.cell(row=r, column=2, value=b).number_format = S.MONEY
-        ws.cell(row=r, column=3, value=h).number_format = S.MONEY
-        ws.cell(row=r, column=4, value=t).number_format = S.MONEY
-        ws.cell(row=r, column=5, value=bo).number_format = S.PCT
-        ws.cell(row=r, column=6, value=i + 1)
-    grade_last = grade_first + len(R.GRADE_COST) - 1
-    for name, col in [("GradeList", "A"), ("GradeBasic", "B"), ("GradeHousing", "C"),
-                      ("GradeTransport", "D"), ("GradeBonus", "E"), ("GradeRank", "F")]:
-        wb.defined_names.add(
-            DefinedName(name, attr_text=f"'{SH_REF}'!${col}${grade_first}:${col}${grade_last}"))
-    row = grade_last + 2
 
-    # Ask drivers and their ranking category.
-    ws.cell(row=row, column=1, value="Ask drivers").font = S.H1
-    row += 1
-    S.header_row(ws, row, ["Driver", "Category", "Rank"], [40, 18, 8])
-    ws.freeze_panes = None
-    drv_first = row + 1
-    for i, (name, cat) in enumerate(R.ASK_DRIVERS):
-        r = drv_first + i
-        ws.cell(row=r, column=1, value=name)
-        ws.cell(row=r, column=2, value=cat)
-        ws.cell(row=r, column=3, value=R.rank_of(cat))
-    drv_last = drv_first + len(R.ASK_DRIVERS) - 1
-    for name, col in [("DriverList", "A"), ("DriverCategory", "B"), ("DriverRank", "C")]:
-        wb.defined_names.add(
-            DefinedName(name, attr_text=f"'{SH_REF}'!${col}${drv_first}:${col}${drv_last}"))
-    row = drv_last + 2
-
-    # Simple pick lists.
-    lists = [
-        ("WorkloadDrivers", [d for d, _ in R.WORKLOAD_DRIVERS]),
-        ("QuarterList", R.QUARTERS),
-        ("WorkforceTypes", R.WORKFORCE_TYPES),
-        ("SaudiBasisList", R.SAUDI_BASIS),
-        ("AskNatureList", R.ASK_NATURE),
-        ("StructureActions", R.STRUCTURE_ACTIONS),
-        ("LadderLevels", R.LADDER),
-        ("YesNo", ["Yes", "No"]),
-    ]
-    col = 1
-    for name, values in lists:
-        ws.cell(row=row, column=col, value=name.replace("List", "")).font = S.H2
-        for i, v in enumerate(values, start=1):
-            ws.cell(row=row + i, column=col, value=v)
-        letter = get_column_letter(col)
-        wb.defined_names.add(
-            DefinedName(name,
-                        attr_text=f"'{SH_REF}'!${letter}${row + 1}:${letter}${row + len(values)}"))
-        col += 2
+    row = TB.write_grades(wb, ws, SH_REF, row)
+    row = TB.write_drivers(wb, ws, SH_REF, row)
+    col = TB.write_lists(wb, ws, SH_REF, row)
 
     # Every unit in this group, for the asks dropdown.
     unit_col = col
@@ -844,6 +756,8 @@ def _position_charts(ws, cat_first, cat_last, q_first, q_last, row) -> None:
     bar.set_categories(cats)
     bar.series[0].graphicalProperties.solidFill = S.NAVY
     bar.series[0].graphicalProperties.line.noFill = True
+    bar.x_axis.scaling.orientation = "maxMin"
+    bar.y_axis.crosses = "max"
     ws.add_chart(bar, f"A{row}")
 
     col = BarChart()
