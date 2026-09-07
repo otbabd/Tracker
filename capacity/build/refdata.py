@@ -1,14 +1,13 @@
 """Reference data for the 2027 capacity exercise.
 
 Everything the three workbooks share: the bank's structure and 2026 baseline read
-from the org tool's own sample export, the grade cost table, the driver
-catalogues, and the exercise settings. Read once here so the template, the worked
+from the org tool's own sample export, the career-level rate card, the driver
+catalogue, and the exercise settings. Read once here so the template, the worked
 example and the consolidator cannot drift from each other.
 """
 from __future__ import annotations
 
 import csv
-import datetime as dt
 from collections import defaultdict
 from pathlib import Path
 
@@ -24,20 +23,40 @@ QUARTER_WEIGHT = {"Q1": 1.00, "Q2": 0.75, "Q3": 0.50, "Q4": 0.25}
 
 LADDER = ["Group", "Division", "Department", "Unit", "Sub-unit", "Section"]
 WORKFORCE_TYPES = ["Permanent", "Insourced", "Outsourced"]
-SAUDI_BASIS = ["Saudi", "Non-Saudi", "Undecided"]
-ASK_NATURE = ["Growth", "Replacement", "Conversion"]
 SUBMISSION_STATES = ["Draft", "Submitted", "Challenged", "Approved"]
 
+# ── Career level ───────────────────────────────────────────────────────────
+# A property of the job, not of the grade, so it cannot be derived from the org
+# export. These are placeholders: replace them with the bank's own ladder on the
+# Ref sheet, or supply the level per position in the export and it flows through.
+CAREER_LEVELS = [
+    "Executive",
+    "Senior Management",
+    "Management",
+    "Professional",
+    "Officer",
+    "Support",
+]
+
+# ── What each existing seat is meant to do in the plan year ────────────────
+# Only Exit moves the establishment. The others are intent, and Reduce is a
+# watch list rather than a number — see the note written onto the sheet.
+CAPACITY_DIRECTIONS = [
+    ("Grow", "More capacity needed here. The growth arrives as a row on the asks sheet."),
+    ("Hold", "Stays as it is."),
+    ("Reduce", "Under review. The seat stays for now and is revisited mid-year."),
+    ("Exit", "The seat lapses and comes out of the plan-year establishment."),
+]
+EXIT_DIRECTION = "Exit"
+
 # ── Ranking ────────────────────────────────────────────────────────────────
-# What a constrained scenario cuts first, and the order signed off with the
-# user: regulatory is untouchable, "other" goes first.
+# What a constrained scenario cuts first. The order is the user's: the growth
+# agenda sits above control capacity, and business as usual absorbs the cut.
 RANK_CATEGORIES = [
     ("Regulatory", 1, "Mandated by SAMA or another regulator; not discretionary."),
-    ("Risk", 2, "Risk and control capacity, including audit finding remediation."),
-    ("Revenue", 3, "Directly linked to income — volume growth, new product, coverage."),
-    ("Replacement", 4, "Backfilling capacity the bank already had and has lost."),
-    ("Efficiency", 5, "Pays for itself through automation, centralisation or insourcing."),
-    ("Other", 6, "Everything else. First to be cut when the envelope binds."),
+    ("Strategic", 2, "The growth agenda — volume, new products, coverage, automation."),
+    ("Control", 3, "Risk and control capacity, including audit finding remediation."),
+    ("BAU", 4, "Running the bank. First to be cut when the envelope binds."),
 ]
 
 # ── Why a position is being asked for ──────────────────────────────────────
@@ -45,58 +64,46 @@ ASK_DRIVERS = [
     ("SAMA regulatory requirement", "Regulatory"),
     ("New regulation implementation", "Regulatory"),
     ("Regulatory audit finding", "Regulatory"),
-    ("Risk framework uplift", "Risk"),
-    ("Control gap closure", "Risk"),
-    ("Internal audit finding", "Risk"),
-    ("Business continuity / resilience", "Risk"),
-    ("Volume growth - existing product", "Revenue"),
-    ("New product launch", "Revenue"),
-    ("Branch or channel expansion", "Revenue"),
-    ("Client coverage expansion", "Revenue"),
-    ("Backfill - resignation", "Replacement"),
-    ("Backfill - retirement", "Replacement"),
-    ("Backfill - internal move", "Replacement"),
-    ("Automation enablement", "Efficiency"),
-    ("Process centralisation", "Efficiency"),
-    ("Insourcing from vendor", "Efficiency"),
-    ("Service level improvement", "Other"),
-    ("Other - see note", "Other"),
+    ("Risk framework uplift", "Regulatory"),
+    ("Volume growth - existing product", "Strategic"),
+    ("New product launch", "Strategic"),
+    ("Branch or channel expansion", "Strategic"),
+    ("Client coverage expansion", "Strategic"),
+    ("Automation enablement", "Strategic"),
+    ("Control gap closure", "Control"),
+    ("Internal audit finding", "Control"),
+    ("Business continuity / resilience", "Control"),
+    ("Backfill - resignation", "BAU"),
+    ("Backfill - retirement", "BAU"),
+    ("Backfill - internal move", "BAU"),
+    ("Process centralisation", "BAU"),
+    ("Insourcing from vendor", "BAU"),
+    ("Service level improvement", "BAU"),
+    ("Other - see note", "BAU"),
 ]
 
-# ── What drives the workload in a unit ─────────────────────────────────────
-# A central catalogue so demand can be compared across groups, plus two slots
-# per group for the genuinely unique.
-WORKLOAD_DRIVERS = [
-    ("Accounts serviced", "accounts"),
-    ("Transactions processed", "transactions / yr"),
-    ("Applications processed", "applications / yr"),
-    ("Payments processed", "payments / yr"),
-    ("Cases or tickets handled", "cases / yr"),
-    ("Calls handled", "calls / yr"),
-    ("Customers covered", "customers"),
-    ("Branches supported", "branches"),
-    ("Audits or reviews delivered", "reviews / yr"),
-    ("Reports or returns produced", "returns / yr"),
-    ("Systems or applications supported", "systems"),
-    ("Change requests delivered", "changes / yr"),
-    ("Headcount supported", "employees"),
-    ("Group-specific driver 1", "(state the unit)"),
-    ("Group-specific driver 2", "(state the unit)"),
-]
+# ── The rate card ──────────────────────────────────────────────────────────
+# SAR '000 per annum, by career level. Illustrative and clearly marked as such:
+# these rates are the first thing Finance should replace, and every component is
+# separate so a rate can be challenged without rebuilding the model.
+#   career level: (basic, housing, transport, target bonus %, one-off of a hire)
+LEVEL_COST = {
+    "Executive":        (900, 225, 36, 0.30, 45),
+    "Senior Management": (540, 135, 30, 0.22, 45),
+    "Management":       (336, 84,  18, 0.15, 30),
+    "Professional":     (216, 54,  14, 0.10, 18),
+    "Officer":          (138, 35,  12, 0.07, 12),
+    "Support":          (96,  24,  12, 0.05, 12),
+}
+# Employer GOSI on basic + housing. Saudi nationals attract pension and
+# unemployment contributions; non-Saudis attract occupational hazard only. A
+# seat the bank has mandated as Saudi is costed at the Saudi rate.
+GOSI_SAUDI = 0.1175
+GOSI_NON_SAUDI = 0.02
 
-STRUCTURE_ACTIONS = [
-    "New unit",
-    "Move to a new parent",
-    "Rename",
-    "Merge into another unit",
-    "Close",
-]
-
-# ── Grade cost table ───────────────────────────────────────────────────────
-# SAR '000 per annum. Illustrative and clearly marked as such: the rates are the
-# first thing Finance should replace, and every component is separate so a rate
-# can be challenged without rebuilding the model.
-#   grade: (basic, housing, transport, target bonus %)
+# Grades are still in the org export and are the only cost signal the sample
+# data carries, so they set the illustrative envelope — and nothing else. No
+# formula in any workbook reads them.
 GRADE_COST = {
     "G9":  (96,  24,  12, 0.05),
     "G10": (120, 30,  12, 0.06),
@@ -108,13 +115,6 @@ GRADE_COST = {
     "G16": (630, 158, 30, 0.25),
     "G17": (900, 225, 36, 0.30),
 }
-# Employer GOSI on basic + housing. Saudi nationals attract pension and
-# unemployment contributions; non-Saudis attract occupational hazard only.
-GOSI_SAUDI = 0.1175
-GOSI_NON_SAUDI = 0.02
-# One-off cost of a hire, by grade band, recognised in the year of joining only.
-ONE_OFF_JUNIOR, ONE_OFF_SENIOR = 12, 45
-SENIOR_FROM = "G14"
 
 DEFAULT_ATTRITION = 0.09
 DEFAULT_PRODUCTIVITY = 0.03
@@ -194,7 +194,10 @@ class Bank:
                 b["filled"] += 0 if vacant else 1
                 b["vacant"] += 1 if vacant else 0
                 b["saudi"] += 1 if (saudi and not vacant) else 0
-                b["cost"] += loaded_cost(p.get("Grade", "G10"), saudi)
+                b["cost"] += envelope_cost(p.get("Grade", "G10"), saudi)
+
+        families = {(p.get("Job Family") or "").strip() for p in self.positions}
+        self.job_families = sorted(f for f in families if f)
 
     def group_key(self, group: str) -> str:
         return f"0|{group}"
@@ -217,69 +220,79 @@ class Bank:
     def group_totals(self, group: str) -> dict:
         return self.baseline[self.group_key(group)]
 
-    def named_leavers(self, group: str) -> list[dict]:
-        """Seats with a departure already booked, from the assignment end date."""
-        today = dt.date.today().isoformat()
+    def divisions(self, group: str) -> list[str]:
+        return [n["name"] for _, n in self.descend(self.group_key(group))
+                if n["level"] == 1]
+
+    def seats(self, group: str) -> list[dict]:
+        """One row per existing position, shaped for the Current capacity sheet.
+
+        Career level is absent on purpose: it is a property of the job rather
+        than of the grade, so it cannot be derived here. Add a "Career Level"
+        column to the export and it flows straight through.
+        """
         out = []
         for p in self.positions:
-            if p["Group"] != group:
+            if p.get("Group") != group:
                 continue
-            end = (p.get("Assignment End Date") or "").strip()
-            if not end or end < today:
-                continue
-            unit = next((p[c] for c in reversed(LADDER) if p.get(c)), "")
+            vacant = (p.get("Position Status") or "").strip().lower() == "vacant"
+            # A seat counts as one seat. The export carries a fractional FTE for
+            # part-timers, but the structure sheet counts positions, and two
+            # sheets in one file disagreeing about the establishment is worse
+            # than losing the half.
+            seat = 1.0
             out.append({
-                "unit": unit, "title": p.get("Job Title", ""),
-                "grade": p.get("Grade", ""), "date": end,
-                "quarter": quarter_of(end),
-                "reason": "Resignation / assignment end",
+                "mis": (p.get("Cost Center") or "").strip(),
+                "division": (p.get("Division") or "").strip(),
+                "department": (p.get("Department") or "").strip(),
+                "unit": (p.get("Unit") or "").strip(),
+                "sub_unit": (p.get("Sub-unit") or "").strip(),
+                "title": (p.get("Job Title") or "").strip(),
+                "level": (p.get("Career Level") or "").strip(),
+                "family": (p.get("Job Family") or "").strip(),
+                "worker_type": worker_type_of(p.get("Employment Type", "")),
+                "approved": seat,
+                "filled": 0.0 if vacant else seat,
+                "vacant": seat if vacant else 0.0,
             })
-        out.sort(key=lambda r: r["date"])
-        return out
-
-    def vacancies(self, group: str) -> list[dict]:
-        out = []
-        for p in self.positions:
-            if p["Group"] != group:
-                continue
-            if (p.get("Position Status") or "").strip().lower() != "vacant":
-                continue
-            unit = next((p[c] for c in reversed(LADDER) if p.get(c)), "")
-            out.append({
-                "unit": unit, "title": p.get("Job Title", ""),
-                "grade": p.get("Grade", ""),
-                "previous": (p.get("Previous Incumbent") or "").strip(),
-            })
-        out.sort(key=lambda r: (r["unit"], r["title"]))
+        out.sort(key=lambda r: (r["division"], r["department"], r["unit"],
+                                r["sub_unit"], r["title"]))
         return out
 
 
-def quarter_of(iso_date: str) -> str:
-    try:
-        m = int(iso_date[5:7])
-    except (ValueError, IndexError):
-        return "Q1"
-    return QUARTERS[min(3, (m - 1) // 3)]
+def worker_type_of(employment_type: str) -> str:
+    """The export's employment types, mapped onto the three the exercise uses."""
+    text = (employment_type or "").strip().lower()
+    if "outsourc" in text or "vendor" in text:
+        return "Outsourced"
+    if "insourc" in text or "contract" in text or "agency" in text:
+        return "Insourced"
+    return "Permanent"
 
 
 def gosi_rate(saudi: bool) -> float:
     return GOSI_SAUDI if saudi else GOSI_NON_SAUDI
 
 
-def loaded_cost(grade: str, saudi: bool = True) -> float:
-    """Annual loaded cost in SAR '000, matching the workbook's own formula."""
+def level_cost(level: str, mandated_saudi: bool = True) -> float:
+    """Full-year loaded cost in SAR '000, matching the workbook's own formula."""
+    if level not in LEVEL_COST:
+        return 0.0
+    basic, housing, transport, bonus, _ = LEVEL_COST[level]
+    return (basic + housing + transport + basic * bonus
+            + (basic + housing) * gosi_rate(mandated_saudi))
+
+
+def one_off(level: str) -> int:
+    """One-off cost of a hire, recognised in the year of joining only."""
+    return LEVEL_COST[level][4] if level in LEVEL_COST else 0
+
+
+def envelope_cost(grade: str, saudi: bool = True) -> float:
+    """Grade-based cost, used only to set the illustrative envelope from the
+    2026 population. No workbook formula reads it."""
     basic, housing, transport, bonus = GRADE_COST.get(grade, GRADE_COST["G10"])
     return basic + housing + transport + basic * bonus + (basic + housing) * gosi_rate(saudi)
-
-
-def one_off(grade: str) -> int:
-    """Grades are ordered by the table, not alphabetically: "G9" sorts after
-    "G14" as text, which is the wrong answer and an easy one to ship."""
-    order = list(GRADE_COST)
-    if grade not in order:
-        return ONE_OFF_JUNIOR
-    return ONE_OFF_SENIOR if order.index(grade) >= order.index(SENIOR_FROM) \
-        else ONE_OFF_JUNIOR
 
 
 def rank_of(category: str) -> int:
@@ -293,14 +306,18 @@ def driver_category(driver: str) -> str:
     for name, cat in ASK_DRIVERS:
         if name == driver:
             return cat
-    return "Other"
+    return RANK_CATEGORIES[-1][0]
 
 
 if __name__ == "__main__":
     bank = Bank()
-    print(f"{len(bank.groups)} groups, {len(bank.positions)} positions")
+    print(f"{len(bank.groups)} groups, {len(bank.positions)} positions, "
+          f"{len(bank.job_families)} job families")
     for g in bank.groups:
         t = bank.group_totals(g)
+        seats = bank.seats(g)
+        levelled = sum(1 for s in seats if s["level"])
         print(f"  {g:32} approved {t['approved']:5}  filled {t['filled']:5}"
-              f"  vacant {t['vacant']:4}  leavers {len(bank.named_leavers(g)):3}"
-              f"  cost {t['cost']:9,.0f}")
+              f"  vacant {t['vacant']:4}  seats {len(seats):4}"
+              f"  with a career level {levelled:4}"
+              f"  divisions {len(bank.divisions(g)):2}")

@@ -15,10 +15,14 @@ def main() -> int:
     started = time.time()
     failures = 0
     failures += test_build.run().report()
-    failures += test_template.run().report()
-    test_consolidator.SCRATCH.mkdir(parents=True, exist_ok=True)
-    prepared = test_consolidator.prepare(test_consolidator.SCRATCH / "filled.xlsx")
-    failures += test_consolidator.run(prepared).report()
+
+    test_template.SCRATCH.mkdir(parents=True, exist_ok=True)
+    example = test_template.prepare(test_template.SCRATCH / "example-check.xlsx")
+    failures += test_template.run(example).report()
+
+    filled = test_consolidator.prepare(test_consolidator.SCRATCH / "filled.xlsx")
+    failures += test_consolidator.run(filled).report()
+
     print(f"\n{'FAILED' if failures else 'All good'} in {time.time() - started:.0f}s")
     return 1 if failures else 0
 

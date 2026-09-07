@@ -466,7 +466,7 @@ Three kinds of file, all in `capacity/dist/`, all formulas and no macros:
 
 | File | For | Job |
 |---|---|---|
-| `templates/2027-Capacity-<Group>.xlsx` | each of the twelve groups | Their own structure and 2026 baseline, their asks, priced live, tested against their envelopes, with a check sheet that blocks submission until it is complete |
+| `templates/2027-Capacity-<Group>.xlsx` | each of the twelve groups | Their own establishment, already listed; what they intend to do with each seat; what they want on top; and where that lands against their envelopes |
 | `2027-Capacity-Example-RiskGroup.xlsx` | the kickoff pack | The same template, filled in properly |
 | `2027-Capacity-Consolidator.xlsx` | the central team | Twelve paste bands, central pricing, line-by-line challenge, four scenarios, dashboard and outputs |
 
@@ -474,30 +474,50 @@ Three kinds of file, all in `capacity/dist/`, all formulas and no macros:
 set before sending anything, how to paste a return, how to run the challenge and
 scenario meetings, and what to change to run it again next year.
 
+## What a group actually fills in
+
+Five sheets, and only three columns are genuinely new work.
+
+**`2. Current capacity`** arrives with every existing position on it — MIS code,
+the ladder down to sub-unit, job title, job family, worker type, approved,
+filled and vacant. The group supplies the **career level**, whether the seat is
+**mandated Saudi**, and its **capacity direction**: Grow, Hold, Reduce or Exit.
+
+Exit is the only place a seat leaves the establishment, which makes the giving-up
+half of the exercise as explicit as the asking half — a vacancy nobody needs any
+more is an Exit, and that is where quiet establishment creep gets cleaned up.
+Reduce keeps the seat and puts it on the mid-year watch list.
+
+**`3. Capacity asks`** takes one row per position wanted, placed in the quarter it
+should start. The total adds itself up from the quarter split, so the two can
+never disagree.
+
 ## How the numbers work
 
-**Cost.** A grade table of basic, housing, transport and target bonus, plus
-employer GOSI at the Saudi or non-Saudi rate, in SAR thousands. Every component
-is a separate column so a rate can be challenged without rebuilding the model.
-The rates ship illustrative and are the first thing Finance should replace.
+**Cost.** A rate card by career level: basic, housing, transport and target
+bonus, plus employer GOSI at the mandated or non-mandated rate, in SAR
+thousands. Every component is a separate column so a rate can be challenged
+without rebuilding the model. The rates ship illustrative and are the first
+thing Finance should replace. A seat with no career level cannot be priced and
+shows as a dash rather than as a plausible wrong number.
 
-**Phasing.** A position starting in Q1 is paid for four quarters, one starting in
-Q4 for one. Full-year run-rate is carried separately, so the cost walking into
-2028 is visible while the in-year number is being argued about.
+**Two costs, kept apart.** Headcount is a stock, so the cost beside it is the
+full-year run-rate. The part-year cash cost of the plan year sits underneath as
+its own line. Mixing them in one row is how a capacity paper gets approved twice.
 
 **Ranking.** Every ask carries a driver, and drivers carry a priority:
-regulatory, risk, revenue, replacement, efficiency, other. A sort key of
-`priority × 10⁶ + row` gives every line a unique place in the queue; running
-totals decide what fits the envelope. Regulatory is funded first and "other"
-falls out first.
+regulatory, strategic, control, BAU. A sort key of `priority × 10⁶ + row` gives
+every line a unique place in the queue; running totals decide what fits the
+envelope. Regulatory is funded first and BAU falls out first.
 
 **Scenarios.** Four cases over six levers — demand, share of envelope released,
 timing, attrition, salary inflation and productivity — computed for every line
-in parallel rather than through a switch, so the four are live side by side.
+in parallel rather than through a switch. The cut is made against run-rate, so
+a timing shift buys cash and not headcount, and the sheet says so.
 
-**The bridge.** Opening 2026 establishment, less lapsed vacancies, less closures
-and merges, plus approved growth, equals the closing 2027 establishment. Seats,
-not people: replacements and conversions keep a seat that already exists.
+**The bridge.** Opening 2026 establishment, less the seats groups marked Exit,
+plus the positions approved, equals the closing 2027 establishment. Seats, not
+people.
 
 ## Rebuilding and testing
 
@@ -507,12 +527,14 @@ python3 capacity/tests/run_all.py  # ~3,300 checks against an independent model
 ```
 
 Both need LibreOffice: a workbook of formulas that has never been recalculated is
-a guess. The test suite builds each file, recalculates it, and then recomputes
-every figure — loaded cost, part-year phasing, the ranked cut under all four
-scenarios, the bridge, the envelope verdicts — in Python from the same inputs,
-so a wrong formula and a wrong expectation cannot agree with each other. It also
-pushes a full twelve-group exercise through the consolidator, with Risk Group's
-band pasted from the worked example exactly as the central team would paste it.
+a guess. The test suite builds each file, recalculates it, then recomputes every
+figure — the rate card, the quarter phasing, the ranked cut under all four
+scenarios, the bridge, the envelope verdicts — in Python from the same inputs, so
+a wrong formula and a wrong expectation cannot agree with each other. It pushes a
+full twelve-group exercise through the consolidator, with Risk Group's bands
+pasted from the worked example exactly as the central team would paste them, and
+it asserts that no formula in the template names another sheet — the property
+that keeps a renamed tab from breaking the file.
 
 `capacity/build/` holds the generators: `refdata.py` (the bank, the rates and the
 catalogues, read from the org tool's own sample export so the two cannot drift),

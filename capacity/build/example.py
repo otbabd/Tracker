@@ -2,12 +2,15 @@
 
 This is the file that goes in the kickoff pack. It is the same template every
 group receives — nothing is added to it — with a plausible set of answers typed
-into the yellow cells, so a group head can see what a good submission looks like
-before starting their own.
+into the cells that are theirs, so a group head can see what a good submission
+looks like before starting their own.
+
+It also stands in for the one thing the org export cannot supply: a career level
+against every seat. Here they are filled in from the sample's job families; in
+the real exercise the bank supplies them.
 """
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -18,213 +21,193 @@ import template as T
 GROUP = "Risk Group"
 DIST = Path(__file__).resolve().parents[1] / "dist"
 
-# What drives the work in a risk unit. Matched on the unit's own name so the
-# example reads like someone who knows the group filled it in.
-DRIVER_HINTS = [
-    ("audit", "Audits or reviews delivered"),
-    ("review", "Audits or reviews delivered"),
-    ("report", "Reports or returns produced"),
-    ("regulat", "Reports or returns produced"),
-    ("model", "Change requests delivered"),
-    ("credit", "Applications processed"),
-    ("underwrit", "Applications processed"),
-    ("fraud", "Cases or tickets handled"),
-    ("collect", "Cases or tickets handled"),
-    ("recover", "Cases or tickets handled"),
-    ("operational", "Cases or tickets handled"),
-    ("market", "Transactions processed"),
-    ("liquid", "Transactions processed"),
-    ("portfolio", "Accounts serviced"),
-    ("data", "Systems or applications supported"),
-    ("system", "Systems or applications supported"),
-    ("policy", "Reports or returns produced"),
-    ("govern", "Reports or returns produced"),
-]
-FALLBACK_DRIVERS = [
-    "Cases or tickets handled", "Reports or returns produced",
-    "Audits or reviews delivered", "Accounts serviced",
-]
-
-COVER_NOTES = [
-    "", "", "Two insourced analysts since March",
-    "Overtime running at about 6% of hours", "",
-    "One vendor resource covering month-end", "",
+# The sample export's job families happen to read like a level ladder, which is
+# what makes them usable here. Real data will need the bank's own mapping.
+FAMILY_TO_LEVEL = {
+    "Executive": "Executive",
+    "Leadership": "Senior Management",
+    "Management": "Management",
+    "Professional": "Professional",
+}
+TITLE_TO_LEVEL = [
+    ("head of", "Senior Management"),
+    ("chief", "Executive"),
+    ("manager", "Management"),
+    ("team lead", "Management"),
+    ("senior", "Professional"),
+    ("specialist", "Professional"),
+    ("analyst", "Officer"),
+    ("officer", "Officer"),
+    ("associate", "Officer"),
+    ("assistant", "Support"),
 ]
 
 
-def driver_for(name: str, i: int) -> str:
-    low = name.lower()
-    for key, driver in DRIVER_HINTS:
+def level_for(seat: dict) -> str:
+    """What the bank would fill in: the level of the job, not of the grade."""
+    low = seat["title"].lower()
+    for key, level in TITLE_TO_LEVEL:
         if key in low:
-            return driver
-    return FALLBACK_DRIVERS[i % len(FALLBACK_DRIVERS)]
+            return level
+    return FAMILY_TO_LEVEL.get(seat["family"], "Professional")
+
+
+def place(bank: R.Bank, group: str, keyword: str) -> dict:
+    """Find a real unit by name and fill in the ladder above it.
+
+    An ask has to name a unit that exists, and a division that matches it, or the
+    check sheet is right to reject it. Rather than typing four columns by hand
+    and getting one wrong, look the placement up.
+    """
+    key = None
+    for k, node in bank.descend(bank.group_key(group)):
+        if node["level"] >= 2 and keyword.lower() in node["name"].lower():
+            key = k
+            break
+    if key is None:
+        key = next(k for k, n in bank.descend(bank.group_key(group))
+                   if n["level"] == 2)
+    chain = {}
+    while key is not None:
+        node = bank.nodes[key]
+        chain[node["level"]] = node["name"]
+        key = node["parent"]
+    return {
+        "division": chain.get(1, ""),
+        "department": chain.get(2, ""),
+        "unit": chain.get(3, chain.get(2, "")),
+        "sub_unit": chain.get(4, ""),
+    }
 
 
 # The asks. Written by hand rather than generated: the point of the example is
 # that the justifications read like a person wrote them.
+#   (unit keyword, job title, career level, worker type, {quarter: number},
+#    driver, alternatives considered)
 ASKS = [
-    ("Senior Model Validation Analyst", "G13", "Permanent", "Saudi", "Growth", 1, "Q1",
-     "SAMA regulatory requirement",
+    ("Risk Modelling", "Senior Model Validation Analyst", "Professional", "Permanent",
+     {"Q1": 1}, "SAMA regulatory requirement",
      "Reviewed with Model Risk; the existing two validators cannot cover the "
-     "IFRS 9 revalidation and the new scorecards in the same year.",
-     "Two models deferred to 2028 if not filled"),
-    ("Model Validation Analyst", "G11", "Permanent", "Saudi", "Growth", 1, "Q2",
-     "New regulation implementation",
+     "IFRS 9 revalidation and the new scorecards in the same year."),
+    ("Risk Modelling", "Model Validation Analyst", "Officer", "Permanent",
+     {"Q2": 1}, "New regulation implementation",
      "Considered using the vendor panel; rejected on cost and on the "
-     "independence requirement.", "Supports the new unit NEW-01"),
-    ("Head of Model Validation", "G15", "Permanent", "Saudi", "Growth", 1, "Q1",
-     "SAMA regulatory requirement",
+     "independence requirement."),
+    ("Risk Modelling", "Head of Model Validation", "Senior Management", "Permanent",
+     {"Q1": 1}, "SAMA regulatory requirement",
      "Cannot be covered by the existing Head of Model Risk without breaching "
-     "the separation SAMA asked for in the 2026 review.", "Leads NEW-01"),
-    ("Credit Risk Analyst", "G11", "Permanent", "Saudi", "Growth", 2, "Q2",
-     "Volume growth - existing product",
+     "the separation SAMA asked for in the 2026 review."),
+    ("Corporate Credit Risk", "Credit Risk Analyst", "Officer", "Permanent",
+     {"Q2": 1, "Q3": 1}, "Volume growth - existing product",
      "Automation of the pre-screen took out about 15% of the manual work; the "
-     "residual volume still needs two more analysts.",
-     "Corporate book growing 18% on plan"),
-    ("Senior Credit Risk Analyst", "G13", "Permanent", "Saudi", "Growth", 1, "Q3",
-     "Volume growth - existing product",
-     "Start held to Q3 so the cost lands half-year.", ""),
-    ("Operational Risk Officer", "G12", "Permanent", "Saudi", "Replacement", 1, "Q1",
-     "Backfill - resignation",
-     "Same role, same grade. The work does not stop when the person leaves.",
-     "Leaver confirmed on sheet 3"),
-    ("Operational Risk Officer", "G12", "Permanent", "Saudi", "Replacement", 1, "Q2",
-     "Backfill - retirement", "Retirement known since 2025; no change to the role.", ""),
-    ("Fraud Analyst", "G10", "Permanent", "Saudi", "Growth", 1, "Q2",
-     "Control gap closure",
+     "residual volume still needs two more analysts."),
+    ("Credit Administration", "Senior Credit Risk Analyst", "Professional", "Permanent",
+     {"Q3": 1}, "Volume growth - existing product",
+     "Start held to Q3 so the cost lands half-year."),
+    ("Operational Risk", "Operational Risk Officer", "Officer", "Permanent",
+     {"Q1": 1}, "Backfill - resignation",
+     "Same role, same level. The work does not stop when the person leaves."),
+    ("Operational Risk", "Operational Risk Officer", "Officer", "Permanent",
+     {"Q2": 1}, "Backfill - retirement",
+     "Retirement known since 2025; no change to the role."),
+    ("Business Continuity", "Resilience Analyst", "Officer", "Permanent",
+     {"Q2": 1}, "Control gap closure",
      "The 2026 internal audit finding on out-of-hours cover cannot be closed "
-     "with the current five-person rota.", "Audit finding OR-2026-14"),
-    ("Senior Fraud Analyst", "G12", "Permanent", "Saudi", "Growth", 1, "Q3",
-     "Internal audit finding",
+     "with the current five-person rota."),
+    ("Business Continuity", "Senior Resilience Specialist", "Professional", "Permanent",
+     {"Q3": 1}, "Internal audit finding",
      "Considered extending the outsourced night shift; rejected because the "
-     "finding is specifically about decision authority sitting outside the bank.", ""),
-    ("Risk Reporting Analyst", "G11", "Permanent", "Saudi", "Conversion", 1, "Q2",
-     "Insourcing from vendor",
+     "finding is specifically about decision authority sitting outside the bank."),
+    ("IFRS 9", "Risk Reporting Analyst", "Officer", "Permanent",
+     {"Q2": 1}, "Insourcing from vendor",
      "Currently an outsourced seat at a higher day rate. Converting is cheaper "
-     "from month nine and keeps the reporting logic in-house.",
-     "Replaces an outsourced seat"),
-    ("Risk Data Engineer", "G13", "Permanent", "Non-Saudi", "Growth", 1, "Q3",
-     "Automation enablement",
-     "Pays back inside eighteen months on the manual reconciliation it removes.",
-     "Scarce skill; market rate assumed at grade"),
-    ("Risk Data Analyst", "G11", "Permanent", "Saudi", "Growth", 1, "Q3",
-     "Automation enablement", "Works alongside the engineer above.", ""),
-    ("Market Risk Analyst", "G12", "Permanent", "Saudi", "Growth", 1, "Q2",
-     "Risk framework uplift",
+     "from month nine and keeps the reporting logic in-house."),
+    ("Risk Analytics", "Risk Data Engineer", "Professional", "Permanent",
+     {"Q3": 1}, "Automation enablement",
+     "Pays back inside eighteen months on the manual reconciliation it removes."),
+    ("Market Risk", "Market Risk Analyst", "Officer", "Permanent",
+     {"Q2": 1}, "Risk framework uplift",
      "The revised limit framework needs daily monitoring the current team "
-     "cannot absorb on top of the FRTB work.", ""),
-    ("Liquidity Risk Analyst", "G12", "Permanent", "Saudi", "Growth", 1, "Q4",
-     "Regulatory audit finding",
-     "Deferred to Q4 deliberately; the framework work has to land first.", ""),
-    ("Portfolio Monitoring Officer", "G10", "Permanent", "Saudi", "Growth", 1, "Q3",
-     "Volume growth - existing product",
-     "Considered raising the review threshold instead; rejected by the Credit "
-     "Committee in October.", ""),
-    ("Collections Officer", "G9", "Insourced", "Saudi", "Growth", 1, "Q2",
-     "Volume growth - existing product",
+     "cannot absorb on top of the FRTB work."),
+    ("Liquidity Risk", "Liquidity Risk Analyst", "Officer", "Permanent",
+     {"Q4": 1}, "Regulatory audit finding",
+     "Deferred to Q4 deliberately; the framework work has to land first."),
+    ("Retail Credit Risk", "Portfolio Monitoring Officer", "Officer", "Insourced",
+     {"Q3": 1}, "Volume growth - existing product",
      "Insourced rather than permanent because the volume peak is expected to "
-     "unwind once the 2026 vintage runs off.", "Reviewed again at 2028 planning"),
-    ("Risk Governance Officer", "G12", "Permanent", "Saudi", "Replacement", 1, "Q1",
-     "Backfill - internal move",
-     "Moved to Compliance in November; the committee secretariat still needs "
-     "running.", ""),
-    ("Risk Policy Specialist", "G13", "Permanent", "Saudi", "Growth", 1, "Q4",
-     "New regulation implementation",
-     "Considered a fixed-term contract; the policy work is continuing, not a "
-     "project.", ""),
+     "unwind once the 2026 vintage runs off."),
+]
+
+# Seats the group is giving up. Keyword and job-title fragment, so the example
+# does not depend on which row the export happens to put them on.
+EXITS = [
+    ("Business Continuity", "Analyst"),
+    ("Credit Administration", "Associate"),
+    ("Market Risk", "Analyst"),
+    ("Liquidity Risk", "Officer"),
+    ("Retail Credit Risk", "Analyst"),
 ]
 
 
 def fill(layout: dict, bank: R.Bank, path: Path) -> Path:
-    rng = random.Random(2027)
     wb = load_workbook(path)
+    C, A = layout["cap_cols"], layout["ask_cols"]
 
     # ── 2. Current capacity ────────────────────────────────────────────────
     ws = wb[T.SH_CAP]
-    first, last = layout["cap"]
-    units = [(k, n) for k, n in bank.descend(bank.group_key(GROUP))
-             if 2 <= n["level"] <= 3]
-    for i, (key, node) in enumerate(units):
+    seats = bank.seats(GROUP)
+    first = layout["cap"]["first"]
+    exits_wanted = list(EXITS)
+    for i, seat in enumerate(seats):
         r = first + i
-        filled = bank.baseline[key]["filled"] or 1
-        driver = driver_for(node["name"], i)
-        scale = {"Accounts serviced": 900, "Transactions processed": 14000,
-                 "Applications processed": 1100, "Cases or tickets handled": 2400,
-                 "Audits or reviews delivered": 9, "Reports or returns produced": 55,
-                 "Systems or applications supported": 6,
-                 "Change requests delivered": 40}.get(driver, 800)
-        base_vol = int(filled * scale * rng.uniform(0.85, 1.2))
-        growth = rng.choice([0.05, 0.07, 0.09, 0.12, 0.15, 0.18])
-        ws.cell(row=r, column=5, value=driver)
-        ws.cell(row=r, column=6, value=base_vol)
-        ws.cell(row=r, column=7, value=int(base_vol * (1 + growth)))
-        ws.cell(row=r, column=9, value=round(filled * rng.uniform(0.75, 0.95), 1))
-        if i % 4 == 0:                      # a few units commit to more than the default
-            ws.cell(row=r, column=11, value=rng.choice([0.04, 0.05, 0.06]))
-        ws.cell(row=r, column=14, value=COVER_NOTES[i % len(COVER_NOTES)] or None)
-        ws.cell(row=r, column=15, value=rng.choice([2, 3, 3, 4, 4, 5]))
+        ws[f"{C['Career Level']}{r}"] = level_for(seat)
+        # Two seats in three are mandated Saudi. A real group answers this seat
+        # by seat; the pattern here just has to be plausible and reproducible.
+        ws[f"{C['Nationality Mandate?']}{r}"] = "No" if i % 3 == 0 else "Yes"
 
-    # ── 3. Attrition & pipeline ────────────────────────────────────────────
-    ws = wb[T.SH_ATTR]
-    attr = layout["attr"]
-    ws.cell(row=attr["rate_row"], column=2, value=0.10)
-    leavers = bank.named_leavers(GROUP)
-    for i in range(len(leavers)):
-        r = attr["leaver_first"] + i
-        ws.cell(row=r, column=7, value="No" if i % 6 == 5 else "Yes")
-    vac = bank.vacancies(GROUP)
-    for i in range(len(vac)):
-        r = attr["vac_first"] + i
-        keep = i % 7 != 6
-        ws.cell(row=r, column=5, value="Yes" if keep else "No")
-        ws.cell(row=r, column=6,
-                value=None if keep else "Work absorbed by the 2026 automation release")
+        direction = "Hold"
+        for j, (unit_key, title_key) in enumerate(exits_wanted):
+            if (seat["vacant"] and unit_key.lower() in seat["unit"].lower()
+                    and title_key.lower() in seat["title"].lower()):
+                direction = R.EXIT_DIRECTION
+                exits_wanted.pop(j)
+                break
+        else:
+            if i % 17 == 3:
+                direction = "Grow"
+            elif i % 29 == 5:
+                direction = "Reduce"
+        ws[f"{C['Capacity Direction']}{r}"] = direction
 
-    # ── 4. Structure changes ───────────────────────────────────────────────
-    ws = wb[T.SH_CHG]
-    cfirst, _ = layout["chg"]
-    parents = [n["name"] for _, n in bank.descend(bank.group_key(GROUP))
-               if n["level"] == 1]
-    parent = parents[0] if parents else GROUP
-    changes = [
-        ("New unit", "Model Validation", "Unit", parent, "Control",
-         "Independent validation, separated from model development at SAMA's "
-         "request in the 2026 review.", None, "Q1"),
-        ("Merge into another unit", "Operational Risk Reporting", "Sub-unit", parent,
-         "Control",
-         "Folded into Risk Reporting: one reporting team, one calendar, two "
-         "people released.", 2, "Q2"),
-        ("Close", "Basel Programme Office", "Unit", parent, "Project",
-         "The programme closes in 2026; the residual work moves into policy.",
-         1, "Q3"),
-    ]
-    for i, (action, name, level, par, ftype, why, people, when) in enumerate(changes):
-        r = cfirst + i
-        for col, value in zip(range(2, 10),
-                              [action, name, level, par, ftype, why, people, when]):
-            ws.cell(row=r, column=col, value=value)
-
-    # ── 5. Capacity asks ───────────────────────────────────────────────────
+    # ── 3. Capacity asks ───────────────────────────────────────────────────
     ws = wb[T.SH_ASK]
-    unit_names = [n["name"] for _, n in bank.descend(bank.group_key(GROUP))
-                  if n["level"] >= 2]
-    for i, ask in enumerate(ASKS):
-        (title, grade, wtype, basis, nature, fte, quarter, driver,
-         alternatives, note) = ask
-        r = layout["ask_first"] + i
-        unit = ("NEW-01" if "Model Validation" in title
-                else unit_names[i % len(unit_names)])
-        for col, value in zip(range(2, 15), [
-                unit, title, grade, wtype, basis, nature, fte, quarter, driver,
-                None, None, alternatives, note or None]):
-            if col in (11, 12):             # category and rank are computed
-                continue
-            ws.cell(row=r, column=col, value=value)
+    first = layout["ask"]["first"]
+    families = bank.job_families
+    for i, (unit_key, title, level, worker, quarters, driver, why) in enumerate(ASKS):
+        r = first + i
+        where = place(bank, GROUP, unit_key)
+        ws[f"{A['Division']}{r}"] = where["division"]
+        ws[f"{A['Department']}{r}"] = where["department"]
+        ws[f"{A['Unit']}{r}"] = where["unit"]
+        ws[f"{A['Sub-Unit']}{r}"] = where["sub_unit"] or None
+        ws[f"{A['Job title']}{r}"] = title
+        ws[f"{A['Career Level']}{r}"] = level
+        # The job family is the bank's own catalogue; pick the one that matches
+        # the level where the sample's families line up with it.
+        ws[f"{A['Job Family']}{r}"] = next(
+            (f for f, lv in FAMILY_TO_LEVEL.items() if lv == level),
+            families[-1] if families else "Professional")
+        ws[f"{A['Worker type']}{r}"] = worker
+        for q, n in quarters.items():
+            ws[f"{A[q]}{r}"] = n
+        ws[f"{A['Driver']}{r}"] = driver
+        ws[f"{A['Alternatives considered']}{r}"] = why
 
-    # ── 7. Check & submit ──────────────────────────────────────────────────
+    # ── 5. Check & submit ──────────────────────────────────────────────────
     ws = wb[T.SH_CHK]
     chk = layout["chk"]
-    ws.cell(row=chk["ready_row"] + 1, column=2, value="Head of Risk Portfolio & Planning")
+    ws.cell(row=chk["ready_row"] + 1, column=2,
+            value="Head of Risk Portfolio & Planning")
     ws.cell(row=chk["ready_row"] + 2, column=2, value="risk.planning@bank.example")
     ws.cell(row=chk["ready_row"] + 3, column=2, value=f"15 October {R.BASE_YEAR}")
     ws.cell(row=chk["state_row"], column=2, value="Submitted")

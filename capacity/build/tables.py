@@ -30,9 +30,6 @@ def write_settings(wb, ws, sheet: str, row: int, extras=()) -> int:
         ("SalaryInflation", "Salary inflation", R.DEFAULT_SALARY_INFLATION, S.PCT),
         ("GosiSaudi", "Employer GOSI - Saudi", R.GOSI_SAUDI, S.PCT),
         ("GosiOther", "Employer GOSI - non-Saudi", R.GOSI_NON_SAUDI, S.PCT),
-        ("OneOffJunior", f"One-off cost - below {R.SENIOR_FROM}", R.ONE_OFF_JUNIOR, S.MONEY),
-        ("OneOffSenior", f"One-off cost - {R.SENIOR_FROM} and above",
-         R.ONE_OFF_SENIOR, S.MONEY),
     ] + list(extras)
     for name, label, value, fmt in settings:
         S.label_value(ws, row, label, value, fmt).font = S.INPUT
@@ -41,24 +38,31 @@ def write_settings(wb, ws, sheet: str, row: int, extras=()) -> int:
     return row + 1
 
 
-def write_grades(wb, ws, sheet: str, row: int) -> int:
-    ws.cell(row=row, column=1, value="Grade cost table (SAR '000 per annum)").font = S.H1
-    ws.cell(row=row, column=6,
+def write_rate_card(wb, ws, sheet: str, row: int) -> int:
+    """The rate card, keyed on career level. The one place a cost is stated."""
+    ws.cell(row=row, column=1,
+            value="Rate card by career level (SAR '000 per annum)").font = S.H1
+    ws.cell(row=row, column=7,
             value="Illustrative rates — replace with Finance's own before use.").font = S.NOTE
     row += 1
-    S.header_row(ws, row, ["Grade", "Basic", "Housing", "Transport", "Bonus %", "Rank"],
-                 [16, 12, 12, 12, 12, 8])
+    S.header_row(ws, row, ["Career level", "Basic", "Housing", "Transport",
+                           "Bonus %", "One-off of a hire", "Full-year loaded cost"],
+                 [22, 12, 12, 12, 12, 16, 20])
     ws.freeze_panes = None
     first = row + 1
-    for i, (g, (b, h, t, bo)) in enumerate(R.GRADE_COST.items()):
+    for i, (level, (b, h, t, bo, one)) in enumerate(R.LEVEL_COST.items()):
         r = first + i
-        ws.cell(row=r, column=1, value=g)
+        ws.cell(row=r, column=1, value=level)
         for col, value, fmt in [(2, b, S.MONEY), (3, h, S.MONEY), (4, t, S.MONEY),
-                                (5, bo, S.PCT), (6, i + 1, S.COUNT)]:
+                                (5, bo, S.PCT), (6, one, S.MONEY)]:
             ws.cell(row=r, column=col, value=value).number_format = fmt
-    last = first + len(R.GRADE_COST) - 1
-    for name, col in [("GradeList", "A"), ("GradeBasic", "B"), ("GradeHousing", "C"),
-                      ("GradeTransport", "D"), ("GradeBonus", "E"), ("GradeRank", "F")]:
+        # Shown, not hidden: the reader can see what the loaded cost is made of.
+        ws.cell(row=r, column=7, value=(
+            f"=$B{r}+$C{r}+$D{r}+$B{r}*$E{r}+($B{r}+$C{r})*GosiSaudi")
+        ).number_format = S.MONEY
+    last = first + len(R.LEVEL_COST) - 1
+    for name, col in [("LevelList", "A"), ("LevelBasic", "B"), ("LevelHousing", "C"),
+                      ("LevelTransport", "D"), ("LevelBonus", "E"), ("LevelOneOff", "F")]:
         _name(wb, sheet, name, f"${col}${first}:${col}${last}")
     return last + 2
 
@@ -83,12 +87,9 @@ def write_drivers(wb, ws, sheet: str, row: int) -> int:
 def write_lists(wb, ws, sheet: str, row: int, extra=()) -> int:
     """The pick lists, side by side. Returns the next free column."""
     lists = [
-        ("WorkloadDrivers", [d for d, _ in R.WORKLOAD_DRIVERS]),
         ("QuarterList", R.QUARTERS),
-        ("WorkforceTypes", R.WORKFORCE_TYPES),
-        ("SaudiBasisList", R.SAUDI_BASIS),
-        ("AskNatureList", R.ASK_NATURE),
-        ("StructureActions", R.STRUCTURE_ACTIONS),
+        ("WorkerTypes", R.WORKFORCE_TYPES),
+        ("DirectionList", [d for d, _ in R.CAPACITY_DIRECTIONS]),
         ("LadderLevels", R.LADDER),
         ("CategoryList", [c for c, _, _ in R.RANK_CATEGORIES]),
         ("YesNo", ["Yes", "No"]),

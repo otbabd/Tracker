@@ -11,28 +11,49 @@ import refdata as R
 QI = {q: i + 1 for i, q in enumerate(R.QUARTERS)}
 
 
-def loaded(grade: str, saudi_basis: str) -> float:
-    b, h, t, bonus = R.GRADE_COST[grade]
-    gosi = R.GOSI_SAUDI if saudi_basis == "Saudi" else R.GOSI_NON_SAUDI
+def rate(level: str) -> float:
+    """Full-year loaded cost of one seat, in SAR '000. An unknown or blank
+    career level costs nothing — which is what makes it show as a dash rather
+    than as a plausible wrong number."""
+    if level not in R.LEVEL_COST:
+        return 0.0
+    b, h, t, bonus, _ = R.LEVEL_COST[level]
+    return b + h + t + b * bonus + (b + h) * R.GOSI_SAUDI
+
+
+def rate_mandated(level: str, mandated: str) -> float:
+    """The seat rate the template uses: a mandated seat carries Saudi GOSI, the
+    rest the non-Saudi rate."""
+    if level not in R.LEVEL_COST:
+        return 0.0
+    b, h, t, bonus, _ = R.LEVEL_COST[level]
+    gosi = R.GOSI_SAUDI if mandated == "Yes" else R.GOSI_NON_SAUDI
     return b + h + t + b * bonus + (b + h) * gosi
 
 
-def one_off(grade: str) -> int:
-    order = list(R.GRADE_COST)
-    return (R.ONE_OFF_SENIOR if order.index(grade) >= order.index(R.SENIOR_FROM)
-            else R.ONE_OFF_JUNIOR)
+def one_off(level: str) -> float:
+    return R.LEVEL_COST[level][4] if level in R.LEVEL_COST else 0.0
 
 
-def in_year(grade: str, saudi_basis: str, fte: float, quarter: str,
-            inflation: float = 0.0) -> float:
-    """Part-year cost in the plan year: a Q1 start is paid four quarters."""
-    full = loaded(grade, saudi_basis) * (1 + inflation)
-    return full * fte * (5 - QI[quarter]) / 4 + one_off(grade) * fte
+def weight(quarter: str, shift: int = 0) -> float:
+    """A Q1 start is paid four quarters of the year, a Q4 start one."""
+    return (5 - min(4, QI[quarter] + shift)) / 4
 
 
-def run_rate(grade: str, saudi_basis: str, fte: float,
-             inflation: float = 0.0) -> float:
-    return loaded(grade, saudi_basis) * (1 + inflation) * fte
+def ask_total(ask: dict) -> float:
+    return sum(float(ask.get(q) or 0) for q in R.QUARTERS)
+
+
+def in_year(ask: dict, shift: int = 0, inflation: float = 0.0,
+            scale: float = 1.0) -> float:
+    """Cash cost of one ask line in the plan year, at its own quarter split."""
+    r = rate(ask["level"]) * (1 + inflation)
+    phased = sum(float(ask.get(q) or 0) * weight(q, shift) for q in R.QUARTERS)
+    return r * phased * scale + one_off(ask["level"]) * ask_total(ask) * scale
+
+
+def run_rate(ask: dict, inflation: float = 0.0, scale: float = 1.0) -> float:
+    return rate(ask["level"]) * (1 + inflation) * ask_total(ask) * scale
 
 
 def effective(line: dict) -> tuple[float | None, str | None]:
@@ -41,46 +62,54 @@ def effective(line: dict) -> tuple[float | None, str | None]:
     if not decision:
         return None, None
     if decision == "Decline":
-        fte = 0.0
+        total = 0.0
     elif decision == "Approve fewer":
-        fte = line.get("approved_fte")
-        if fte is None:
+        total = line.get("approved")
+        if total is None:
             return None, None
     else:
-        fte = line["fte"]
-    quarter = line.get("approved_quarter") or line["quarter"]
-    return float(fte), quarter
+        total = ask_total(line)
+    quarter = line.get("approved_quarter") or first_quarter(line)
+    return float(total), quarter
 
 
-def scenario_fte(line: dict, demand: float, productivity: float) -> float:
-    return line["fte"] * demand / (1 + R.DEFAULT_PRODUCTIVITY * (productivity - 1))
+def first_quarter(ask: dict) -> str | None:
+    """The earliest quarter the group asked for — the start the centre
+    challenges against."""
+    for q in R.QUARTERS:
+        if float(ask.get(q) or 0) > 0:
+            return q
+    return None
 
 
-def scenario_quarter(line: dict, shift: int) -> int:
-    return min(4, QI[line["quarter"]] + shift)
+def approved_in_year(line: dict, total: float, quarter: str) -> float:
+    return rate(line["level"]) * total * weight(quarter) + one_off(line["level"]) * total
 
 
-def scenario_cost(line: dict, fte: float, qi: int, inflation: float) -> float:
-    full = loaded(line["grade"], line["saudi"]) * (1 + inflation)
-    return full * fte * (5 - qi) / 4 + one_off(line["grade"]) * fte
+def scenario_scale(demand: float, productivity: float) -> float:
+    return demand / (1 + R.DEFAULT_PRODUCTIVITY * (productivity - 1))
 
 
 def funded_set(lines: dict, demand: float, share: float, shift: int,
                inflation: float, productivity: float, envelope: float) -> dict:
-    """The ranked cut: lines fund in key order until the envelope runs out."""
+    """The ranked cut: lines fund in key order until the envelope runs out.
+
+    The cut is made against run-rate cost, not against cash, so pushing starts
+    back buys cash and not headcount.
+    """
+    scale = scenario_scale(demand, productivity)
     rows = []
-    for r, line in lines.items():
-        fte = scenario_fte(line, demand, productivity)
-        qi = scenario_quarter(line, shift)
-        cost = scenario_cost(line, fte, qi, inflation)
-        rows.append((line["rank"] * 10**6 + r, r, fte, cost,
-                     run_rate(line["grade"], line["saudi"], fte, inflation)))
+    for r, ask in lines.items():
+        total = ask_total(ask) * scale
+        rows.append((ask["rank"] * 10**6 + r, r, total,
+                     run_rate(ask, inflation, scale),
+                     in_year(ask, shift, inflation, scale)))
     rows.sort()
     limit = envelope * share
     cum = 0.0
     out = {}
-    for key, r, fte, cost, rr in rows:
-        cum += cost
-        out[r] = dict(key=key, fte=fte, cost=cost, run_rate=rr, cumulative=cum,
-                      funded=1 if cum <= limit else 0)
+    for key, r, total, rr, cash in rows:
+        cum += rr
+        out[r] = dict(key=key, total=total, run_rate=rr, cash=cash,
+                      cumulative=cum, funded=1 if cum <= limit else 0)
     return out

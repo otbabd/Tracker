@@ -6,6 +6,7 @@ comes back with a formula error or an error string left in a cell.
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -21,6 +22,10 @@ import template as T
 
 SCRATCH = Path("/tmp/claude-0/-home-user-Tracker/"
                "3cac8f7f-9e45-5037-aeaf-db814b62d91c/scratchpad/build-test")
+
+# A reference that names a sheet: 'My sheet'!$A$1, or Ref!A1. Defined names and
+# function names carry no "!", so anything matching here is a sheet reference.
+SHEET_REF = re.compile(r"(?:'[^']+'|\b[A-Za-z_][\w.]*)!")
 
 
 def run() -> Run:
@@ -67,9 +72,28 @@ def run() -> Run:
         t.check(any(ws.sheet_state == "hidden" for ws in wf.worksheets),
                 f"{name}: the reference sheet ships hidden")
         names = set(wf.defined_names)
-        for want in ("GradeList", "GradeBasic", "DriverList", "DriverRank",
-                     "GosiSaudi", "QuarterList"):
+        for want in ("LevelList", "LevelBasic", "LevelOneOff", "DriverList",
+                     "DriverRank", "GosiSaudi", "QuarterList", "CareerLevels"):
             t.check(want in names, f"{name}: {want} is defined")
+
+    # The defect that started the rebuild: renaming a sheet broke every formula
+    # that pointed at it. The fix is structural — no formula in the template
+    # names another sheet, so Excel, which carries defined names across a
+    # rename, has nothing left to break. Assert the property directly: openpyxl
+    # does not update defined names on rename, so renaming here and
+    # recalculating would test openpyxl rather than the workbook.
+    wf = load_workbook(SCRATCH / "template.xlsx")
+    offenders = []
+    for ws in wf.worksheets:
+        for row in ws.iter_rows():
+            for cell in row:
+                if not (isinstance(cell.value, str) and cell.value.startswith("=")):
+                    continue
+                for ref in SHEET_REF.findall(cell.value):
+                    offenders.append(f"{ws.title}!{cell.coordinate} → {ref}")
+    t.check(not offenders,
+            "no formula in the template names another sheet",
+            f"{len(offenders)} do, e.g. {offenders[:3]}")
     return t
 
 
