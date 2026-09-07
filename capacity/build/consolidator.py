@@ -59,7 +59,8 @@ K.update({name: get_column_letter(len(PASTE) + 2 + i)
 K["Group"] = "A"
 
 RETURN_COLS = ["Division", "Current Capacity", "Exits", "New Asks",
-               "New Capacity", "Mandated seats", "Run-rate cost"]
+               "New Capacity", "Mandated seats", "Run-rate cost",
+               f"{R.PLAN_YEAR} cash released"]
 RET = {name: get_column_letter(i + 2) for i, name in enumerate(RETURN_COLS)}
 RET["Group"] = "A"
 
@@ -139,8 +140,9 @@ def build_readme(wb: Workbook, bank: R.Bank) -> None:
          "the Category column rightwards is recomputed here on the central rate card."),
         (SH_RET,
          f"The small block at the foot of each group's {T.SH_POS} sheet: what it "
-         "has today, what it is giving up, and how many of its seats have to be "
-         "Saudi. Copy it in the same way. This is where the bridge gets its exits."),
+         "has today, what it is giving up, how many of its seats have to be "
+         "Saudi, and what its known leavers release in cash. Copy it in the same "
+         "way. This is where the bridge gets its exits."),
         (SH_CHAL,
          "Every line, requested against approved. Set a decision on each line; only "
          "'Approve fewer' needs a number typed. Approved — not requested — is what "
@@ -442,7 +444,7 @@ def build_returns(wb: Workbook, bank: R.Bank) -> dict:
         f"{RETURN_ROWS} rows per group. This is where the bridge gets its exits "
         "and where the mandated-seat share comes from.")
     S.header_row(ws, HEAD_ROW, ["Group"] + RETURN_COLS,
-                 [26, 30, 15, 10, 12, 14, 14, 15])
+                 [26, 30, 15, 13, 12, 14, 14, 15, 15])
     n = len(bank.groups)
     for i, g in enumerate(bank.groups):
         rf = ret_first(i)
@@ -457,7 +459,7 @@ def build_returns(wb: Workbook, bank: R.Bank) -> dict:
             gc.font = S.f(9, True, S.NAVY) if j == 0 else S.SMALL
             for col in range(2, len(RETURN_COLS) + 2):
                 cell = S.input_cell(ws.cell(row=r, column=col))
-                cell.number_format = S.MONEY if col == 8 else S.FTE
+                cell.number_format = S.MONEY if col >= 8 else S.FTE
             ws.cell(row=r, column=2).number_format = "General"
         S.band(ws, rf, len(RETURN_COLS) + 1)
     last = ret_last(n)
@@ -465,12 +467,15 @@ def build_returns(wb: Workbook, bank: R.Bank) -> dict:
                        ("RetCurrent", "Current Capacity"), ("RetExits", "Exits"),
                        ("RetAsks", "New Asks"), ("RetNew", "New Capacity"),
                        ("RetMandated", "Mandated seats"),
-                       ("RetCost", "Run-rate cost")]:
+                       ("RetCost", "Run-rate cost"),
+                       ("RetCash", f"{R.PLAN_YEAR} cash released")]:
         _name(wb, SH_RET, label, f"${RET[col]}${FIRST_ROW}:${RET[col]}${last}")
     S.note_line(ws, last + 2,
-                "Exits are seats the group has marked Exit on its own capacity "
-                "sheet. They come out of the establishment before anything is "
-                "added back, which is what makes the bridge balance.",
+                "Exits are the seats a group is giving up — the Reduce column on "
+                "its own capacity sheet. They come out of the establishment "
+                "before anything is added back, which is what makes the bridge "
+                "balance. The cash column is what its known leavers release in "
+                "the plan year, which is a different and smaller thing.",
                 cols=len(RETURN_COLS) + 1)
     S.print_setup(ws, title_rows=f"{HEAD_ROW}:{HEAD_ROW}")
     return dict(first=FIRST_ROW, last=last)
@@ -884,7 +889,7 @@ def build_dashboard(wb: Workbook, bank: R.Bank, env: dict) -> dict:
             value=f"{R.BASE_YEAR} to {R.PLAN_YEAR} establishment bridge").font = S.H1
     ws.cell(row=row, column=6,
             value="Approved seats, not people. A seat only leaves the "
-                  "establishment if a group marked it Exit.").font = S.NOTE
+                  "establishment if a group is reducing it.").font = S.NOTE
     row += 1
     S.header_row(ws, row, ["Step", "Change", "Running total", "Base", "Bar"],
                  [40, 15, 15, 15, 15])
@@ -1092,7 +1097,7 @@ def build_exec(wb: Workbook, bank: R.Bank, env: dict, scen: dict, dash: dict) ->
         ("Positions approved", f"={envt}$R${et}", S.FTE,
          "What the challenge process left standing."),
         ("Seats the groups are giving up", "=SUM(RetExits)", S.FTE,
-         "Marked Exit on their own capacity sheets."),
+         "The Reduce column on their own capacity sheets."),
         (f"Approved run-rate cost (SAR '000)", f"={envt}$S${et}", S.MONEY,
          "The full-year cost the bank carries from these decisions."),
         ("Against the bank cost envelope", f"=BankCostEnvelope-{envt}$S${et}", S.MONEY,

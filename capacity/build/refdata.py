@@ -38,16 +38,37 @@ CAREER_LEVELS = [
     "Support",
 ]
 
-# ── What each existing seat is meant to do in the plan year ────────────────
-# Only Exit moves the establishment. The others are intent, and Reduce is a
-# watch list rather than a number — see the note written onto the sheet.
+# ── What each job block is meant to do in the plan year ────────────────────
+# Reduce is the only direction that moves the establishment, and it carries a
+# number: how many of the row's seats are going.
 CAPACITY_DIRECTIONS = [
     ("Grow", "More capacity needed here. The growth arrives as a row on the asks sheet."),
     ("Hold", "Stays as it is."),
-    ("Reduce", "Under review. The seat stays for now and is revisited mid-year."),
-    ("Exit", "The seat lapses and comes out of the plan-year establishment."),
+    ("Reduce", "Seats are being given up here. Say how many in the next column."),
 ]
-EXIT_DIRECTION = "Exit"
+REDUCE_DIRECTION = "Reduce"
+
+# ── Known outflow ──────────────────────────────────────────────────────────
+# People already on their way out. Why they are going is context; what happens
+# to the seat is the decision.
+LEAVING_REASONS = [
+    "Resignation",
+    "Retirement",
+    "End of contract",
+    "Internal transfer out",
+    "Other - see note",
+]
+DISPOSITIONS = [
+    ("Backfill", "The seat is refilled straight away. Nothing changes except who "
+                 "sits in it."),
+    ("Defer backfill", "The seat stays but is held empty until the quarter you "
+                       "name. A saving in cash only — the seat is still yours."),
+    ("Surrender to fund new asks", "The seat is given up and its cost pays for "
+                                   "what you have asked for. Count it in the "
+                                   "Reduce column on the capacity sheet too."),
+]
+SURRENDER = "Surrender to fund new asks"
+DEFER = "Defer backfill"
 
 # ── Ranking ────────────────────────────────────────────────────────────────
 # What a constrained scenario cuts first. The order is the user's: the growth
@@ -225,36 +246,55 @@ class Bank:
                 if n["level"] == 1]
 
     def seats(self, group: str) -> list[dict]:
-        """One row per existing position, shaped for the Current capacity sheet.
+        """One row per job, shaped for the Current capacity sheet.
+
+        A row is a job in a unit, not a single seat: Approved HC counts the
+        positions behind it, so a group can say that three of the four are
+        going. Positions are counted whole — the export carries a fractional
+        FTE for part-timers, but the structure sheet counts positions, and two
+        sheets in one file disagreeing about the establishment is worse than
+        losing the half.
 
         Career level is absent on purpose: it is a property of the job rather
         than of the grade, so it cannot be derived here. Add a "Career Level"
         column to the export and it flows straight through.
         """
-        out = []
+        rows: dict[tuple, dict] = {}
         for p in self.positions:
             if p.get("Group") != group:
                 continue
             vacant = (p.get("Position Status") or "").strip().lower() == "vacant"
-            # A seat counts as one seat. The export carries a fractional FTE for
-            # part-timers, but the structure sheet counts positions, and two
-            # sheets in one file disagreeing about the establishment is worse
-            # than losing the half.
-            seat = 1.0
-            out.append({
-                "mis": (p.get("Cost Center") or "").strip(),
-                "division": (p.get("Division") or "").strip(),
-                "department": (p.get("Department") or "").strip(),
-                "unit": (p.get("Unit") or "").strip(),
-                "sub_unit": (p.get("Sub-unit") or "").strip(),
-                "title": (p.get("Job Title") or "").strip(),
-                "level": (p.get("Career Level") or "").strip(),
-                "family": (p.get("Job Family") or "").strip(),
-                "worker_type": worker_type_of(p.get("Employment Type", "")),
-                "approved": seat,
-                "filled": 0.0 if vacant else seat,
-                "vacant": seat if vacant else 0.0,
-            })
+            key = (
+                (p.get("Division") or "").strip(),
+                (p.get("Department") or "").strip(),
+                (p.get("Unit") or "").strip(),
+                (p.get("Sub-unit") or "").strip(),
+                (p.get("Job Title") or "").strip(),
+                (p.get("Career Level") or "").strip(),
+                (p.get("Job Family") or "").strip(),
+                worker_type_of(p.get("Employment Type", "")),
+            )
+            row = rows.get(key)
+            if row is None:
+                division, department, unit, sub_unit, title, level, family, worker = key
+                row = rows[key] = {
+                    "mis": set(), "division": division, "department": department,
+                    "unit": unit, "sub_unit": sub_unit, "title": title,
+                    "level": level, "family": family, "worker_type": worker,
+                    "approved": 0.0, "filled": 0.0, "vacant": 0.0,
+                }
+            row["mis"].add((p.get("Cost Center") or "").strip())
+            row["approved"] += 1
+            row["filled"] += 0.0 if vacant else 1.0
+            row["vacant"] += 1.0 if vacant else 0.0
+
+        out = []
+        for row in rows.values():
+            # The cost centre is only shown where the whole row shares one.
+            # Guessing which of several applies would be worse than blank.
+            codes = {c for c in row["mis"] if c}
+            row["mis"] = codes.pop() if len(codes) == 1 else ""
+            out.append(row)
         out.sort(key=lambda r: (r["division"], r["department"], r["unit"],
                                 r["sub_unit"], r["title"]))
         return out

@@ -476,21 +476,33 @@ scenario meetings, and what to change to run it again next year.
 
 ## What a group actually fills in
 
-Five sheets, and only three columns are genuinely new work.
+Six sheets, and only a handful of columns are genuinely new work.
 
-**`2. Current capacity`** arrives with every existing position on it — MIS code,
-the ladder down to sub-unit, job title, job family, worker type, approved,
-filled and vacant. The group supplies the **career level**, whether the seat is
-**mandated Saudi**, and its **capacity direction**: Grow, Hold, Reduce or Exit.
+**`2. Current capacity`** arrives with the group's establishment already on it,
+one row per job: MIS code, the ladder down to sub-unit, job title, job family,
+worker type, and how many seats are approved, filled and vacant. The group
+supplies the **career level**, whether the seat is **mandated Saudi**, and its
+**capacity direction** — Grow, Hold or Reduce. A Reduce says **how many** of the
+row's seats are going, so a job with four seats can give up two.
 
-Exit is the only place a seat leaves the establishment, which makes the giving-up
-half of the exercise as explicit as the asking half — a vacancy nobody needs any
-more is an Exit, and that is where quiet establishment creep gets cleaned up.
-Reduce keeps the seat and puts it on the mid-year watch list.
+Reduce is the only place a seat leaves the establishment, which makes the
+giving-up half of the exercise as explicit as the asking half — a vacancy nobody
+needs any more is a Reduce, and that is where quiet establishment creep gets
+cleaned up.
 
-**`3. Capacity asks`** takes one row per position wanted, placed in the quarter it
+**`3. Pipeline out`** takes everyone already known to be leaving, and asks what
+happens to each seat: **backfill** it, **defer the backfill** to a named quarter,
+or **surrender** it to help fund the asks. Only surrender changes the
+establishment, and it has to be counted in the Reduce column too — a check
+enforces that. This is also where the saving from people leaving is counted,
+which is what makes the plan-year cash figure net rather than gross.
+
+**`4. Capacity asks`** takes one row per position wanted, placed in the quarter it
 should start. The total adds itself up from the quarter split, so the two can
 never disagree.
+
+**`How to use`** and **`Glossary`** carry the instructions and the definitions, so
+nobody has to guess what a column header means.
 
 ## How the numbers work
 
@@ -515,9 +527,10 @@ timing, attrition, salary inflation and productivity — computed for every line
 in parallel rather than through a switch. The cut is made against run-rate, so
 a timing shift buys cash and not headcount, and the sheet says so.
 
-**The bridge.** Opening 2026 establishment, less the seats groups marked Exit,
+**The bridge.** Opening 2026 establishment, less the seats groups are reducing,
 plus the positions approved, equals the closing 2027 establishment. Seats, not
-people.
+people — and only named leavers release cash, because nobody is being paid in a
+vacancy.
 
 ## Rebuilding and testing
 

@@ -113,3 +113,41 @@ def funded_set(lines: dict, demand: float, share: float, shift: int,
         out[r] = dict(key=key, total=total, run_rate=rr, cash=cash,
                       cumulative=cum, funded=1 if cum <= limit else 0)
     return out
+
+
+# ── Outflow ────────────────────────────────────────────────────────────────
+def seats_released(seat: dict) -> float:
+    """What a capacity row gives up: the typed number, but only when the row
+    actually says Reduce."""
+    if seat.get("direction") != R.REDUCE_DIRECTION:
+        return 0.0
+    return float(seat.get("slated") or 0)
+
+
+def paid_share(out: dict) -> float | None:
+    """The share of the plan year a departing seat is still paid for.
+
+    A seat is paid up to and including the quarter its holder leaves — the
+    mirror of a new position being paid from the quarter it starts.
+    """
+    if not out.get("quarter") or not out.get("disposition"):
+        return None
+    leave = QI[out["quarter"]] / 4
+    if out["disposition"] == R.SURRENDER:
+        return leave
+    if out["disposition"] == R.DEFER:
+        if not out.get("backfill"):
+            return leave
+        return min(1.0, leave + (5 - QI[out["backfill"]]) / 4)
+    return 1.0                      # backfilled at once: paid all year
+
+
+def cash_released(out: dict) -> float:
+    share = paid_share(out)
+    if share is None:
+        return 0.0
+    return rate(out["level"]) * (1 - share)
+
+
+def run_rate_released(out: dict) -> float:
+    return rate(out["level"]) if out.get("disposition") == R.SURRENDER else 0.0

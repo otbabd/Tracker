@@ -138,15 +138,62 @@ ASKS = [
      "unwind once the 2026 vintage runs off."),
 ]
 
-# Seats the group is giving up. Keyword and job-title fragment, so the example
-# does not depend on which row the export happens to put them on.
-EXITS = [
-    ("Business Continuity", "Analyst"),
-    ("Credit Administration", "Associate"),
-    ("Market Risk", "Analyst"),
-    ("Liquidity Risk", "Officer"),
-    ("Retail Credit Risk", "Analyst"),
-]
+# What the group is giving up, and who is already on the way out. Both are
+# derived from the group's own establishment so the example stays true to it.
+GROW_EVERY = 17          # a scattering of jobs marked Grow
+BIG_REDUCTIONS = 2       # jobs with several seats, giving up two of them
+VACANT_REDUCTIONS = 2    # vacancies nobody intends to refill
+
+
+def reductions(seats: list[dict]) -> dict[int, int]:
+    """Which job rows give up seats, and how many.
+
+    Two kinds, because they are the two a group actually has: a job with
+    several seats where some are going, and a vacancy nobody wants to refill.
+    """
+    out: dict[int, int] = {}
+    for i, seat in enumerate(seats):
+        if len(out) >= BIG_REDUCTIONS:
+            break
+        if seat["approved"] >= 3 and seat["filled"] >= 2:
+            out[i] = 2
+    vacancies = 0
+    for i, seat in enumerate(seats):
+        if vacancies >= VACANT_REDUCTIONS:
+            break
+        if i not in out and seat["vacant"] >= 1:
+            out[i] = 1
+            vacancies += 1
+    return out
+
+
+def departures(seats: list[dict], reduced: dict[int, int]) -> list[dict]:
+    """Known leavers. The surrendered seats sit on jobs that are being reduced,
+    because a surrender has to be counted in the Reduce column as well."""
+    out = []
+    for i, count in list(reduced.items())[:2]:
+        seat = seats[i]
+        if seat["filled"] < 1:
+            continue
+        out.append({
+            "seat": seat, "reason": "Resignation", "quarter": "Q2",
+            "disposition": R.SURRENDER, "backfill": None,
+            "name": "Vacated on resignation",
+        })
+    others = [s for j, s in enumerate(seats)
+              if j not in reduced and s["filled"] >= 1]
+    for seat, reason, quarter, disposition, backfill, name in [
+        (others[3], "Retirement", "Q1", "Backfill", None, "Retirement due March"),
+        (others[11], "Resignation", "Q2", "Backfill", None, "Notice served"),
+        (others[23], "Internal transfer out", "Q1", R.DEFER, "Q3",
+         "Moving to Compliance"),
+        (others[37], "End of contract", "Q2", R.DEFER, "Q4",
+         "Contract ends June"),
+    ]:
+        out.append({"seat": seat, "reason": reason, "quarter": quarter,
+                    "disposition": disposition, "backfill": backfill,
+                    "name": name})
+    return out
 
 
 def fill(layout: dict, bank: R.Bank, path: Path) -> Path:
@@ -157,27 +204,36 @@ def fill(layout: dict, bank: R.Bank, path: Path) -> Path:
     ws = wb[T.SH_CAP]
     seats = bank.seats(GROUP)
     first = layout["cap"]["first"]
-    exits_wanted = list(EXITS)
+    reduced = reductions(seats)
     for i, seat in enumerate(seats):
         r = first + i
         ws[f"{C['Career Level']}{r}"] = level_for(seat)
-        # Two seats in three are mandated Saudi. A real group answers this seat
-        # by seat; the pattern here just has to be plausible and reproducible.
+        # Two seats in three are mandated Saudi. A real group answers this job
+        # by job; the pattern here just has to be plausible and reproducible.
         ws[f"{C['Nationality Mandate?']}{r}"] = "No" if i % 3 == 0 else "Yes"
-
-        direction = "Hold"
-        for j, (unit_key, title_key) in enumerate(exits_wanted):
-            if (seat["vacant"] and unit_key.lower() in seat["unit"].lower()
-                    and title_key.lower() in seat["title"].lower()):
-                direction = R.EXIT_DIRECTION
-                exits_wanted.pop(j)
-                break
+        if i in reduced:
+            ws[f"{C['Capacity Direction']}{r}"] = R.REDUCE_DIRECTION
+            ws[f"{C['HC slated for exit']}{r}"] = reduced[i]
         else:
-            if i % 17 == 3:
-                direction = "Grow"
-            elif i % 29 == 5:
-                direction = "Reduce"
-        ws[f"{C['Capacity Direction']}{r}"] = direction
+            ws[f"{C['Capacity Direction']}{r}"] = (
+                "Grow" if i % GROW_EVERY == 3 else "Hold")
+
+    # ── 3. Pipeline out ────────────────────────────────────────────────────
+    ws = wb[T.SH_PIPE]
+    P = layout["pipe_cols"]
+    first = layout["pipe"]["first"]
+    for i, out in enumerate(departures(seats, reduced)):
+        r = first + i
+        seat = out["seat"]
+        for col, value in [
+            ("Division", seat["division"]), ("Unit", seat["unit"]),
+            ("Job title", seat["title"]), ("Career Level", level_for(seat)),
+            ("Worker type", seat["worker_type"]), ("Name or ID", out["name"]),
+            ("Reason", out["reason"]), ("Leaving quarter", out["quarter"]),
+            ("What happens to the seat", out["disposition"]),
+            ("Backfill quarter", out["backfill"]),
+        ]:
+            ws[f"{P[col]}{r}"] = value
 
     # ── 3. Capacity asks ───────────────────────────────────────────────────
     ws = wb[T.SH_ASK]

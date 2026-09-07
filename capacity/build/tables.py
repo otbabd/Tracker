@@ -90,6 +90,8 @@ def write_lists(wb, ws, sheet: str, row: int, extra=()) -> int:
         ("QuarterList", R.QUARTERS),
         ("WorkerTypes", R.WORKFORCE_TYPES),
         ("DirectionList", [d for d, _ in R.CAPACITY_DIRECTIONS]),
+        ("LeavingReasons", R.LEAVING_REASONS),
+        ("DispositionList", [d for d, _ in R.DISPOSITIONS]),
         ("LadderLevels", R.LADDER),
         ("CategoryList", [c for c, _, _ in R.RANK_CATEGORIES]),
         ("YesNo", ["Yes", "No"]),

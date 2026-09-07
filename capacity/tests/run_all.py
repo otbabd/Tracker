@@ -19,6 +19,8 @@ def main() -> int:
     test_template.SCRATCH.mkdir(parents=True, exist_ok=True)
     example = test_template.prepare(test_template.SCRATCH / "example-check.xlsx")
     failures += test_template.run(example).report()
+    failures += test_template.run_gate(
+        example, test_template.SCRATCH / "example-broken.xlsx").report()
 
     filled = test_consolidator.prepare(test_consolidator.SCRATCH / "filled.xlsx")
     failures += test_consolidator.run(filled).report()

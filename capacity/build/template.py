@@ -26,14 +26,17 @@ import tables as TB
 
 ASK_ROWS = 200          # generous headroom; no group will reach it
 SEAT_PAD = 40           # blank rows under the pre-filled establishment
+PIPE_ROWS = 120         # known departures
 PROBLEM_ROWS = 20
 
-SH_READ = "Read me"
+SH_READ = "How to use"
 SH_TREE = "1. My structure"
 SH_CAP = "2. Current capacity"
-SH_ASK = "3. Capacity asks"
-SH_POS = "4. My position"
-SH_CHK = "5. Check & submit"
+SH_PIPE = "3. Pipeline out"
+SH_ASK = "4. Capacity asks"
+SH_POS = "5. My position"
+SH_CHK = "6. Check & submit"
+SH_GLOSS = "Glossary"
 SH_REF = "Ref"
 
 HEAD_ROW = 5
@@ -55,10 +58,21 @@ CAP_COLS = [
     ("Mis Code", 12), ("Division", 24), ("Department", 26), ("Unit", 26),
     ("Sub-Unit", 24), ("Job Title", 30), ("Career Level", 18), ("Job Family", 18),
     ("Nationality Mandate?", 16), ("Approved HC", 12), ("Filled", 9), ("Vacant", 9),
-    ("Worker type", 14), ("Capacity Direction", 17), ("Exits", 9),
-    ("What's missing", 34),
+    ("Worker type", 14), ("Capacity Direction", 17), ("HC slated for exit", 15),
+    ("Seats released", 13), ("What's missing", 34),
 ]
 C = {name: get_column_letter(i) for i, (name, _) in enumerate(CAP_COLS, start=1)}
+
+# ── The pipeline-out sheet, column by column ───────────────────────────────
+PIPE_COLS = [
+    ("Ref", 6), ("Division", 22), ("Unit", 26), ("Job title", 28),
+    ("Career Level", 17), ("Worker type", 13), ("Name or ID", 20),
+    ("Reason", 20), ("Leaving quarter", 13), ("What happens to the seat", 24),
+    ("Backfill quarter", 13), ("Paid this year", 13),
+    (f"{R.PLAN_YEAR} cash released", 15), ("Run-rate released", 15),
+    ("What's missing", 32),
+]
+P = {name: get_column_letter(i) for i, (name, _) in enumerate(PIPE_COLS, start=1)}
 
 MISSING_COL = "What's missing"
 
@@ -147,7 +161,7 @@ def build_ref(wb: Workbook, bank: R.Bank, group: str) -> None:
         row += 1
 
 
-# ── Read me ─────────────────────────────────────────────────────────────────
+# ── How to use ──────────────────────────────────────────────────────────────
 def build_readme(wb: Workbook, group: str) -> None:
     ws = wb.create_sheet(SH_READ)
     row = S.sheet_title(
@@ -161,23 +175,31 @@ def build_readme(wb: Workbook, group: str) -> None:
         (SH_TREE,
          "Your group as it stands today. Collapse and expand with the +/- buttons in "
          f"the left margin. Nothing to fill in — the {R.PLAN_YEAR} columns fill "
-         "themselves from the two sheets after it."),
+         "themselves from the three sheets after it."),
         (SH_CAP,
-         "Every position you have today, already listed. Three columns are yours: the "
-         "career level, whether the seat is mandated Saudi, and what you intend to do "
-         "with it next year. Correct anything that is wrong and add anything missing."),
+         "One row per job, with the seats you have in it. Fill in the career level, "
+         "whether the seat has to be Saudi, and what you intend to do with the job "
+         "next year. If you are reducing it, say how many of its seats are going."),
+        (SH_PIPE,
+         "Everyone you already know is leaving. For each one, say what happens to "
+         "the seat: refill it, hold it empty for a while, or give it up to help pay "
+         "for what you are asking for."),
         (SH_ASK,
-         "One row per position you want. Put the numbers in the quarter you want them "
-         "to start — New Asks adds itself up. Every row needs a driver, because that "
-         "is what decides the order things get funded in."),
+         "One row per position you want. Put the numbers in the quarter you want "
+         "them to start — the total adds itself up. Every row needs a driver, "
+         "because that is what decides the order things get funded in."),
         (SH_POS,
-         "Your headcount and your cost by division, and where they land against your "
-         "envelopes. Read this before you submit, not after."),
+         "Your headcount and your cost by division, the cash the year actually "
+         "costs, and where you land against your envelopes. Read this before you "
+         "submit, not after."),
         (SH_CHK,
-         "Everything still missing or invalid, listed row by row. When it is clear, set "
-         "the state to Submitted and return the file."),
+         "Everything still missing or invalid, listed row by row. When it is clear, "
+         "set the state to Submitted and return the file."),
+        (SH_GLOSS,
+         "Every term this workbook uses, in plain words. Start here if a column "
+         "header is not obvious."),
     ]
-    ws.cell(row=row, column=1, value="What to do").font = S.H1
+    ws.cell(row=row, column=1, value="The sheets, in the order to work through them").font = S.H1
     row += 1
     for name, why in steps:
         ws.cell(row=row, column=1, value=name).font = S.H2
@@ -188,29 +210,152 @@ def build_readme(wb: Workbook, group: str) -> None:
         ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=8)
         ws.row_dimensions[row].height = 40
         row += 1
-
     row += 1
+
+    ws.cell(row=row, column=1, value="What each yellow column expects").font = S.H1
+    row += 1
+    expects = [
+        ("Career Level", SH_CAP,
+         "The level of the job, not of the person and not the grade. Pick from the "
+         "list. Until every row has one, no cost anywhere in this file can be "
+         "worked out and it all reads as a dash."),
+        ("Nationality Mandate?", SH_CAP,
+         "Does this job have to be filled by a Saudi national? A property of the "
+         "role, not of whoever is in it today."),
+        ("Capacity Direction", SH_CAP,
+         "Grow, Hold or Reduce. Grow and Hold change nothing by themselves — "
+         "growth arrives as a row on the asks sheet. Reduce is the only way a seat "
+         "leaves your establishment."),
+        ("HC slated for exit", SH_CAP,
+         "How many of the row's seats are going. If the row has four and two are "
+         "going, put 2. Only counted when the direction says Reduce."),
+        ("What happens to the seat", SH_PIPE,
+         "Refill it, hold it empty until a quarter you name, or give it up. Giving "
+         "it up is the only one that changes your establishment, and it has to be "
+         f"counted in the Reduce column on {SH_CAP} as well."),
+        ("Q1 to Q4", SH_ASK,
+         "How many people you want starting in each quarter. Leave the rest blank. "
+         "The New Asks total adds itself up from these four."),
+        ("Driver", SH_ASK,
+         "Why you need it. The driver sets the priority, and the priority decides "
+         "what survives if the envelope binds."),
+        ("Alternatives considered", SH_ASK,
+         "What you tried before asking for a person: automation, vendor cover, "
+         "reprioritising. The first question you will be asked."),
+    ]
+    for name, sheet, why in expects:
+        ws.cell(row=row, column=1, value=name).font = S.H2
+        ws.cell(row=row, column=1).alignment = S.TOP
+        c = ws.cell(row=row, column=2, value=f"{sheet} — {why}")
+        c.font = S.BODY_DIM
+        c.alignment = S.WRAP
+        ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=8)
+        ws.row_dimensions[row].height = 40
+        row += 1
+    row += 1
+
     row = S.legend(ws, row)
 
-    ws.cell(row=row, column=1, value="Three things worth knowing").font = S.H1
+    ws.cell(row=row, column=1, value="The three things people get wrong").font = S.H1
     row += 1
     for text in [
-        "Capacity Direction on sheet 2 is the only place a seat can be given up. "
-        "Exit means the seat lapses and comes out of next year's establishment — a "
-        "vacancy you no longer need is an Exit. Reduce keeps the seat and puts it on "
-        "the mid-year watch list. Grow and Hold change nothing by themselves; growth "
-        "arrives as a row on sheet 3.",
-        "Cost is shown by division, not by position, and on a full-year run-rate "
-        "basis so it sits alongside headcount. The part-year cash cost of next year "
-        "is a separate line underneath, because the two answer different questions "
-        "and approving both at once is how a capacity paper gets counted twice.",
-        "A position starting in Q1 is paid for four quarters; one starting in Q4 for "
-        "a single quarter. Moving a start later is the cheapest concession you can "
-        "offer, and it is usually the first thing you will be asked for.",
+        "The quarters make the total, not the other way round. New Asks is worked "
+        "out from what you put in Q1 to Q4, so there is nothing to reconcile and "
+        "nothing that can disagree. If the total looks wrong, a quarter is wrong.",
+        "Reduce is the only way to give up a seat, and it needs a number. Marking a "
+        "job Reduce without saying how many seats are going changes nothing at all. "
+        "A vacancy you no longer need is a Reduce; so is a leaver whose seat you are "
+        "surrendering on the pipeline sheet.",
+        "The cost by division is a full-year run-rate, not what you spend next year. "
+        "It sits beside headcount because both are stocks. What the year actually "
+        "costs is the separate cash block underneath, and the two answer different "
+        "questions — approving both at once counts the same money twice.",
     ]:
         S.note_line(ws, row, text)
         row += 1
+    row += 1
+
+    ws.cell(row=row, column=1, value="When the check sheet complains").font = S.H1
+    row += 1
+    S.note_line(
+        ws, row,
+        f"{SH_CHK} lists what is still missing and where. Every sheet also has a "
+        "last column telling you, row by row, what that row needs — filter on it to "
+        "find the rows rather than hunting for them. The file will not let you set "
+        "the state to Submitted until every blocking check reads OK, which is the "
+        "point: it is quicker to fix here than after the centre has read it.", cols=8)
     S.print_setup(ws, landscape=False)
+
+
+# ── Glossary ────────────────────────────────────────────────────────────────
+def build_glossary(wb: Workbook, group: str) -> None:
+    ws = wb.create_sheet(SH_GLOSS)
+    row = S.sheet_title(
+        ws, "Glossary",
+        "Every term this workbook uses. If a column header is not obvious, it is "
+        "explained here.")
+    S.header_row(ws, row, ["Term", "What it means"], [28, 110])
+    first = row + 1
+    terms = [
+        ("Establishment", "The seats the bank has approved, filled or not. This "
+         "exercise plans seats; who sits in them is a separate question."),
+        ("Approved HC", "How many seats a job has on the establishment."),
+        ("Filled / Vacant", "Of those seats, how many have somebody in them and how "
+         "many do not."),
+        ("Career level", "The level of the job — the bank's own ladder. A property "
+         "of the job, not of the person and not the grade. Everything is priced off "
+         "it, so a row without one cannot be costed."),
+        ("Job family", "The kind of work, used to group like with like across the "
+         "bank."),
+        ("Worker type", "Permanent, insourced or outsourced. All three cost money "
+         "and all three take a seat; they are simply bought differently."),
+        ("Capacity direction", "What you intend to do with a job next year: Grow, "
+         "Hold or Reduce."),
+        ("Grow", "You need more here. The extra arrives as a row on " + SH_ASK +
+         "; the direction on its own changes no numbers."),
+        ("Hold", "Stays as it is."),
+        ("Reduce", "You are giving up seats on this row. The only direction that "
+         "moves the establishment, and it needs a number beside it."),
+        ("HC slated for exit", "How many of a row's seats are going. Four seats and "
+         "two going means 2, not 4."),
+        ("Pipeline out", "People you already know are leaving — resignations, "
+         "retirements, contract ends, transfers out."),
+        ("Backfill", "Refill the seat. Nothing changes but who is in it."),
+        ("Defer backfill", "Keep the seat but hold it empty until a later quarter. "
+         "Saves cash this year; the seat is still yours."),
+        (R.SURRENDER, "Give the seat up so its cost helps pay for what you have "
+         "asked for. Count it in the Reduce column on " + SH_CAP + " as well."),
+        ("Run-rate cost", "What a seat costs for a full twelve months, whenever it "
+         "starts. What the bank commits to, and what carries into the year after."),
+        ("In-year or cash cost", "What is actually paid in the plan year. A "
+         "position starting in Q1 is paid four quarters of its cost; one starting "
+         "in Q4 is paid one."),
+        ("One-off cost", "The cost of bringing somebody in — recruitment, "
+         "relocation, setup — paid in the year they join and never again. Kept out "
+         "of the run-rate so it does not inflate every year that follows."),
+        ("Envelope", "The ceiling set centrally for your group: cost, net "
+         "establishment change, and the mandated-seat share."),
+        ("Mandated seat", "A seat that has to be filled by a Saudi national. A "
+         "property of the role."),
+        ("Priority", "Regulatory, Strategic, Control or BAU. Set by the driver you "
+         "choose, and it decides the order things are funded in — regulatory first, "
+         "BAU first to fall."),
+        ("Driver", "The reason a position is needed. Pick the closest; it sets the "
+         "priority for you."),
+        ("Loaded cost", "Basic pay, housing, transport, target bonus and employer "
+         "GOSI together. Not the salary — the whole cost of the seat."),
+    ]
+    for i, (term, meaning) in enumerate(terms):
+        r = first + i
+        ws.cell(row=r, column=1, value=term).font = S.H2
+        ws.cell(row=r, column=1).alignment = S.TOP
+        c = ws.cell(row=r, column=2, value=meaning)
+        c.font = S.BODY_DIM
+        c.alignment = S.WRAP
+        ws.row_dimensions[r].height = 28
+        for col in (1, 2):
+            ws.cell(row=r, column=col).border = S.BOX
+    S.print_setup(ws, landscape=False, title_rows=f"{row}:{row}")
 
 
 # ── 1. My structure ─────────────────────────────────────────────────────────
@@ -278,8 +423,8 @@ def build_tree(wb: Workbook, bank: R.Bank, group: str) -> None:
         CellIsRule(operator="greaterThan", formula=["0"], font=S.f(10, False, S.AMBER)))
     S.note_line(ws, last + 2,
                 "Each row counts what names it, and the group and division rows sum "
-                f"everything beneath them. Exits come from Capacity Direction on "
-                f"{SH_CAP}; asks come from {SH_ASK}.", cols=len(heads) - 1)
+                f"everything beneath them. Seats released come from the Reduce "
+                f"column on {SH_CAP}; asks come from {SH_ASK}.", cols=len(heads) - 1)
     S.print_setup(ws, title_rows=f"{row}:{row}")
 
 
@@ -288,9 +433,10 @@ def build_capacity(wb: Workbook, bank: R.Bank, group: str) -> dict:
     ws = wb.create_sheet(SH_CAP)
     S.sheet_title(
         ws, "Current capacity",
-        "Every position you have today, already filled in. The columns that need "
-        "you are career level, whether the seat is mandated Saudi, and what you "
-        f"intend to do with it in {R.PLAN_YEAR}.")
+        "One row per job, with the seats you have in it. The columns that need "
+        "you are career level, whether the seat is mandated Saudi, what you "
+        f"intend to do with the job in {R.PLAN_YEAR} — and, if you are reducing "
+        "it, how many of its seats are going.")
     S.header_row(ws, HEAD_ROW, [h for h, _ in CAP_COLS], [w for _, w in CAP_COLS])
 
     seats = bank.seats(group)
@@ -323,12 +469,16 @@ def build_capacity(wb: Workbook, bank: R.Bank, group: str) -> dict:
             if col in (10, 11, 12):
                 cell.number_format = S.FTE
 
-        exits = ws.cell(row=r, column=15, value=(
-            f'=IF(${C["Capacity Direction"]}{r}="{R.EXIT_DIRECTION}",'
-            f'N(${C["Approved HC"]}{r}),0)'))
-        exits.number_format = S.FTE
-        exits.font = S.BODY
-        exits.fill = plain
+        S.input_cell(ws.cell(row=r, column=15), S.FTE)   # HC slated for exit
+        # Only a row marked Reduce gives up seats. Reading the typed number
+        # straight would let a stale figure, left on a row switched back to
+        # Hold, quietly delete seats from the establishment.
+        released = ws.cell(row=r, column=16, value=(
+            f'=IF(${C["Capacity Direction"]}{r}="{R.REDUCE_DIRECTION}",'
+            f'N(${C["HC slated for exit"]}{r}),0)'))
+        released.number_format = S.FTE
+        released.font = S.BODY
+        released.fill = plain
 
         # Division is deliberately not checked: a group head, and anyone else
         # reporting straight to the group, legitimately sits outside one.
@@ -341,8 +491,16 @@ def build_capacity(wb: Workbook, bank: R.Bank, group: str) -> dict:
                 (f'AND(${C["Career Level"]}{r}<>"",'
                  f'COUNTIF(CareerLevels,${C["Career Level"]}{r})=0)',
                  "a career level that is not on the ladder"),
+                (f'AND(${C["Capacity Direction"]}{r}="{R.REDUCE_DIRECTION}",'
+                 f'N(${C["HC slated for exit"]}{r})<=0)',
+                 "how many seats Reduce means"),
+                (f'AND(N(${C["HC slated for exit"]}{r})>0,'
+                 f'${C["Capacity Direction"]}{r}<>"{R.REDUCE_DIRECTION}")',
+                 "a number of seats on a row not marked Reduce"),
+                (f'N(${C["HC slated for exit"]}{r})>N(${C["Approved HC"]}{r})',
+                 "more seats given up than the row has"),
             ])
-        flag = ws.cell(row=r, column=16, value=(
+        flag = ws.cell(row=r, column=17, value=(
             f'=IF(${C["Job Title"]}{r}="","",MID({missing},3,200))'))
         flag.font = S.f(9, color=S.RED_ALERT)
         flag.fill = plain
@@ -358,12 +516,31 @@ def build_capacity(wb: Workbook, bank: R.Bank, group: str) -> dict:
         ws.add_data_validation(dv)
         dv.add(f"{C[col]}{first}:{C[col]}{last}")
 
+    # You cannot give up more seats than the row holds. The cap is the row's
+    # own Approved HC, so the rule moves down the column with it.
+    dvn = DataValidation(type="decimal", operator="between", formula1="0",
+                         formula2=f'${C["Approved HC"]}{first}',
+                         allow_blank=True, showErrorMessage=True)
+    dvn.errorTitle = "More than the row has"
+    dvn.error = ("Give up between none and all of this row's approved "
+                 "headcount.")
+    ws.add_data_validation(dvn)
+    dvn.add(f'{C["HC slated for exit"]}{first}:{C["HC slated for exit"]}{last}')
+
     miss = C[MISSING_COL]
-    direction = C["Capacity Direction"]
+    released = C["Seats released"]
+    approved = C["Approved HC"]
+    # Shade a row out only when the whole block goes. A partial reduction is
+    # still a live row and should not read as one that has gone.
     ws.conditional_formatting.add(
         f"A{first}:{miss}{last}",
-        FormulaRule(formula=[f'${direction}{first}="{R.EXIT_DIRECTION}"'],
+        FormulaRule(formula=[f"AND(N(${approved}{first})>0,"
+                             f"${released}{first}=${approved}{first})"],
                     font=S.f(10, color=S.INK_MUTE)))
+    ws.conditional_formatting.add(
+        f"{released}{first}:{released}{last}",
+        CellIsRule(operator="greaterThan", formula=["0"],
+                   font=S.f(10, True, S.AMBER)))
     ws.conditional_formatting.add(
         f"{miss}{first}:{miss}{last}",
         FormulaRule(formula=[f'${miss}{first}<>""'],
@@ -377,14 +554,142 @@ def build_capacity(wb: Workbook, bank: R.Bank, group: str) -> dict:
                        ("SeatApproved", "Approved HC"), ("SeatFilled", "Filled"),
                        ("SeatVacant", "Vacant"), ("SeatWorkerType", "Worker type"),
                        ("SeatDirection", "Capacity Direction"),
-                       ("SeatExits", "Exits"), ("SeatProblem", MISSING_COL)]:
+                       ("SeatSlated", "HC slated for exit"),
+                       ("SeatExits", "Seats released"),
+                       ("SeatProblem", MISSING_COL)]:
         _name(wb, SH_CAP, label, f"${C[col]}${first}:${C[col]}${last}")
 
     S.print_setup(ws, title_rows=f"{HEAD_ROW}:{HEAD_ROW}")
     return dict(first=first, last=last, seats=len(seats))
 
 
-# ── 3. Capacity asks ────────────────────────────────────────────────────────
+# ── 3. Pipeline out ─────────────────────────────────────────────────────────
+def build_pipeline(wb: Workbook, bank: R.Bank, group: str) -> dict:
+    """Who is already on the way out, and what happens to the seat.
+
+    The establishment still comes from the Reduce column on the capacity sheet;
+    this sheet says which of those seats have a name against them, when the cost
+    actually stops, and what the group intends to do about it.
+    """
+    ws = wb.create_sheet(SH_PIPE)
+    S.sheet_title(
+        ws, "Pipeline out",
+        "Everyone you already know is leaving, and what you intend to do with "
+        "each seat. This is where the saving from people going gets counted.")
+    S.header_row(ws, HEAD_ROW, [h for h, _ in PIPE_COLS], [w for _, w in PIPE_COLS])
+
+    first, last = FIRST_ROW, FIRST_ROW + PIPE_ROWS - 1
+    surrender = R.SURRENDER.replace('"', '""')
+    defer = R.DEFER.replace('"', '""')
+    for i in range(PIPE_ROWS):
+        r = first + i
+        ws.cell(row=r, column=1, value=i + 1).font = S.SMALL
+        for col in range(2, 12):
+            S.input_cell(ws.cell(row=r, column=col))
+
+        leave = f'MATCH(${P["Leaving quarter"]}{r},QuarterList,0)'
+        back = f'MATCH(${P["Backfill quarter"]}{r},QuarterList,0)'
+        # A seat is paid up to and including the quarter its holder leaves —
+        # the mirror of a start being paid from the quarter it begins.
+        paid = (
+            f'=IF(OR(${P["Job title"]}{r}="",${P["Leaving quarter"]}{r}="",'
+            f'${P["What happens to the seat"]}{r}=""),"",'
+            f'IF(${P["What happens to the seat"]}{r}="{surrender}",{leave}/4,'
+            f'IF(${P["What happens to the seat"]}{r}="{defer}",'
+            f'IF(${P["Backfill quarter"]}{r}="",{leave}/4,'
+            f"MIN(1,{leave}/4+(5-{back})/4)),1)))")
+        ws.cell(row=r, column=12, value=paid).number_format = S.PCT0
+        cost = _rate_lookup(f'${P["Career Level"]}{r}')
+        ws.cell(row=r, column=13, value=(
+            f'=IF(${P["Paid this year"]}{r}="","",'
+            f'{cost}*(1-${P["Paid this year"]}{r}))')).number_format = S.MONEY
+        ws.cell(row=r, column=14, value=(
+            f'=IF(${P["What happens to the seat"]}{r}="{surrender}",{cost},0)')
+        ).number_format = S.MONEY
+
+        missing = "&".join(
+            f'IF({test},", {word}","")' for test, word in [
+                (f'${P["Unit"]}{r}=""', "unit"),
+                (f'${P["Career Level"]}{r}=""', "career level"),
+                (f'${P["Reason"]}{r}=""', "reason"),
+                (f'${P["Leaving quarter"]}{r}=""', "leaving quarter"),
+                (f'${P["What happens to the seat"]}{r}=""',
+                 "what happens to the seat"),
+                (f'AND(${P["What happens to the seat"]}{r}="{defer}",'
+                 f'${P["Backfill quarter"]}{r}="")', "the backfill quarter"),
+                # AND evaluates every argument, so a blank backfill quarter
+                # would push #N/A out of the MATCH before the guard could stop
+                # it. IFERROR turns that into "nothing to complain about".
+                (f'IFERROR(AND(${P["Backfill quarter"]}{r}<>"",'
+                 f'${P["Leaving quarter"]}{r}<>"",{back}<={leave}),FALSE)',
+                 "a backfill quarter later than the leaving quarter"),
+                (f'AND(${P["Unit"]}{r}<>"",COUNTIF(UnitList,${P["Unit"]}{r})=0)',
+                 "a unit that is not in your structure"),
+            ])
+        ws.cell(row=r, column=15, value=(
+            f'=IF(${P["Job title"]}{r}="","",MID({missing},3,300))')
+        ).font = S.f(9, color=S.RED_ALERT)
+        for col in (12, 13, 14):
+            ws.cell(row=r, column=col).font = S.BODY
+
+    for col, list_name in [("Division", "DivisionList"), ("Unit", "UnitList"),
+                           ("Career Level", "CareerLevels"),
+                           ("Worker type", "WorkerTypes"),
+                           ("Reason", "LeavingReasons"),
+                           ("Leaving quarter", "QuarterList"),
+                           ("What happens to the seat", "DispositionList"),
+                           ("Backfill quarter", "QuarterList")]:
+        dv = DataValidation(type="list", formula1=f"={list_name}", allow_blank=True,
+                            showErrorMessage=True)
+        dv.error = "Pick a value from the list."
+        ws.add_data_validation(dv)
+        dv.add(f"{P[col]}{first}:{P[col]}{last}")
+
+    miss = P[MISSING_COL]
+    ws.conditional_formatting.add(
+        f'{P["What happens to the seat"]}{first}:'
+        f'{P["What happens to the seat"]}{last}',
+        CellIsRule(operator="equal", formula=[f'"{R.SURRENDER}"'],
+                   font=S.f(10, True, S.OK_GREEN)))
+    ws.conditional_formatting.add(
+        f"A{first}:{miss}{last}",
+        FormulaRule(formula=[f'${miss}{first}<>""'],
+                    fill=S.PatternFill("solid", fgColor="FDE7E9")))
+    ws.auto_filter.ref = f"A{HEAD_ROW}:{miss}{last}"
+
+    for label, col in [("OutDivision", "Division"), ("OutUnit", "Unit"),
+                       ("OutTitle", "Job title"), ("OutLevel", "Career Level"),
+                       ("OutQuarter", "Leaving quarter"),
+                       ("OutDisposition", "What happens to the seat"),
+                       ("OutCash", f"{R.PLAN_YEAR} cash released"),
+                       ("OutRunRate", "Run-rate released"),
+                       ("OutProblem", MISSING_COL)]:
+        _name(wb, SH_PIPE, label, f"${P[col]}${first}:${P[col]}${last}")
+
+    S.note_line(
+        ws, last + 2,
+        "A seat is paid up to and including the quarter its holder leaves, which "
+        "is the mirror of a new position being paid from the quarter it starts. "
+        "So a Q1 leaver releases three quarters of cost and a Q4 leaver releases "
+        "none. Deferring a backfill releases only the gap between the two "
+        "quarters; the seat is still yours and still on the establishment. Only "
+        "'" + R.SURRENDER + "' gives the seat up, and it has to be counted in "
+        "the Reduce column on " + SH_CAP + " as well — that column, not this "
+        "sheet, is what moves the establishment.", cols=len(PIPE_COLS))
+    S.print_setup(ws, title_rows=f"{HEAD_ROW}:{HEAD_ROW}")
+    return dict(first=first, last=last)
+
+
+def _rate_lookup(level_cell: str) -> str:
+    """Full-year loaded cost of one seat at the level in `level_cell`."""
+    m = f"MATCH({level_cell},LevelList,0)"
+    return (f"IFERROR(INDEX(LevelBasic,{m})+INDEX(LevelHousing,{m})"
+            f"+INDEX(LevelTransport,{m})"
+            f"+INDEX(LevelBasic,{m})*INDEX(LevelBonus,{m})"
+            f"+(INDEX(LevelBasic,{m})+INDEX(LevelHousing,{m}))*GosiSaudi,0)")
+
+
+# ── 4. Capacity asks ────────────────────────────────────────────────────────
 def build_asks(wb: Workbook, bank: R.Bank, group: str) -> dict:
     ws = wb.create_sheet(SH_ASK)
     S.sheet_title(
@@ -628,13 +933,27 @@ def build_position(wb: Workbook, bank: R.Bank, group: str) -> dict:
             value=f"The {R.PLAN_YEAR} cash cost, separately").font = S.H1
     row += 1
     cash_row = row
-    S.label_value(ws, row, f"In-year cost of the new asks (SAR '000)",
+    S.label_value(ws, row, "In-year cost of the new asks (SAR '000)",
                   _phased_cost(), S.MONEY, S.BODY,
                   note="Part-year: a Q1 start is paid four quarters, a Q4 start one.")
     row += 1
     one_off_row = row
     S.label_value(ws, row, "One-off cost of those hires (SAR '000)", _one_off_cost(),
                   S.MONEY, S.BODY, note="Recognised in the year of joining only.")
+    row += 1
+    released_row = row
+    S.label_value(ws, row, "less cash released by people leaving (SAR '000)",
+                  "=-SUM(OutCash)", S.MONEY, S.BODY,
+                  note=f"From {SH_PIPE}. A seat is paid to the end of the "
+                       "quarter its holder leaves.")
+    row += 1
+    net_row = row
+    S.label_value(
+        ws, row, f"Net {R.PLAN_YEAR} cash (SAR '000)",
+        f"=$B${cash_row}+$B${one_off_row}+$B${released_row}", S.MONEY,
+        S.f(10, True), note="What the plan year actually costs.")
+    ws.cell(row=row, column=1).font = S.f(10, True, S.NAVY)
+    S.band(ws, row, 2)
     row += 2
 
     # ── The three ceilings ─────────────────────────────────────────────────
@@ -648,7 +967,7 @@ def build_position(wb: Workbook, bank: R.Bank, group: str) -> dict:
         ("Cost (SAR '000, run-rate)", "=CostEnvelope", f"=$F${cost_total}", S.MONEY,
          "The change in run-rate, not the whole pay bill."),
         ("Net establishment change", "=HeadEnvelope", f"=$F${hc_total}", S.FTE,
-         "New asks less the seats you have marked Exit."),
+         "New asks less the seats you are giving up."),
         ("Mandated-seat share", "=SaudiTarget", mandated, S.PCT,
          "Seats you have marked as having to be Saudi, over the establishment."),
     ]
@@ -738,6 +1057,7 @@ def build_position(wb: Workbook, bank: R.Bank, group: str) -> dict:
     return dict(hc_first=hc_first, hc_last=hc_last, hc_total=hc_total,
                 cost_first=cost_first, cost_last=cost_last, cost_total=cost_total,
                 cash_row=cash_row, one_off_row=one_off_row,
+                released_row=released_row, net_row=net_row,
                 cost_test=env_first, head_test=env_first + 1,
                 mandate_test=env_first + 2,
                 cat_first=cat_first, cat_last=cat_last,
@@ -798,8 +1118,9 @@ def build_return_block(wb: Workbook, group: str, pos: dict) -> dict:
             value="Copy these rows into the consolidator's return area. Nothing "
                   "to fill in.").font = S.NOTE
     row += 1
-    mini_head(ws, row, ["Division", "Current Capacity", "Exits", "New Asks",
-                        "New Capacity", "Mandated seats", "Run-rate cost"])
+    mini_head(ws, row, ["Division", "Current Capacity", "Seats released",
+                        "New Asks", "New Capacity", "Mandated seats",
+                        "Run-rate cost", f"{R.PLAN_YEAR} cash released"])
     first = row + 1
     for i, (_, div) in enumerate(pos["divisions"]):
         r = first + i
@@ -813,7 +1134,9 @@ def build_return_block(wb: Workbook, group: str, pos: dict) -> dict:
             f'=SUMIFS(SeatApproved,SeatDivision,"{q}",SeatMandate,"Yes")')
         ).number_format = S.FTE
         ws.cell(row=r, column=7, value=f"=$E{cost}").number_format = S.MONEY
-        for col in range(1, 8):
+        ws.cell(row=r, column=8, value=(
+            f'=SUMIFS(OutCash,OutDivision,"{q}")')).number_format = S.MONEY
+        for col in range(1, 9):
             ws.cell(row=r, column=col).border = S.BOX
     last = first + len(pos["divisions"]) - 1
     return dict(first=first, last=last)
@@ -843,10 +1166,35 @@ def build_check(wb: Workbook, group: str) -> dict:
          '=SUMPRODUCT((SeatTitle<>"")*(SeatLevel=""))',
          f"{SH_CAP}. Until every seat has a career level, none of the cost on "
          f"{SH_POS} can be worked out and it reads as a dash."),
-        ("Positions with no capacity direction",
+        ("Jobs with no capacity direction",
          '=SUMPRODUCT((SeatTitle<>"")*(SeatDirection=""))',
-         f"{SH_CAP}. Say what you intend to do with each seat: Grow, Hold, "
-         "Reduce or Exit."),
+         f"{SH_CAP}. Say what you intend to do with each job: Grow, Hold or "
+         "Reduce."),
+        ("Jobs marked Reduce without saying how many seats go",
+         f'=SUMPRODUCT((SeatDirection="{R.REDUCE_DIRECTION}")*(N(SeatSlated)<=0))',
+         f"{SH_CAP}. A Reduce with no number changes nothing. If the row has "
+         "four seats and two are going, put 2."),
+        ("Rows giving up seats but not marked Reduce",
+         f'=SUMPRODUCT((N(SeatSlated)>0)*(SeatDirection<>"{R.REDUCE_DIRECTION}"))',
+         f"{SH_CAP}. The number is ignored unless the direction says Reduce, so "
+         "either set the direction or clear the number."),
+        ("Rows giving up more seats than they have",
+         "=SUMPRODUCT((N(SeatSlated)>N(SeatApproved))*1)",
+         f"{SH_CAP}. You cannot release more than the row's approved headcount."),
+        ("Departures with something missing", '=COUNTIF(OutProblem,"?*")',
+         f"{SH_PIPE} spells out what each row is missing in its last column."),
+        # Counted from the departure side and compared against the total the
+        # capacity sheet is reducing for that unit and job. The same job can
+        # appear on several rows there — different sub-units, different worker
+        # types — so the comparison has to be against their sum, not row by row.
+        ("Seats surrendered beyond what the job is reducing",
+         f'=SUMPRODUCT((OutDisposition="{R.SURRENDER}")*'
+         f'(COUNTIFS(OutUnit,OutUnit,OutTitle,OutTitle,'
+         f'OutDisposition,"{R.SURRENDER}")'
+         f">SUMIFS(SeatSlated,SeatUnit,OutUnit,SeatTitle,OutTitle)))",
+         f"A seat surrendered on {SH_PIPE} has to be counted in the Reduce "
+         f"column on {SH_CAP} too. Fewer surrenders than the Reduce count is "
+         "fine — the balance is vacancies you are not refilling."),
         ("Ask rows with something missing", '=COUNTIF(AskProblem,"?*")',
          f"{SH_ASK} lists what each row is missing in its last two columns."),
         ("Ask rows with nothing in any quarter",
@@ -868,11 +1216,11 @@ def build_check(wb: Workbook, group: str) -> dict:
     warnings = [
         ("Run-rate cost above your envelope",
          "=IF(CostMine>CostLimit,1,0)",
-         "Move start quarters later, mark more seats Exit, or say why the "
+         "Move start quarters later, give up more seats, or say why the "
          "envelope has to move."),
         ("Net establishment change above your envelope",
          "=IF(HeadMine>HeadLimit,1,0)",
-         "Convert, insource or exit somewhere else to pay for it."),
+         "Convert, insource or reduce somewhere else to pay for it."),
         ("Mandated-seat share below your target",
          "=IF(MandateMine<MandateLimit,1,0)",
          f"Review which seats have to be Saudi on {SH_CAP}, or explain the gap "
@@ -984,10 +1332,12 @@ def build_template(group: str, path, bank: R.Bank | None = None) -> dict:
     build_readme(wb, group)
     build_tree(wb, bank, group)
     cap = build_capacity(wb, bank, group)
+    pipe = build_pipeline(wb, bank, group)
     ask = build_asks(wb, bank, group)
     pos = build_position(wb, bank, group)
     ret = build_return_block(wb, group, pos)
     chk = build_check(wb, group)
+    build_glossary(wb, group)
     build_ref(wb, bank, group)
 
     for ws in wb.worksheets:
@@ -996,8 +1346,9 @@ def build_template(group: str, path, bank: R.Bank | None = None) -> dict:
     wb.properties.title = f"{R.PLAN_YEAR} Capacity Exercise - {group}"
     wb.properties.creator = "Capacity exercise toolkit"
     wb.save(path)
-    return dict(path=str(path), group=group, cap=cap, ask=ask, pos=pos,
-                ret=ret, chk=chk, cap_cols=C, ask_cols=A)
+    return dict(path=str(path), group=group, cap=cap, pipe=pipe, ask=ask,
+                pos=pos, ret=ret, chk=chk,
+                cap_cols=C, ask_cols=A, pipe_cols=P)
 
 
 if __name__ == "__main__":

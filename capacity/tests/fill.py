@@ -75,6 +75,7 @@ def read_example(path: Path, layout: dict) -> tuple[list[dict], list[dict]]:
             "new": ws.cell(row=r, column=5).value,
             "mandated": ws.cell(row=r, column=6).value,
             "cost": ws.cell(row=r, column=7).value,
+            "cash": ws.cell(row=r, column=8).value,
         })
     return asks, returns
 
@@ -125,19 +126,23 @@ def generated(bank: R.Bank, group: str, seed: int) -> tuple[list[dict], list[dic
     returns = []
     for i, (label, div) in enumerate(divisions):
         mine = [s for s in seats if s["division"] == div]
-        exits = min(len(mine), 1 + (i + seed) % 3)
+        held = sum(s["approved"] for s in mine)
+        exits = min(held, 1 + (i + seed) % 3)
         asked = sum(M.ask_total(a) for a in asks if a["division"] == div)
         mandated = 0.0
         cost = 0.0
         for j, seat in enumerate(mine):
             level = E.level_for(seat)
             is_mandated = "No" if j % 3 == 0 else "Yes"
-            mandated += 1 if is_mandated == "Yes" else 0
-            cost += M.rate_mandated(level, is_mandated)
+            mandated += seat["approved"] if is_mandated == "Yes" else 0
+            cost += M.rate_mandated(level, is_mandated) * seat["approved"]
+        # Some of what is given up is a person leaving mid-year rather than a
+        # vacancy, and only those release cash in the plan year.
+        cash = exits * 50.0
         returns.append({
-            "division": label, "current": float(len(mine)), "exits": float(exits),
-            "asks": asked, "new": len(mine) - exits + asked,
-            "mandated": mandated, "cost": cost,
+            "division": label, "current": held, "exits": float(exits),
+            "asks": asked, "new": held - exits + asked,
+            "mandated": mandated, "cost": cost, "cash": cash,
         })
     return asks, returns
 
@@ -225,6 +230,7 @@ def fill(path: Path, example_path: Path, bank: R.Bank | None = None) -> dict:
                 ("Exits", ret["exits"]), ("New Asks", ret["asks"]),
                 ("New Capacity", ret["new"]), ("Mandated seats", ret["mandated"]),
                 ("Run-rate cost", ret["cost"]),
+                (f"{R.PLAN_YEAR} cash released", ret["cash"]),
             ]:
                 ret_ws[f"{C.RET[col]}{r}"] = value
             all_returns[r] = dict(ret, group=group)

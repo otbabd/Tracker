@@ -61,10 +61,17 @@ the fastest briefing document you have.
 
 The template answers most questions itself. The three that still come:
 
-- *"How do I give up a seat?"* Set its Capacity Direction to **Exit** on
-  `2. Current capacity`. That is the only place a seat leaves the establishment,
-  and a vacancy you no longer need is exactly what it is for. **Reduce** keeps
-  the seat and puts it on the mid-year watch list; it moves no numbers.
+- *"How do I give up a seat?"* Set the job's Capacity Direction to **Reduce**
+  on `2. Current capacity` and say **how many** of its seats are going. A row is
+  a job, so a job with four seats can give up two. Reduce is the only place a
+  seat leaves the establishment, and a vacancy you no longer need is exactly
+  what it is for.
+- *"What is the pipeline-out sheet for?"* Everyone already known to be leaving,
+  and what happens to each seat: refill it, hold it empty for a few quarters, or
+  give it up. Only the last one changes the establishment, and it has to be
+  counted in the Reduce column as well — the check sheet enforces that. This is
+  also where the saving from people leaving gets counted, which is what makes
+  the plan-year cash number net rather than gross.
 - *"Do I type the total or the quarters?"* The quarters. New Asks adds itself up,
   so the two can never disagree.
 - *"What is Nationality Mandate?"* A property of the seat, not of the person: does
@@ -74,20 +81,20 @@ The template answers most questions itself. The three that still come:
   employer GOSI and target bonus, in SAR thousands — not the salary. It is the
   same rate you will price them at, which is the point.
 
-A group is finished when `5. Check & submit` says **Ready to submit: Yes**. The file will not
-let them set the state to Submitted before that.
+A group is finished when `6. Check & submit` says **Ready to submit: Yes**. The
+file will not let them set the state to Submitted before that.
 
 ## Step 3 — receiving and pasting
 
 For each returned file:
 
-1. Open the group's sheet **3. Capacity asks**, select **A6:R205**, copy.
+1. Open the group's sheet **4. Capacity asks**, select **A6:R205**, copy.
 2. In the consolidator, sheet **2. Group asks**, find that group's band — the row
    range is printed on the Envelopes sheet, column **Paste asks into** — and
    **paste values** into column B of the first row of the band.
-3. Do the same with the small block at the foot of the group's **4. My position**
+3. Do the same with the small block at the foot of the group's **5. My position**
    sheet, into **3. Group returns**. That block is where the bridge gets its
-   exits and where the mandated-seat share comes from.
+   exits, the mandated-seat share, and the cash their leavers release.
 4. Read the **Problem** column on the asks sheet. Anything with text in it is a
    line you cannot price, and the reason is written out. Go back to the group
    before you go further.
@@ -187,5 +194,9 @@ The toolkit is built to be re-run, not rebuilt:
 - **The mandated-seat share is tested on today's seats only.** A new position
   carries no mandate answer, so the share drifts down as the bank grows. That is
   the point of watching it, not a fault in the arithmetic.
+- **Only named leavers release cash.** A vacancy given up releases budget and a
+  seat, but nobody was being paid in it, so the plan-year cash does not move.
+  That is why the establishment comes from the Reduce column and the cash comes
+  from the pipeline-out sheet.
 - **The scenario cut is made against run-rate cost, not cash.** Pushing starts
   back a quarter buys cash in the plan year and not a single extra position.
